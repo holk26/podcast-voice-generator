@@ -1,8 +1,6 @@
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QTabWidget, QLabel, QStatusBar, QMessageBox
+    QMainWindow, QWidget, QVBoxLayout, QTabWidget, QStatusBar, QMessageBox
 )
-from PyQt6.QtCore import Qt
 
 from gui.project_panel import ProjectPanel
 from gui.script_editor import ScriptEditor
@@ -16,7 +14,6 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Podcast Voice Generator")
         self.setMinimumSize(1200, 800)
-        
         self._setup_ui()
     
     def _setup_ui(self):
@@ -39,9 +36,26 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.generation_panel, "Generar")
         self.tabs.addTab(self.audio_player, "Reproductor")
         
+        self.project_panel.project_changed.connect(self._on_project_changed)
+        self.script_editor.project_updated.connect(self._on_project_updated)
+        self.voice_manager.voices_changed.connect(self._on_voices_changed)
+        
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
         self.status_bar.showMessage("Listo")
+    
+    def _on_project_changed(self, project):
+        self.script_editor.set_project(project)
+        self.voice_manager.set_project(project)
+        self.generation_panel.set_project(project)
+        self.status_bar.showMessage(f"Proyecto: {project.name}")
+    
+    def _on_project_updated(self, project):
+        self.generation_panel.set_project(project)
+    
+    def _on_voices_changed(self):
+        if self.project_panel.project:
+            self.script_editor.set_project(self.project_panel.project)
     
     def show_error(self, message: str):
         QMessageBox.critical(self, "Error", message)
