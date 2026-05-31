@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+output/
+projects/
+voices/clones/
+*.wav
+*.mp3
+*.flac
