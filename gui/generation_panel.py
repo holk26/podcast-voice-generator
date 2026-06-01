@@ -6,8 +6,6 @@ from PyQt6.QtCore import pyqtSignal, QThread
 
 from core.project import Project
 from core.batch_generator import BatchGenerator
-from core.xtts_engine import XTTSEngine
-from core.bark_engine import BarkEngine
 from utils.config_manager import ConfigManager
 
 
@@ -82,10 +80,18 @@ class GenerationPanel(QWidget):
     
     def _setup_engines(self):
         cm = ConfigManager()
-        xtts = XTTSEngine(device=cm.get("gpu.device"))
-        bark = BarkEngine(device=cm.get("gpu.device"))
-        self.generator.register_engine("xtts", xtts)
-        self.generator.register_engine("bark", bark)
+        try:
+            from core.xtts_engine import XTTSEngine
+            xtts = XTTSEngine(device=cm.get("gpu.device"))
+            self.generator.register_engine("xtts", xtts)
+        except Exception as e:
+            print(f"XTTS no disponible: {e}")
+        try:
+            from core.bark_engine import BarkEngine
+            bark = BarkEngine(device=cm.get("gpu.device"))
+            self.generator.register_engine("bark", bark)
+        except Exception as e:
+            print(f"Bark no disponible: {e}")
     
     def set_project(self, project: Project):
         self.project = project

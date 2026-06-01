@@ -16,7 +16,17 @@ class BarkEngine(TTSBase):
     ]
 
     def __init__(self, device: str = "auto", model_size: str = "small"):
-        self.device = device if device != "auto" else select_best_device()
+        if device == "auto":
+            from utils.gpu_utils import is_gpu_architecture_compatible
+            compatible, reason = is_gpu_architecture_compatible()
+            if not compatible:
+                print(f"[Bark] {reason}")
+                print("[Bark] Using CPU fallback for stability")
+                self.device = "cpu"
+            else:
+                self.device = select_best_device()
+        else:
+            self.device = device
         self.model_size = model_size
         self.name = "bark"
         self._model = None
