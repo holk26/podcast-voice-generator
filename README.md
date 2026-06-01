@@ -50,7 +50,18 @@ pip install -r requirements.txt
 > pip install torch==2.12.0 torchaudio --index-url https://download.pytorch.org/whl/cu118
 > ```
 
-### Paso 4: Ejecutar la aplicación
+### Paso 4: Configurar HuggingFace (para Bark)
+
+Si planeas usar el motor Bark, configura tu token de HuggingFace para evitar rate limiting:
+
+```bash
+# Obtén tu token en https://huggingface.co/settings/tokens
+huggingface-cli login
+# o
+export HF_TOKEN="tu_token_aqui"
+```
+
+### Paso 5: Ejecutar la aplicación
 
 ```bash
 python main.py
@@ -152,8 +163,9 @@ pytest tests/ -v
 
 ### Bark
 - **Tamaño**: ~1.5GB (small) / ~3.9GB (large)
-- **Descarga automática** vía HuggingFace
+- **Descarga automática** vía HuggingFace (requiere `HF_TOKEN` para evitar rate limiting)
 - **Modelos**: `suno/bark-small`, `suno/bark-large`
+- **Nota**: Sin token, HuggingFace puede aplicar rate limiting tras múltiples descargas
 
 ## 🤝 Contribuir
 
