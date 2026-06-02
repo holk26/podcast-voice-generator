@@ -59,7 +59,7 @@ def can_fit_model(device_id: int, engine: str, model_size: str = "default", safe
 
 def is_gpu_architecture_compatible() -> tuple[bool, str]:
     """Check if GPU architecture is compatible with installed PyTorch.
-    RTX 50-series (sm_120/Blackwell) requires PyTorch 2.7+ with CUDA 12.8+.
+    RTX 50-series (sm_120/Blackwell) requires PyTorch 2.11+ with CUDA 13.0+.
     Returns (compatible, reason)."""
     try:
         import torch
@@ -67,10 +67,12 @@ def is_gpu_architecture_compatible() -> tuple[bool, str]:
             return True, "No GPU available"
         cap = torch.cuda.get_device_capability()
         if cap[0] >= 12:
-            # sm_120+ (Blackwell) not supported by PyTorch < 2.7
+            # sm_120+ (Blackwell) not supported by PyTorch < 2.11
             pt_ver = torch.__version__
-            if "2.6." in pt_ver or "2.5." in pt_ver or "2.4." in pt_ver:
-                return False, f"RTX 50-series (sm_{cap[0]}{cap[1]}) requires PyTorch 2.7+/CUDA 12.8+. Current: {pt_ver}"
+            major = int(pt_ver.split('.')[0])
+            minor = int(pt_ver.split('.')[1])
+            if major < 2 or (major == 2 and minor < 11):
+                return False, f"RTX 50-series (sm_{cap[0]}{cap[1]}) requires PyTorch 2.11+/CUDA 13.0+. Current: {pt_ver}"
         return True, "Compatible"
     except ImportError:
         return True, "PyTorch not installed"

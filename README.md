@@ -45,9 +45,9 @@ source venv311/bin/activate  # Linux/Mac
 pip install -r requirements.txt
 ```
 
-> **Nota para RTX 50-series (5060/5070/5080/5090)**: PyTorch 2.6 no es compatible con la arquitectura sm_120 (Blackwell). La aplicación detectará automáticamente esto y usará CPU fallback para XTTS/Bark. Para usar GPU, instala PyTorch 2.7+ o 2.12+ con CUDA 12.8+:
+> **Nota para RTX 50-series (5060/5070/5080/5090)**: PyTorch < 2.11 no es compatible con la arquitectura sm_120 (Blackwell). La aplicación detectará automáticamente esto y usará CPU fallback para XTTS/Bark. **Para usar GPU, instala PyTorch 2.11+ con CUDA 13.0:**
 > ```bash
-> pip install torch==2.12.0 torchaudio --index-url https://download.pytorch.org/whl/cu118
+> pip install torch==2.11.0 torchaudio==2.11.0
 > ```
 
 ### Paso 4: Configurar HuggingFace (para Bark)
@@ -147,11 +147,11 @@ pytest tests/ -v
 | GPU | Arquitectura | CUDA | PyTorch Recomendado | Estado |
 |-----|-------------|------|-------------------|--------|
 | RTX 3060-4090 | Ampere/Ada | sm_86/sm_89 | 2.6.0+cu124 | ✅ GPU |
-| RTX 5060-5090 | Blackwell | sm_120 | 2.12.0+cu130 | ⚠️ CPU fallback* |
+| RTX 5060-5090 | Blackwell | sm_120 | 2.11.0+cu130 | ✅ GPU |
 | GTX 1060-1080 | Pascal | sm_61 | 2.6.0+cu124 | ✅ GPU |
 | Sin GPU | - | - | Cualquiera | ✅ CPU |
 
-\* La aplicación detecta automáticamente GPUs no compatibles y usa CPU fallback para estabilidad.
+\* La aplicación detecta automáticamente GPUs no compatibles y usa CPU fallback para estabilidad. Instala PyTorch 2.11+ para habilitar GPU en RTX 50-series.
 
 ## 📝 Notas sobre Modelos
 
