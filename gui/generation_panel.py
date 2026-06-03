@@ -92,6 +92,12 @@ class GenerationPanel(QWidget):
             self.generator.register_engine("bark", bark)
         except Exception as e:
             print(f"Bark no disponible: {e}")
+        try:
+            from core.edge_tts_engine import EdgeTTSEngine
+            edge = EdgeTTSEngine()
+            self.generator.register_engine("edge_tts", edge)
+        except Exception as e:
+            print(f"Edge-TTS no disponible: {e}")
     
     def set_project(self, project: Project):
         self.project = project

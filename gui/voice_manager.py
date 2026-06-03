@@ -47,8 +47,20 @@ class VoiceManager(QWidget):
         self.engine_combo = QComboBox()
         self.engine_combo.addItem("XTTS v2", "xtts")
         self.engine_combo.addItem("Bark", "bark")
+        self.engine_combo.addItem("Edge-TTS (Natural)", "edge_tts")
+        self.engine_combo.currentIndexChanged.connect(self._on_engine_changed)
         engine_layout.addWidget(self.engine_combo)
         form.addLayout(engine_layout)
+        
+        # Selector de voz Edge-TTS (solo visible cuando motor = edge_tts)
+        self.edge_voice_layout = QHBoxLayout()
+        self.edge_voice_layout.addWidget(QLabel("Voz Edge-TTS:"))
+        self.edge_voice_combo = QComboBox()
+        from core.edge_tts_engine import _EDGE_VOICES
+        for vid, info in _EDGE_VOICES.items():
+            self.edge_voice_combo.addItem(f"{info['name']}", vid)
+        self.edge_voice_layout.addWidget(self.edge_voice_combo)
+        form.addLayout(self.edge_voice_layout)
         
         lang_layout = QHBoxLayout()
         lang_layout.addWidget(QLabel("Idioma:"))
@@ -62,6 +74,9 @@ class VoiceManager(QWidget):
         self.ref_btn.clicked.connect(self._select_reference)
         form.addWidget(self.ref_btn)
         self.ref_path = ""
+        
+        # Ocultar selector de voz Edge-TTS inicialmente
+        self._set_edge_voice_visible(False)
         
         btn_layout = QHBoxLayout()
         self.add_btn = QPushButton("Agregar Voz")
@@ -88,6 +103,23 @@ class VoiceManager(QWidget):
                 item.setData(0, voice.id)
                 self.voice_list.addItem(item)
     
+    def _on_engine_changed(self, index):
+        engine = self.engine_combo.currentData()
+        is_edge = engine == "edge_tts"
+        self._set_edge_voice_visible(is_edge)
+        # Edge-TTS no soporta clonación
+        self.ref_btn.setEnabled(not is_edge)
+        if is_edge:
+            self.ref_btn.setText("Clonación no disponible en Edge-TTS")
+        else:
+            self.ref_btn.setText("Seleccionar audio de referencia (para clonación)")
+    
+    def _set_edge_voice_visible(self, visible: bool):
+        for i in range(self.edge_voice_layout.count()):
+            widget = self.edge_voice_layout.itemAt(i).widget()
+            if widget:
+                widget.setVisible(visible)
+    
     def _select_reference(self):
         path, _ = QFileDialog.getOpenFileName(self, "Audio de referencia", "", "Audio (*.wav *.mp3 *.flac)")
         if path:
@@ -107,13 +139,17 @@ class VoiceManager(QWidget):
         lang = self.lang_combo.currentData()
         
         vid = f"voice_{len(self.project.voices) + 1}"
+        speaker_id = None
+        if engine == "edge_tts":
+            speaker_id = self.edge_voice_combo.currentData()
         voice = Voice(
             id=vid,
             name=name,
             type=voice_type,
             engine=engine,
             language=lang,
-            reference_path=self.ref_path if voice_type == "cloned" else None
+            reference_path=self.ref_path if voice_type == "cloned" else None,
+            speaker_id=speaker_id
         )
         self.project.add_voice(voice)
         self._refresh_list()
