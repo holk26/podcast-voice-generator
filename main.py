@@ -1,5 +1,13 @@
 import sys
 import os
+
+# Fix CUDA 13.0 library path for PyTorch 2.11+ (RTX 50-series support)
+_venv_lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "venv311", "lib", "python3.11", "site-packages", "nvidia", "cu13", "lib")
+if os.path.isdir(_venv_lib):
+    _ld = os.environ.get("LD_LIBRARY_PATH", "")
+    if _venv_lib not in _ld:
+        os.environ["LD_LIBRARY_PATH"] = f"{_venv_lib}{':' + _ld if _ld else ''}"
+
 from PyQt6.QtWidgets import QApplication
 
 from gui.main_window import MainWindow
