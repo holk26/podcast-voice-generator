@@ -1,0 +1,84 @@
+{
+  "package_id": "news_10",
+  "created_at": "2026-06-04T23:53:25.554438",
+  "modified_at": "2026-06-04T23:53:25.554456",
+  "lines": [
+    {
+      "character": "PRESENTADOR",
+      "text": "¡Bienvenidos a TechPulse! Hoy tenemos tres noticias tecnológicas que no te puedes perder.",
+      "voice_id": "homer",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADORA",
+      "text": "Empecemos con NVIDIA. La compañía acaba de anunciar una nueva arquitectura de GPU que promete el doble de rendimiento por vatio.",
+      "voice_id": "dalia",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADOR",
+      "text": "Eso es una locura. Significa laptops de gaming mucho más potentes y clusters de entrenamiento de IA mucho más eficientes.",
+      "voice_id": "homer",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADORA",
+      "text": "Apple también está en la conversación. La próxima versión de macOS incluirá inteligencia artificial local: asistente de escritura, generación de imágenes y una Siri mucho más inteligente.",
+      "voice_id": "dalia",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADOR",
+      "text": "Y cerramos con OpenAI. Ya está disponible el preview de GPT-5 para desarrolladores, y los primeros benchmarks muestran mejoras claras en razonamiento y programación.",
+      "voice_id": "homer",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADORA",
+      "text": "Mucho movimiento en el mundo tech. Hasta la próxima entrega.",
+      "voice_id": "dalia",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    },
+    {
+      "character": "PRESENTADOR",
+      "text": "Hasta la próxima, amigos.",
+      "voice_id": "homer",
+      "emotion": null,
+      "sfx_cue": null,
+      "sfx_volume": 0.2,
+      "pause_before_ms": 300,
+      "pause_after_ms": 500,
+      "scene_mark": null
+    }
+  ]
+}

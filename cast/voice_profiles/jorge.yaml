@@ -1,0 +1,10 @@
+voice_id: jorge
+name: Jorge
+engine: edge_tts
+language: es
+speed: 1.0
+speaker_id: es-MX-JorgeNeural
+reference_path: null
+description: Voz masculina mexicana alternativa. Útil para personajes secundarios y variación de diálogos.
+gender: Male
+locale: es-MX

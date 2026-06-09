@@ -1,0 +1,10 @@
+voice_id: narrador
+name: Narrador
+engine: edge_tts
+language: es
+speed: 0.92
+speaker_id: es-ES-AlvaroNeural
+reference_path: null
+description: Voz masculina española grave y neutral. Perfecta para narración documental y audiolibros.
+gender: Male
+locale: es-ES

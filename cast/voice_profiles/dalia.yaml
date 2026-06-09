@@ -1,0 +1,10 @@
+voice_id: dalia
+name: Dalia
+engine: edge_tts
+language: es
+speed: 0.95
+speaker_id: es-MX-DaliaNeural
+reference_path: null
+description: Voz femenina mexicana muy natural. Ideal para co-presentadora, meditaciones y narración cálida.
+gender: Female
+locale: es-MX

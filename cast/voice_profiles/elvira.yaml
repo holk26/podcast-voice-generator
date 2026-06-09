@@ -1,0 +1,10 @@
+voice_id: elvira
+name: Elvira
+engine: edge_tts
+language: es
+speed: 1.0
+speaker_id: es-ES-ElviraNeural
+reference_path: null
+description: Voz femenina española alternativa con acento neutro. Para personajes secundarios y diálogos.
+gender: Female
+locale: es-ES
