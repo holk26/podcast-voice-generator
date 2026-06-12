@@ -94,7 +94,7 @@ def main():
         print("[STARTER] Worker did not start")
         shutdown()
 
-    start_process("web", ["npm", "run", "dev", "--", "--port", WEB_PORT], cwd=BASE_DIR / "web")
+    start_process("web", ["npm", "run", "dev", "--", "--port", WEB_PORT, "--host", "127.0.0.1"], cwd=BASE_DIR / "web")
     if not wait_for_service(f"http://127.0.0.1:{WEB_PORT}"):
         print("[STARTER] Web did not start")
         shutdown()
