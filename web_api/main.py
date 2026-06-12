@@ -5,7 +5,7 @@ from fastapi.staticfiles import StaticFiles
 from web_api.config import OUTPUT_DIR, API_PORT
 from web_api.database import init_db
 from web_api import models  # noqa: F401 - ensures tables are registered
-from web_api.routes import voices
+from web_api.routes import voices, tts
 
 
 @asynccontextmanager
@@ -27,6 +27,7 @@ app.add_middleware(
 app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 app.include_router(voices.router, prefix="/api/voices", tags=["voices"])
+app.include_router(tts.router, prefix="/api/tts", tags=["tts"])
 
 
 @app.get("/api/health")
