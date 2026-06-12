@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Voice } from '../types'
 import { api } from '../api/client'
+import { formatError } from '../utils/error'
 
 interface VoiceState {
   voices: Voice[]
@@ -19,7 +20,7 @@ export const useVoiceStore = create<VoiceState>((set) => ({
       const voices = await api.getVoices()
       set({ voices, loading: false })
     } catch (error) {
-      set({ error: String(error), loading: false })
+      set({ error: formatError(error), loading: false })
     }
   },
 }))

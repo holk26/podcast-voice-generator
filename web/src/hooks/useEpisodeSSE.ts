@@ -5,12 +5,12 @@ const TRACKED_STATUSES = new Set(['pending', 'running'])
 
 export function useEpisodeSSE(
   episodes: Episode[],
-  updateEpisode: (id: number, data: Partial<Episode>) => void
+  applyEpisodeUpdate: (id: number, data: Partial<Episode>) => void
 ) {
   const sourcesRef = useRef<Map<number, EventSource>>(new Map())
   const errorCountsRef = useRef<Map<number, number>>(new Map())
-  const updateRef = useRef(updateEpisode)
-  updateRef.current = updateEpisode
+  const updateRef = useRef(applyEpisodeUpdate)
+  updateRef.current = applyEpisodeUpdate
 
   useEffect(() => {
     const active = sourcesRef.current

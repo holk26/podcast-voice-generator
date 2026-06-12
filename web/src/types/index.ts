@@ -6,13 +6,15 @@ export interface Voice {
   gender: string
 }
 
+export type EpisodeStatus = 'pending' | 'running' | 'completed' | 'failed'
+
 export interface Episode {
   id: number
   title: string
   type: string
   source_text?: string
   voice_id: string
-  status: string
+  status: EpisodeStatus
   audio_url?: string
   error_message?: string
   created_at: string
