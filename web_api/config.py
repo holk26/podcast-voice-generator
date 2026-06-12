@@ -16,3 +16,8 @@ try:
     API_PORT = int(os.getenv("API_PORT", "8000"))
 except (ValueError, TypeError):
     API_PORT = 8000
+
+try:
+    WORKER_PORT = int(os.getenv("WORKER_PORT", "8001"))
+except (ValueError, TypeError):
+    WORKER_PORT = 8001

@@ -1,0 +1,40 @@
+from unittest.mock import patch, AsyncMock
+from pathlib import Path
+from web_api.database import SessionLocal
+from web_api.models import Episode
+from worker.runner import process_pending_jobs
+
+
+def test_worker_processes_pending_episode():
+    db = SessionLocal()
+    episode = Episode(
+        title="Worker test",
+        type="podcast",
+        source_text="Hola mundo",
+        voice_id="jorge",
+        status="pending"
+    )
+    db.add(episode)
+    db.commit()
+    db.refresh(episode)
+    episode_id = episode.id
+    db.close()
+
+    async def fake_save(path: str) -> None:
+        Path(path).touch()
+
+    with patch("worker.handlers.edge_tts.Communicate") as mock_communicate:
+        mock_instance = mock_communicate.return_value
+        mock_instance.save = AsyncMock(side_effect=fake_save)
+        process_pending_jobs()
+
+        mock_communicate.assert_called_once()
+        _, kwargs = mock_communicate.call_args
+        assert kwargs["voice"] == "es-ES-AlvaroNeural"
+
+    db = SessionLocal()
+    updated = db.query(Episode).filter(Episode.id == episode_id).first()
+    assert updated.status == "completed"
+    assert updated.audio_url == f"/outputs/{episode_id}/final.mp3"
+    assert Path(f"output/{episode_id}/final.mp3").exists()
+    db.close()
