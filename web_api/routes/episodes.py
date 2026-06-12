@@ -1,0 +1,52 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from typing import List
+from web_api.database import get_db
+from web_api.models import Episode
+from web_api.schemas import EpisodeCreate, EpisodeResponse
+
+router = APIRouter()
+
+
+@router.get("", response_model=List[EpisodeResponse])
+def list_episodes(db: Session = Depends(get_db)):
+    return db.query(Episode).order_by(Episode.created_at.desc()).all()
+
+
+@router.get("/{episode_id}", response_model=EpisodeResponse)
+def get_episode(episode_id: int, db: Session = Depends(get_db)):
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    return episode
+
+
+@router.post("", response_model=EpisodeResponse, status_code=201)
+def create_episode(request: EpisodeCreate, db: Session = Depends(get_db)):
+    episode = Episode(**request.model_dump())
+    db.add(episode)
+    db.commit()
+    db.refresh(episode)
+    return episode
+
+
+@router.put("/{episode_id}", response_model=EpisodeResponse)
+def update_episode(episode_id: int, request: EpisodeCreate, db: Session = Depends(get_db)):
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    for key, value in request.model_dump().items():
+        setattr(episode, key, value)
+    db.commit()
+    db.refresh(episode)
+    return episode
+
+
+@router.delete("/{episode_id}", status_code=204)
+def delete_episode(episode_id: int, db: Session = Depends(get_db)):
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    db.delete(episode)
+    db.commit()
+    return None
