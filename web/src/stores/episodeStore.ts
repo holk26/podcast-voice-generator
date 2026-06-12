@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import { Episode, CreateEpisodeRequest } from '../types'
 import { api } from '../api/client'
 
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return String(error)
+}
+
 interface EpisodeState {
   episodes: Episode[]
   loading: boolean
@@ -9,7 +15,7 @@ interface EpisodeState {
   fetchEpisodes: () => Promise<void>
   createEpisode: (data: CreateEpisodeRequest) => Promise<Episode>
   deleteEpisode: (id: number) => Promise<void>
-  updateEpisode: (episode: Episode) => void
+  updateEpisode: (id: number, data: Partial<Episode>) => void
 }
 
 export const useEpisodeStore = create<EpisodeState>((set) => ({
@@ -22,7 +28,7 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
       const episodes = await api.getEpisodes()
       set({ episodes, loading: false })
     } catch (error) {
-      set({ error: String(error), loading: false })
+      set({ error: formatError(error), loading: false })
     }
   },
   createEpisode: async (data) => {
@@ -32,7 +38,7 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
       set((state) => ({ episodes: [episode, ...state.episodes] }))
       return episode
     } catch (error) {
-      set({ error: String(error) })
+      set({ error: formatError(error) })
       throw error
     }
   },
@@ -44,14 +50,14 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
         episodes: state.episodes.filter((e) => e.id !== id),
       }))
     } catch (error) {
-      set({ error: String(error) })
+      set({ error: formatError(error) })
       throw error
     }
   },
-  updateEpisode: (episode) => {
+  updateEpisode: (id, data) => {
     set((state) => ({
       episodes: state.episodes.map((e) =>
-        e.id === episode.id ? episode : e
+        e.id === id ? { ...e, ...data } : e
       ),
     }))
   },

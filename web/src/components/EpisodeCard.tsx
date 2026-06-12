@@ -7,14 +7,14 @@ interface Props {
   highlighted?: boolean
 }
 
-export default function EpisodeCard({ episode, onDelete, highlighted }: Props) {
-  const statusColors: Record<string, string> = {
-    pending: 'bg-yellow-100 text-yellow-800',
-    running: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    failed: 'bg-red-100 text-red-800',
-  }
+const statusColors: Record<Episode['status'], string> = {
+  pending: 'bg-yellow-100 text-yellow-800',
+  running: 'bg-blue-100 text-blue-800',
+  completed: 'bg-green-100 text-green-800',
+  failed: 'bg-red-100 text-red-800',
+}
 
+export default function EpisodeCard({ episode, onDelete, highlighted }: Props) {
   return (
     <div className={`bg-white p-4 rounded shadow ${highlighted ? 'ring-2 ring-blue-500' : ''}`}>
       <div className="flex justify-between items-start">
@@ -36,7 +36,9 @@ export default function EpisodeCard({ episode, onDelete, highlighted }: Props) {
       )}
 
       <button
+        type="button"
         onClick={() => onDelete(episode.id)}
+        aria-label={`Eliminar episodio ${episode.title}`}
         className="mt-3 text-red-600 text-sm hover:underline"
       >
         Eliminar
