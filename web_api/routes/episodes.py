@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from typing import List
-from web_api.database import get_db
+import json
+import time
+from web_api.database import get_db, SessionLocal
 from web_api.models import Episode
 from web_api.schemas import EpisodeCreate, EpisodeResponse
 
@@ -19,6 +22,41 @@ def get_episode(episode_id: int, db: Session = Depends(get_db)):
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
     return episode
+
+
+@router.get("/{episode_id}/events")
+def episode_events(episode_id: int):
+    db = SessionLocal()
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        db.close()
+        raise HTTPException(status_code=404, detail="Episode not found")
+
+    def event_generator():
+        try:
+            while True:
+                db.refresh(episode)
+                payload = {
+                    "id": episode.id,
+                    "status": episode.status,
+                    "audio_url": episode.audio_url,
+                    "error_message": episode.error_message,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                if episode.status in ("completed", "failed"):
+                    break
+                time.sleep(2)
+        finally:
+            db.close()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("", response_model=EpisodeResponse, status_code=201)
