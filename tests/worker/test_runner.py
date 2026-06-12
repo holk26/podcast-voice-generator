@@ -7,6 +7,9 @@ from worker.runner import process_pending_jobs
 
 def test_worker_processes_pending_episode():
     db = SessionLocal()
+    db.query(Episode).filter(Episode.status == "pending").delete()
+    db.commit()
+
     episode = Episode(
         title="Worker test",
         type="podcast",

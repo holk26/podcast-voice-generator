@@ -20,6 +20,8 @@ Para usar puertos diferentes:
 API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 ```
 
+`starter.py` y `web/vite.config.ts` leen las mismas variables, así que el proxy del frontend apunta automáticamente a la API correcta.
+
 ## Requisitos
 
 - Node.js 18+
@@ -29,11 +31,17 @@ API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 
 ## Uso básico
 
-1. Abre http://localhost:5173 en el navegador.
+1. Abre http://localhost:5173 en el navegador (`starter.py` lo abre automáticamente).
 2. Desde el **Dashboard** revisa el estado de la cola.
 3. Ve a **Voces** para escuchar una vista previa de las voces disponibles.
 4. Ve a **Crear** para generar un nuevo episodio o audiolibro.
 5. Ve a **Cola** para ver el progreso en tiempo real (SSE).
+
+## Troubleshooting
+
+- **Puertos ocupados**: cambia `API_PORT`, `WORKER_PORT` y/o `WEB_PORT`.
+- **`starter.py` dice que un servicio no inició**: revisa el log etiquetado (`[api]`, `[worker]` o `[web]`) para ver el error real.
+- **El frontend no puede hablar con la API**: asegúrate de que `API_PORT` sea el mismo para `starter.py` y para la shell donde corres `npm run dev`.
 
 ## Tests frontend
 

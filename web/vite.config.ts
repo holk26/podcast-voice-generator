@@ -3,6 +3,9 @@ import react from '@vitejs/plugin-react'
 import { TanStackRouterVite } from '@tanstack/router-vite-plugin'
 import path from 'path'
 
+const API_PORT = process.env.API_PORT || '8000'
+const WEB_PORT = process.env.WEB_PORT || '5173'
+
 export default defineConfig({
   plugins: [react(), TanStackRouterVite()],
   resolve: {
@@ -16,14 +19,14 @@ export default defineConfig({
     setupFiles: ['./src/test/setup.ts'],
   },
   server: {
-    port: 5173,
+    port: parseInt(WEB_PORT, 10),
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: `http://127.0.0.1:${API_PORT}`,
         changeOrigin: true,
       },
       '/outputs': {
-        target: 'http://localhost:8000',
+        target: `http://127.0.0.1:${API_PORT}`,
         changeOrigin: true,
       },
     },

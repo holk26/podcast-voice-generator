@@ -1,15 +1,19 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from web_api.config import OUTPUT_DIR, API_PORT
+from web_api.config import OUTPUT_DIR, API_PORT, init_dirs
 from web_api.database import init_db
 from web_api import models  # noqa: F401 - ensures tables are registered
 from web_api.routes import voices, tts, episodes
 
+WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_dirs()
     init_db()
     yield
 
@@ -18,7 +22,10 @@ app = FastAPI(title="Podcast Voice Generator API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=[
+        f"http://localhost:{WEB_PORT}",
+        f"http://127.0.0.1:{WEB_PORT}",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

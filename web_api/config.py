@@ -6,9 +6,11 @@ DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
 OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", BASE_DIR / "output"))
 PREVIEW_DIR = OUTPUT_DIR / "previews"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+def init_dirs() -> None:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
+
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR / 'app.db'}")
 

@@ -5,14 +5,28 @@ import signal
 import subprocess
 import threading
 import webbrowser
+import urllib.request
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-API_PORT = os.getenv("API_PORT", "8000")
-WORKER_PORT = os.getenv("WORKER_PORT", "8001")
-WEB_PORT = os.getenv("WEB_PORT", "5173")
+
+
+def _get_port(name: str, default: str) -> int:
+    raw = os.getenv(name, default)
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        print(f"[STARTER] Invalid {name}={raw!r}, using default {default}")
+        return int(default)
+
+
+API_PORT = _get_port("API_PORT", "8000")
+WORKER_PORT = _get_port("WORKER_PORT", "8001")
+WEB_PORT = _get_port("WEB_PORT", "5173")
 
 processes = []
+threads = []
+_shutdown_called = False
 
 
 def start_process(name, cmd, cwd=None):
@@ -25,22 +39,31 @@ def start_process(name, cmd, cwd=None):
         text=True,
     )
     processes.append((name, proc))
+    t = threading.Thread(target=_stream_output, args=(name, proc), daemon=True)
+    t.start()
+    threads.append(t)
     return proc
 
 
 def wait_for_service(url, timeout=30):
-    import urllib.request
     start = time.time()
     while time.time() - start < timeout:
         try:
-            urllib.request.urlopen(url, timeout=1)
-            return True
+            with urllib.request.urlopen(url, timeout=1) as response:
+                if response.status == 200:
+                    return True
         except Exception:
-            time.sleep(0.5)
+            pass
+        time.sleep(0.5)
     return False
 
 
-def shutdown(signum=None, frame=None):
+def shutdown(exit_code=0, signum=None, frame=None):
+    global _shutdown_called
+    if _shutdown_called:
+        return
+    _shutdown_called = True
+
     print("\n[STARTER] Shutting down...")
     for name, proc in processes:
         print(f"[STARTER] Stopping {name}...")
@@ -49,13 +72,13 @@ def shutdown(signum=None, frame=None):
     for name, proc in processes:
         if proc.poll() is None:
             proc.kill()
-    sys.exit(0)
+    sys.exit(exit_code)
 
 
 def _register_signals():
-    signal.signal(signal.SIGINT, shutdown)
+    signal.signal(signal.SIGINT, lambda s, f: shutdown(0, s, f))
     if sys.platform != "win32":
-        signal.signal(signal.SIGTERM, shutdown)
+        signal.signal(signal.SIGTERM, lambda s, f: shutdown(0, s, f))
 
 
 def _stream_output(name, proc):
@@ -87,26 +110,24 @@ def main():
     start_process("api", [str(venv_python), "-m", "web_api.main"])
     if not wait_for_service(f"http://127.0.0.1:{API_PORT}/api/health"):
         print("[STARTER] API did not start")
-        shutdown()
+        shutdown(exit_code=1)
 
     start_process("worker", [str(venv_python), "-m", "worker.main"])
     if not wait_for_service(f"http://127.0.0.1:{WORKER_PORT}/health"):
         print("[STARTER] Worker did not start")
-        shutdown()
+        shutdown(exit_code=1)
 
-    start_process("web", ["npm", "run", "dev", "--", "--port", WEB_PORT, "--host", "127.0.0.1"], cwd=BASE_DIR / "web")
+    start_process(
+        "web",
+        ["npm", "run", "dev", "--", "--port", str(WEB_PORT), "--host", "127.0.0.1"],
+        cwd=BASE_DIR / "web",
+    )
     if not wait_for_service(f"http://127.0.0.1:{WEB_PORT}"):
         print("[STARTER] Web did not start")
-        shutdown()
+        shutdown(exit_code=1)
 
     print("[STARTER] All services running. Opening browser...")
     webbrowser.open(f"http://127.0.0.1:{WEB_PORT}")
-
-    threads = []
-    for name, proc in processes:
-        t = threading.Thread(target=_stream_output, args=(name, proc), daemon=True)
-        t.start()
-        threads.append(t)
 
     for t in threads:
         t.join()
