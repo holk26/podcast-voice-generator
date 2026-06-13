@@ -15,6 +15,8 @@ export default function Layout({ children }: LayoutProps) {
           <Link to="/voices" className="block p-2 rounded hover:bg-gray-800" activeProps={{ className: 'bg-gray-800' }}>Voces</Link>
           <Link to="/create" className="block p-2 rounded hover:bg-gray-800" activeProps={{ className: 'bg-gray-800' }}>Crear</Link>
           <Link to="/queue" className="block p-2 rounded hover:bg-gray-800" activeProps={{ className: 'bg-gray-800' }}>Cola</Link>
+          <Link to="/channels" className="block p-2 rounded hover:bg-gray-800" activeProps={{ className: 'bg-gray-800' }}>Canales</Link>
+          <Link to="/studio" className="block p-2 rounded hover:bg-gray-800" activeProps={{ className: 'bg-gray-800' }}>Studio</Link>
         </nav>
       </aside>
       <main className="flex-1 p-6 overflow-auto">{children}</main>
