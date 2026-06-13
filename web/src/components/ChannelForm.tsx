@@ -1,0 +1,86 @@
+import { useState } from 'react'
+import { ChannelFormat, CreateChannelRequest } from '../types'
+
+interface Props {
+  onSubmit: (data: CreateChannelRequest) => void
+  onCancel: () => void
+}
+
+const FORMATS: { value: ChannelFormat; label: string }[] = [
+  { value: 'podcast', label: 'Podcast' },
+  { value: 'news', label: 'Noticias' },
+  { value: 'meditation', label: 'Meditación' },
+  { value: 'motivation', label: 'Motivación' },
+]
+
+export default function ChannelForm({ onSubmit, onCancel }: Props) {
+  const [name, setName] = useState('')
+  const [description, setDescription] = useState('')
+  const [niche, setNiche] = useState('')
+  const [format, setFormat] = useState<ChannelFormat>('podcast')
+  const [voiceId, setVoiceId] = useState('jorge')
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onSubmit({ name, description, niche, format, default_voice_id: voiceId, is_active: true })
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
+      <div>
+        <label className="block text-sm font-medium">Nombre</label>
+        <input
+          className="w-full border rounded p-2"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Descripción</label>
+        <textarea
+          className="w-full border rounded p-2"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Nicho</label>
+        <input
+          className="w-full border rounded p-2"
+          value={niche}
+          onChange={(e) => setNiche(e.target.value)}
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Formato</label>
+        <select
+          className="w-full border rounded p-2"
+          value={format}
+          onChange={(e) => setFormat(e.target.value as ChannelFormat)}
+        >
+          {FORMATS.map((f) => (
+            <option key={f.value} value={f.value}>{f.label}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium">Voz por defecto</label>
+        <input
+          className="w-full border rounded p-2"
+          value={voiceId}
+          onChange={(e) => setVoiceId(e.target.value)}
+          required
+        />
+      </div>
+      <div className="space-x-2">
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+          Guardar
+        </button>
+        <button type="button" onClick={onCancel} className="bg-gray-300 px-4 py-2 rounded">
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
+}
