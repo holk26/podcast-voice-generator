@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, DateTime, Text, Float
+from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean, ForeignKey
+from sqlalchemy.orm import relationship
 from web_api.database import Base
 
 
@@ -17,3 +18,36 @@ class Episode(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     target_duration_minutes = Column(Float, nullable=True)
+
+
+class Channel(Base):
+    __tablename__ = "channels"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    niche = Column(String, nullable=True)
+    format = Column(String, nullable=False, default="podcast")
+    default_voice_id = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    entries = relationship("ContentPlanEntry", back_populates="channel", cascade="all, delete-orphan")
+
+
+class ContentPlanEntry(Base):
+    __tablename__ = "content_plan_entries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    channel_id = Column(Integer, ForeignKey("channels.id"), nullable=False)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    scheduled_date = Column(DateTime, nullable=True)
+    status = Column(String, nullable=False, default="draft")
+    episode_id = Column(Integer, ForeignKey("episodes.id"), nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    channel = relationship("Channel", back_populates="entries")
+    episode = relationship("Episode")
