@@ -1,4 +1,6 @@
+import ast
 import json
+import re
 from typing import List
 from crewai import Agent, Task, Crew
 from web_api.schemas import PlanEntryCreate
@@ -20,16 +22,70 @@ El guion debe tener entre 300 y 800 palabras, ser natural al leerse en voz alta 
 Devuelve SOLO el texto del guion, sin introducciones ni comentarios."""
 
 
-def _parse_plan_result(raw: str) -> List[PlanEntryCreate]:
+_JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
+_JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
+
+
+def _extract_json_block(raw: str) -> str:
     raw = raw.strip()
-    if raw.startswith("```"):
-        raw = raw.strip("`")
-        if raw.lower().startswith("json"):
-            raw = raw[4:].strip()
-    data = json.loads(raw)
+    if "```" in raw:
+        parts = raw.split("```", 2)
+        if len(parts) >= 2:
+            inner = parts[1].strip()
+            if inner.lower().startswith("json"):
+                inner = inner[4:].strip()
+            return inner
+    start = raw.find("[")
+    if start == -1:
+        start = raw.find("{")
+    if start == -1:
+        return raw
+    end = raw.rfind("]") if raw[start] == "[" else raw.rfind("}")
+    if end == -1 or end < start:
+        return raw
+    return raw[start : end + 1]
+
+
+def _repair_json(raw: str) -> str:
+    # Add missing commas between consecutive objects/arrays
+    raw = re.sub(r"}\s*{", "},{", raw)
+    raw = re.sub(r"]\s*\[", "],[", raw)
+    # Remove trailing commas before closing braces/brackets
+    raw = re.sub(r",\s*}", "}", raw)
+    raw = re.sub(r",\s*]", "]", raw)
+    return raw
+
+
+def _parse_json_flexible(raw: str):
+    cleaned = _extract_json_block(raw)
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    repaired = _repair_json(cleaned)
+    try:
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        pass
+
+    # Fallback for single-quoted dicts/lists (e.g. Python repr)
+    try:
+        return ast.literal_eval(repaired)
+    except Exception as e:
+        raise ValueError(
+            f"Could not parse plan result as JSON: {e}\nRaw snippet: {raw[:500]}"
+        )
+
+
+def _parse_plan_result(raw: str) -> List[PlanEntryCreate]:
+    data = _parse_json_flexible(raw)
     if not isinstance(data, list):
         raise ValueError("Plan result is not a list")
-    return [PlanEntryCreate(title=item["title"], description=item.get("description")) for item in data]
+    return [
+        PlanEntryCreate(title=item["title"], description=item.get("description"))
+        for item in data
+    ]
 
 
 def generate_plan(channel, count: int = 5) -> List[PlanEntryCreate]:
