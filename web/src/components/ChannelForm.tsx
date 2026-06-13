@@ -28,8 +28,9 @@ export default function ChannelForm({ onSubmit, onCancel }: Props) {
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
       <div>
-        <label className="block text-sm font-medium">Nombre</label>
+        <label htmlFor="channel-name" className="block text-sm font-medium">Nombre</label>
         <input
+          id="channel-name"
           className="w-full border rounded p-2"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -37,24 +38,27 @@ export default function ChannelForm({ onSubmit, onCancel }: Props) {
         />
       </div>
       <div>
-        <label className="block text-sm font-medium">Descripción</label>
+        <label htmlFor="channel-description" className="block text-sm font-medium">Descripción</label>
         <textarea
+          id="channel-description"
           className="w-full border rounded p-2"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium">Nicho</label>
+        <label htmlFor="channel-niche" className="block text-sm font-medium">Nicho</label>
         <input
+          id="channel-niche"
           className="w-full border rounded p-2"
           value={niche}
           onChange={(e) => setNiche(e.target.value)}
         />
       </div>
       <div>
-        <label className="block text-sm font-medium">Formato</label>
+        <label htmlFor="channel-format" className="block text-sm font-medium">Formato</label>
         <select
+          id="channel-format"
           className="w-full border rounded p-2"
           value={format}
           onChange={(e) => setFormat(e.target.value as ChannelFormat)}
@@ -65,8 +69,9 @@ export default function ChannelForm({ onSubmit, onCancel }: Props) {
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium">Voz por defecto</label>
+        <label htmlFor="channel-voice" className="block text-sm font-medium">Voz por defecto</label>
         <input
+          id="channel-voice"
           className="w-full border rounded p-2"
           value={voiceId}
           onChange={(e) => setVoiceId(e.target.value)}
