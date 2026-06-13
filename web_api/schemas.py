@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -35,3 +35,60 @@ class PreviewRequest(BaseModel):
 
 class PreviewResponse(BaseModel):
     audio_url: str
+
+
+class ChannelBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+    niche: Optional[str] = None
+    format: str = "podcast"
+    default_voice_id: str
+    is_active: bool = True
+
+
+class ChannelCreate(ChannelBase):
+    pass
+
+
+class ChannelUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    niche: Optional[str] = None
+    format: Optional[str] = None
+    default_voice_id: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class ChannelResponse(ChannelBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class PlanEntryBase(BaseModel):
+    title: str
+    description: Optional[str] = None
+    scheduled_date: Optional[datetime] = None
+
+
+class PlanEntryCreate(PlanEntryBase):
+    pass
+
+
+class PlanEntryResponse(PlanEntryBase):
+    id: int
+    channel_id: int
+    status: str
+    episode_id: Optional[int] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ChannelWithPlanResponse(ChannelResponse):
+    entries: List[PlanEntryResponse] = []
