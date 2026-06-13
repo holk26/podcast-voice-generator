@@ -1,4 +1,12 @@
-import { Voice, Episode, CreateEpisodeRequest } from '../types'
+import {
+  Voice,
+  Episode,
+  CreateEpisodeRequest,
+  Channel,
+  CreateChannelRequest,
+  ContentPlanEntry,
+  CreatePlanEntryRequest,
+} from '../types'
 
 const API_BASE = '/api'
 
@@ -44,4 +52,34 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteEpisode: (id: number) => fetchVoid(`/episodes/${id}`, { method: 'DELETE' }),
+
+  getChannels: () => fetchJson<Channel[]>('/channels'),
+  createChannel: (data: CreateChannelRequest) =>
+    fetchJson<Channel>('/channels', { method: 'POST', body: JSON.stringify(data) }),
+  getChannel: (id: number) => fetchJson<Channel>(`/channels/${id}`),
+  updateChannel: (id: number, data: Partial<CreateChannelRequest>) =>
+    fetchJson<Channel>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteChannel: (id: number) => fetchVoid(`/channels/${id}`, { method: 'DELETE' }),
+  activateChannel: (id: number) =>
+    fetchJson<Channel>(`/channels/${id}/activate`, { method: 'POST' }),
+  deactivateChannel: (id: number) =>
+    fetchJson<Channel>(`/channels/${id}/deactivate`, { method: 'POST' }),
+
+  getPlanEntries: (channelId: number) =>
+    fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan`),
+  generatePlan: (channelId: number) =>
+    fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan/generate`, { method: 'POST' }),
+  createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) =>
+    fetchJson<ContentPlanEntry>(`/channels/${channelId}/plan`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  approvePlanEntry: (entryId: number) =>
+    fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/approve`, { method: 'POST' }),
+  rejectPlanEntry: (entryId: number) =>
+    fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/reject`, { method: 'POST' }),
+  deletePlanEntry: (entryId: number) => fetchVoid(`/channels/plan/${entryId}`, { method: 'DELETE' }),
+
+  getLlmStatus: () =>
+    fetchJson<{ available: boolean; default_ready: boolean; error?: string }>('/llm/status'),
 }
