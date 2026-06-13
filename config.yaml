@@ -49,3 +49,10 @@ audio:
   normalize_default: true
   default_fade_in_ms: 500
   default_fade_out_ms: 1000
+
+llm:
+  provider: ollama
+  base_url: http://localhost:11434
+  default_model: llama3.1:8b
+  planning_model: llama3.1:8b
+  script_model: llama3.1:8b
