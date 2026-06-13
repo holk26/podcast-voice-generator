@@ -8,6 +8,21 @@ import webbrowser
 import urllib.request
 from pathlib import Path
 
+
+def _check_ollama():
+    try:
+        from web_api.config import OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL
+        from web_api.services.llm_provider import check_ollama
+        status = check_ollama()
+        if not status["available"]:
+            print(f"[STARTER] WARNING: Ollama not available at {OLLAMA_BASE_URL}. CrewAI features will fail.")
+        elif not status["default_ready"]:
+            print(f"[STARTER] WARNING: Model {OLLAMA_DEFAULT_MODEL} not found in Ollama. Run: ollama pull {OLLAMA_DEFAULT_MODEL}")
+        else:
+            print(f"[STARTER] Ollama ready at {OLLAMA_BASE_URL} with model {OLLAMA_DEFAULT_MODEL}")
+    except Exception as e:
+        print(f"[STARTER] WARNING: Could not check Ollama status: {e}")
+
 BASE_DIR = Path(__file__).resolve().parent
 
 
@@ -105,6 +120,7 @@ def _find_python():
 
 def main():
     _register_signals()
+    _check_ollama()
     venv_python = _find_python()
 
     start_process("api", [str(venv_python), "-m", "web_api.main"])

@@ -37,6 +37,25 @@ API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 4. Ve a **Crear** para generar un nuevo episodio o audiolibro.
 5. Ve a **Cola** para ver el progreso en tiempo real (SSE).
 
+## Canales y CrewAI
+
+1. Crea un canal en **Canales**.
+2. Ve a **Studio**, selecciona el canal y pulsa **Generar plan**.
+3. Revisa las entradas generadas en el plan editorial del canal.
+4. Pulsa **Aprobar** en una entrada para generar el guion con CrewAI y crear el episodio.
+5. Sigue la generación de audio en **Cola**.
+
+### Requisitos de Ollama
+
+Asegúrate de que Ollama esté corriendo y tenga el modelo configurado:
+
+```bash
+ollama pull llama3.1:8b
+ollama serve
+```
+
+La URL y el modelo se configuran en `config.yaml` bajo la sección `llm`.
+
 ## Troubleshooting
 
 - **Puertos ocupados**: cambia `API_PORT`, `WORKER_PORT` y/o `WEB_PORT`.
