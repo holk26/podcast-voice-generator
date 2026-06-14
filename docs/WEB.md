@@ -14,6 +14,16 @@ Esto inicia tres servicios:
 - **API** en http://localhost:8000
 - **Worker** en http://localhost:8001
 
+Al arrancar, `starter.py` intenta abrir una **ventana de monitor** con un dashboard en vivo que muestra:
+
+- URL y estado de cada servicio (health check).
+- Logs de `api`, `worker` y `web` en paneles separados.
+- Contador de errores resaltados en rojo.
+
+Si no detecta un emulador de terminal compatible, los logs se guardan en `./logs/` (`api.log`, `worker.log`, `web.log`) y también se muestran en la consola.
+
+Puedes cerrar el monitor con `q` (o `Ctrl+C` en modo consola) sin detener los servicios.
+
 Para usar puertos diferentes:
 
 ```bash
@@ -59,8 +69,9 @@ La URL y el modelo se configuran en `config.yaml` bajo la sección `llm`.
 ## Troubleshooting
 
 - **Puertos ocupados**: cambia `API_PORT`, `WORKER_PORT` y/o `WEB_PORT`.
-- **`starter.py` dice que un servicio no inició**: revisa el log etiquetado (`[api]`, `[worker]` o `[web]`) para ver el error real.
+- **`starter.py` dice que un servicio no inició**: revisa el log etiquetado (`[api]`, `[worker]` o `[web]`) o los archivos en `./logs/` para ver el error real.
 - **El frontend no puede hablar con la API**: asegúrate de que `API_PORT` sea el mismo para `starter.py` y para la shell donde corres `npm run dev`.
+- **No se abre la ventana del monitor**: instala un emulador de terminal (`gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `kitty` o `xterm`). Sin uno, los logs siguen disponibles en `./logs/`.
 
 ## Tests frontend
 
