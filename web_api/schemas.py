@@ -3,6 +3,22 @@ from typing import Optional, List
 from datetime import datetime
 
 
+class DiagnosticCheckResult(BaseModel):
+    component: str
+    status: str  # ok | warning | error
+    detail: str
+    checked_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class DiagnosticsReport(BaseModel):
+    checks: list[DiagnosticCheckResult]
+    overall: str
+    generated_at: datetime
+
+
 class EpisodeCreate(BaseModel):
     title: str
     type: str = "podcast"

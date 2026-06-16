@@ -51,3 +51,13 @@ class ContentPlanEntry(Base):
 
     channel = relationship("Channel", back_populates="entries")
     episode = relationship("Episode")
+
+
+class DiagnosticLog(Base):
+    __tablename__ = "diagnostic_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    component = Column(String, nullable=False)
+    status = Column(String, nullable=False)
+    detail = Column(String, nullable=True)
+    checked_at = Column(DateTime, default=datetime.utcnow)
