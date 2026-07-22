@@ -4,7 +4,7 @@ engine: higgs
 language: es
 speed: 1.0
 speaker_id: higgs_default
-reference_path: voices/clones/voz_homer_compat_mejorada.wav
+reference_path: voices/clones/homero_referencia.wav
 description: Voz de Homero clonada con Higgs Audio v3 TTS. Soporta control emocional inline y 100+ idiomas. Proporciona referencia de audio para voice cloning.
 gender: Male
 locale: es-ES

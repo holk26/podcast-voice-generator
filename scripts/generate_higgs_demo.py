@@ -69,7 +69,7 @@ def main():
             print(f"[Demo] ERROR: {e}")
 
     # Demo 2: Voice cloning con referencia de Homero
-    ref_path = "voices/clones/voz_homer_compat_mejorada.wav"
+    ref_path = "voices/clones/homero_referencia.wav"
     if os.path.exists(ref_path):
         print(f"\n[Demo] Voice cloning con referencia: {ref_path}")
         voice_clone = Voice(

@@ -61,17 +61,23 @@ def main():
     print("Iniciando motor vLLM-Omni (esto puede tomar unos minutos)...")
 
     # Configuración para bajo VRAM (~8 GB)
-    # Higgs v3 4B en FP16 son ~8GB de pesos solos.
-    # Usamos cpu_offload_gb para mover parte del modelo a RAM y FP8 para reducir.
+    # Higgs v3 4B en FP16 son ~8GB de pesos solos -> usamos FP8 (~4.5GB).
+    # OJO 1: cpu_offload_gb rompe con quantization="fp8"
+    #        (NotImplementedError: Cannot copy out of meta tensor).
+    # OJO 2: vllm-omni es multi-etapa (stage0=LLM, stage1=vocoder). Un único
+    #        gpu_memory_utilization alto hace que stage0 acapare la GPU y stage1
+    #        muera al arrancar. Hay que repartir con stage_overrides.
     engine_kwargs = {
         "trust_remote_code": True,
-        "gpu_memory_utilization": 0.85,
         "max_model_len": 512,
-        "dtype": "half",  # fp16
+        "max_num_seqs": 1,
+        "max_num_batched_tokens": 512,
+        "dtype": "bfloat16",  # bf16: half+fp8 puede producir NaN (salida en silencio)
         "quantization": "fp8",
         "enforce_eager": True,
         "disable_custom_all_reduce": True,
-        "cpu_offload_gb": 4,  # Mover ~4GB de pesos a RAM
+        "stage_overrides": '{"0": {"gpu_memory_utilization": 0.62}, '
+                           '"1": {"gpu_memory_utilization": 0.28}}',
     }
 
     t0 = time.time()

@@ -4,7 +4,7 @@ Genera episodios REALES de motivación y meditación con la voz clonada de Homer
 Este script:
   1. Genera guiones completos y originales (actuando como LLM)
   2. Los estructura con tags de voz para el DramaMixer
-  3. Usa XTTS con la voz real de Homero (voices/clones/voz_homer_compat.wav)
+  3. Usa XTTS con la voz real de Homero (voices/clones/homero_referencia.wav)
   4. Aplica branding con intro/outro
   5. Guarda los MP3 finales en output/
 """

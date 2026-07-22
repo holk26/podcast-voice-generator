@@ -1,0 +1,110 @@
+# Higgs Audio v3 TTS — Configuración y uso
+
+Guía verificada (22-jul-2026) para generar voz clonada con **Higgs Audio v3 TTS 4B**
+(Boson AI) en este equipo: **RTX 5060 Laptop 8 GB VRAM**, Python 3.11 (`venv311`),
+vLLM-Omni 0.22.1.
+
+Resultado validado: voz clonada de Homero con calidad "perfecta" (vs XTTS v2, que
+sonaba robótica/metálica).
+
+---
+
+## 1. Referencia de voz
+
+- **Archivo usado**: `voices/clones/homero_referencia.wav`
+  (WAV PCM 44.1 kHz mono, ~10 s — la única referencia conservada en `voices/clones/`).
+- **Solo WAV/FLAC**: soundfile NO lee `.m4a`/AAC (`Format not recognised`).
+  Convierte antes con ffmpeg si hace falta:
+  `ffmpeg -i entrada.m4a -ar 44100 -ac 1 salida.wav`
+- Mejor 6-15 s de voz limpia, sin música ni ruido de fondo.
+- Demo del resultado: `output/higgs_v3_test/prueba_higgs_v3.wav`.
+
+## 2. Modelo
+
+Local en `models/higgs-audio-v3-tts-4b/` (~9 GB, en `.gitignore`, no se sube a git).
+
+## 3. Cómo ejecutar
+
+```bash
+export PATH="$PWD/venv311/bin:$PATH"
+export VLLM_USE_FLASHINFER_SAMPLER=0
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+venv311/bin/python scripts/test_higgs_v3_local.py \
+    "Texto a sintetizar." \
+    "voices/clones/homero_referencia.wav" \
+    "transcripción opcional de la referencia"
+```
+
+Salida: `output/higgs_v3_test/prueba_higgs_v3.wav` (24 kHz mono).
+
+## 4. Configuración del motor (clave, no tocar a la ligera)
+
+En `scripts/test_higgs_v3_local.py`:
+
+```python
+engine_kwargs = {
+    "trust_remote_code": True,
+    "max_model_len": 512,
+    "max_num_seqs": 1,
+    "max_num_batched_tokens": 512,
+    "dtype": "bfloat16",          # NO "half" (ver 5.5)
+    "quantization": "fp8",
+    "enforce_eager": True,
+    "disable_custom_all_reduce": True,
+    "stage_overrides": '{"0": {"gpu_memory_utilization": 0.62}, '
+                       '"1": {"gpu_memory_utilization": 0.28}}',
+}
+```
+
+## 5. Problemas encontrados y solución (historial completo)
+
+### 5.1 `cpu_offload_gb` + FP8 → crash
+`NotImplementedError: Cannot copy out of meta tensor; no data!`
+El offloader de vLLM no puede copiar pesos FP8 (meta tensors).
+**Solución**: no usar `cpu_offload_gb`; FP8 solo (~4.5 GB) cabe en 8 GB.
+
+### 5.2 `FileNotFoundError: 'ninja'`
+vLLM/flashinfer invoca ninja para compilar kernels JIT.
+**Solución**: `pip install ninja` y exportar `PATH` con `venv311/bin`.
+
+### 5.3 flashinfer JIT + ruta con espacios → build roto
+El proyecto vive en `podcast with VRAM nvidia` (espacios). Ninja trunca la ruta:
+`ninja: error: '/home/holk/.../podcast', needed by ... missing`.
+**Solución**: `VLLM_USE_FLASHINFER_SAMPLER=0` (sampler nativo de torch).
+
+### 5.4 Stage 1 (vocoder) moría al arrancar
+vllm-omni es multi-etapa: stage 0 = LLM autoregresivo, stage 1 = vocoder.
+Con `gpu_memory_utilization=0.85` global, stage 0 acaparaba 6.4 GB y stage 1
+no encontraba memoria (`Free memory 0.57 GiB < desired`).
+**Solución**: `stage_overrides` repartiendo la GPU (0.62 / 0.28) +
+`max_num_seqs=1`, `max_num_batched_tokens=512`, `enforce_eager=True`,
+`PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`.
+
+### 5.5 Audio generado = silencio total (NaN)
+Con `dtype="half"` (FP16) + FP8 el modelo producía NaN; el WAV salía 100% ceros
+(`RuntimeWarning: invalid value encountered in cast`).
+**Solución**: `dtype="bfloat16"` (mayor rango dinámico, sin overflow).
+
+### 5.6 numpy/pandas/scikit-learn (afectaba a XTTS, ya resuelto)
+`venv311` tenía numpy 2.3.5 con pandas 1.5.3 y scikit-learn 1.3.2 (compilados
+contra numpy 1.x) → `numpy.dtype size changed` al cargar XTTS.
+**Solución aplicada**: `pandas 2.3.3`, `scikit-learn 1.9.0`.
+
+## 6. Rendimiento medido
+
+- Carga del motor: ~2-3 min (primera vez)
+- Generación: **~83 s para 5 s de audio** (RTF ≈ 16) en modo eager 8 GB
+- Uso de VRAM: stage 0 ≈ 5.6 GiB + stage 1 ≈ 1.8 GiB
+
+Útil para previews y clips cortos; lento para episodios largos (valorar
+desactivar `enforce_eager` si se estabiliza, o batch).
+
+## 7. Estado de integración (pendiente)
+
+- `core/higgs_engine.py` existe pero con config "de escritorio": NO incluye
+  estos ajustes (dtype bf16, stage_overrides, límites de memoria) ni las vars
+  de entorno. Antes de usarlo en producción hay que portar la sección 4.
+- El preview web (`/api/tts/preview`) sigue usando XTTS para voces clonadas.
+- Perfil de cast listo: `cast/voice_profiles/higgs_homero.yaml`
+  (apunta a `voices/clones/homero_referencia.wav`).

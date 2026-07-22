@@ -97,7 +97,7 @@ class TestVoiceCastManager(unittest.TestCase):
 
         homer = vcm.get_profile("homer")
         self.assertEqual(homer.engine, "xtts")
-        self.assertEqual(homer.reference_path, "voices/clones/voz_homer_compat.wav")
+        self.assertEqual(homer.reference_path, "voices/clones/homero_referencia.wav")
 
 
 if __name__ == "__main__":
