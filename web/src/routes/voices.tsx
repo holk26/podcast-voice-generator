@@ -55,7 +55,7 @@ function VoicesPage() {
         >
           {voices.map((voice) => (
             <option key={voice.id} value={voice.id}>
-              {voice.name} ({voice.engine})
+              {voice.type === 'cloned' ? '🎙️ ' : ''}{voice.name} ({voice.engine}){voice.type === 'cloned' ? ' — clonada' : ''}
             </option>
           ))}
         </select>

@@ -4,6 +4,8 @@ export interface Voice {
   engine: string
   language: string
   gender: string
+  type?: 'pretrained' | 'cloned'
+  reference_path?: string | null
 }
 
 export type EpisodeStatus = 'pending' | 'running' | 'completed' | 'failed'
