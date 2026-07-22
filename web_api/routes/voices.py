@@ -43,7 +43,7 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
             VoiceResponse(
                 id=f"clone:{stem}",
                 name=stem,
-                engine="xtts",
+                engine="higgs",
                 language="es",
                 gender="unknown",
                 type="cloned",

@@ -61,8 +61,14 @@ class HiggsAudioEngine(TTSBase):
         top_p: float = 0.95,
         top_k: int = 50,
         gpu_memory_utilization: float = 0.85,
-        quantization: Optional[str] = None,  # "fp8", "awq", "gptq", etc.
+        quantization: Optional[str] = "fp8",
+        max_model_len: int = 1536,
+        enforce_eager: bool = False,
+        stage_overrides: str = '{"0": {"gpu_memory_utilization": 0.64}, '
+                              '"1": {"gpu_memory_utilization": 0.25}}',
     ):
+        # Nota: en GPUs de ~8GB (RTX 5060) hace falta FP8 + bfloat16 + reparto
+        # de VRAM por etapas. Ver docs/HIGGS_SETUP.md para la historia completa.
         self.model_name = model_name
         self.device = device
         self.max_new_tokens = max_new_tokens
@@ -71,6 +77,9 @@ class HiggsAudioEngine(TTSBase):
         self.top_k = top_k
         self.gpu_memory_utilization = gpu_memory_utilization
         self.quantization = quantization
+        self.max_model_len = max_model_len
+        self.enforce_eager = enforce_eager
+        self.stage_overrides = stage_overrides
 
         self._engine = None
         self._tokenizer = None
@@ -84,6 +93,20 @@ class HiggsAudioEngine(TTSBase):
         if self._loaded:
             return
 
+        # Entorno necesario ANTES de importar vllm (ver docs/HIGGS_SETUP.md):
+        # - flashinfer JIT no soporta rutas con espacios -> sampler nativo
+        # - ninja (JIT) vive en el bin/ del venv
+        # - expandable_segments reduce fragmentación de VRAM
+        import sys
+        os.environ.setdefault("VLLM_USE_FLASHINFER_SAMPLER", "0")
+        os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+        os.environ.setdefault("VLLM_LOGGING_LEVEL", "WARNING")
+        os.environ.setdefault("VLLM_USE_DEEP_GEMM", "0")
+        os.environ.setdefault("VLLM_MOE_USE_DEEP_GEMM", "0")
+        venv_bin = str(Path(sys.executable).parent)
+        if venv_bin not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = venv_bin + os.pathsep + os.environ.get("PATH", "")
+
         print(f"[Higgs] Loading vLLM-Omni engine with {self.model_name}...")
         print("[Higgs] This may take 1-3 minutes on first load...")
 
@@ -94,13 +117,21 @@ class HiggsAudioEngine(TTSBase):
                 "vllm-omni is required. Install with: pip install vllm-omni"
             ) from e
 
-        # Build engine args; quantization is passed if provided
         engine_kwargs = {
             "model": self.model_name,
             "trust_remote_code": True,
-            "gpu_memory_utilization": self.gpu_memory_utilization,
+            "dtype": "bfloat16",  # "half" + fp8 produce NaN (salida en silencio)
+            "max_model_len": self.max_model_len,
+            "max_num_seqs": 1,
+            "max_num_batched_tokens": self.max_model_len,
+            "enforce_eager": self.enforce_eager,
+            "disable_custom_all_reduce": True,
+            "stage_overrides": self.stage_overrides,
         }
+        if not self.stage_overrides:
+            engine_kwargs["gpu_memory_utilization"] = self.gpu_memory_utilization
         if self.quantization:
+            # OJO: no combinar quantization="fp8" con cpu_offload_gb (meta tensors)
             engine_kwargs["quantization"] = self.quantization
 
         self._engine = Omni(**engine_kwargs)

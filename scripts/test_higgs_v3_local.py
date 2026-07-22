@@ -69,15 +69,15 @@ def main():
     #        muera al arrancar. Hay que repartir con stage_overrides.
     engine_kwargs = {
         "trust_remote_code": True,
-        "max_model_len": 512,
+        "max_model_len": 1536,
         "max_num_seqs": 1,
         "max_num_batched_tokens": 512,
         "dtype": "bfloat16",  # bf16: half+fp8 puede producir NaN (salida en silencio)
         "quantization": "fp8",
-        "enforce_eager": True,
+        "enforce_eager": False,  # CUDA graphs: mucho más rápido si cabe en VRAM
         "disable_custom_all_reduce": True,
-        "stage_overrides": '{"0": {"gpu_memory_utilization": 0.62}, '
-                           '"1": {"gpu_memory_utilization": 0.28}}',
+        "stage_overrides": '{"0": {"gpu_memory_utilization": 0.64}, '
+                           '"1": {"gpu_memory_utilization": 0.25}}',
     }
 
     t0 = time.time()

@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import CreateEpisodeForm from '../components/CreateEpisodeForm'
 import { useEpisodeStore } from '../stores/episodeStore'
+import { useVoiceStore } from '../stores/voiceStore'
 import { CreateEpisodeRequest } from '../types'
 
 export const Route = createFileRoute('/create')({
@@ -11,7 +12,12 @@ export const Route = createFileRoute('/create')({
 function CreatePage() {
   const navigate = useNavigate()
   const { createEpisode } = useEpisodeStore()
+  const fetchVoices = useVoiceStore((state) => state.fetchVoices)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetchVoices()
+  }, [fetchVoices])
 
   const handleSubmit = async (data: CreateEpisodeRequest) => {
     setLoading(true)

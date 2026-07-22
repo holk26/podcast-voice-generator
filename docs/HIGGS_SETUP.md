@@ -45,17 +45,20 @@ En `scripts/test_higgs_v3_local.py`:
 ```python
 engine_kwargs = {
     "trust_remote_code": True,
-    "max_model_len": 512,
+    "max_model_len": 1536,        # con 512 los textos largos salen cortados (ver 5.7)
     "max_num_seqs": 1,
-    "max_num_batched_tokens": 512,
+    "max_num_batched_tokens": 1536,
     "dtype": "bfloat16",          # NO "half" (ver 5.5)
     "quantization": "fp8",
-    "enforce_eager": True,
+    "enforce_eager": False,       # CUDA graphs: 24x más rápido (ver 6)
     "disable_custom_all_reduce": True,
-    "stage_overrides": '{"0": {"gpu_memory_utilization": 0.62}, '
-                       '"1": {"gpu_memory_utilization": 0.28}}',
+    "stage_overrides": '{"0": {"gpu_memory_utilization": 0.64}, '
+                       '"1": {"gpu_memory_utilization": 0.25}}',
 }
 ```
+
+`core/higgs_engine.py` ya incluye esta misma configuración por defecto y fija
+las variables de entorno necesarias al hacer `load()`.
 
 ## 5. Problemas encontrados y solución (historial completo)
 
@@ -91,20 +94,34 @@ Con `dtype="half"` (FP16) + FP8 el modelo producía NaN; el WAV salía 100% cero
 contra numpy 1.x) → `numpy.dtype size changed` al cargar XTTS.
 **Solución aplicada**: `pandas 2.3.3`, `scikit-learn 1.9.0`.
 
+### 5.7 Textos largos cortados / KV cache insuficiente
+Con `max_model_len=512` el audio de textos largos salía truncado (los tokens de
+la referencia + prompt + salida no caben). Al subirlo, con stage0=0.62 saltaba
+`0.28 GiB KV cache is needed... larger than the available (0.11 GiB)`.
+**Solución**: `max_model_len=1536` + reparto 0.64/0.25. Para guiones largos el
+endpoint `/api/tts/synthesize` trocea el texto en frases y concatena, así que
+1536 tokens por chunk son suficientes.
+
 ## 6. Rendimiento medido
 
-- Carga del motor: ~2-3 min (primera vez)
-- Generación: **~83 s para 5 s de audio** (RTF ≈ 16) en modo eager 8 GB
+- Carga del motor: ~2-3 min (incluye captura de CUDA graphs; solo la primera vez)
+- Generación con `enforce_eager=False` (CUDA graphs): **~3.5 s para 5 s de audio (RTF ≈ 0.7)**
+- Generación con `enforce_eager=True`: ~83 s para 5 s de audio (RTF ≈ 16) — 24x más lento
 - Uso de VRAM: stage 0 ≈ 5.6 GiB + stage 1 ≈ 1.8 GiB
+- **Ojo**: si Ollama (u otro proceso) tiene un modelo cargado en VRAM, Higgs no
+  cabe. Descárgalo antes con `ollama stop <modelo>` o espera a su keep-alive.
 
-Útil para previews y clips cortos; lento para episodios largos (valorar
-desactivar `enforce_eager` si se estabiliza, o batch).
+## 7. Estado de integración
 
-## 7. Estado de integración (pendiente)
-
-- `core/higgs_engine.py` existe pero con config "de escritorio": NO incluye
-  estos ajustes (dtype bf16, stage_overrides, límites de memoria) ni las vars
-  de entorno. Antes de usarlo en producción hay que portar la sección 4.
-- El preview web (`/api/tts/preview`) sigue usando XTTS para voces clonadas.
+- `core/higgs_engine.py`: incluye la config de la sección 4 por defecto y fija
+  las variables de entorno en `load()`.
+- Preview web (`/api/tts/preview`): las voces clonadas se sintetizan con Higgs
+  (ya no con XTTS). La primera llamada tarda ~2-3 min (carga del motor);
+  las siguientes, unos segundos. Las voces edge siguen igual.
+- Episodios desde la web: el worker delega las voces `clone:*` en la API
+  (`POST /api/tts/synthesize`, troceo + concatenación de texto largo), así solo
+  hay una instancia del motor en GPU. Verificado end-to-end (episodio de
+  motivación de ~41 s con voz de Homero).
 - Perfil de cast listo: `cast/voice_profiles/higgs_homero.yaml`
   (apunta a `voices/clones/homero_referencia.wav`).
+- Pendiente: usar Higgs en el pipeline clásico (GUI PyQt) y en el Studio/CrewAI.
