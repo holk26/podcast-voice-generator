@@ -1,0 +1,10 @@
+voice_id: orpheus_leo
+name: Leo (Orpheus)
+engine: orpheus
+language: es
+speed: 1.0
+speaker_id: leo
+reference_path: null
+description: Voz masculina predefinida de Orpheus TTS. Muy natural, ideal para narración, podcasts y diálogos emotivos. Soporta tags de emoción inline.
+gender: Male
+locale: es-ES

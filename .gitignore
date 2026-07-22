@@ -19,3 +19,8 @@ test_*.mp3
 .idea/
 .vscode/
 *.log
+
+# Modelos locales pesados y datos de runtime
+models/
+data/
+*.tsbuildinfo

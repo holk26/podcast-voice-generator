@@ -1,0 +1,10 @@
+voice_id: homero
+name: Homero
+engine: edge_tts
+language: es
+speed: 1.0
+speaker_id: es-MX-JorgeNeural
+reference_path: null
+description: ''
+gender: ''
+locale: ''

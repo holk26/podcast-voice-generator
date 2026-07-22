@@ -1,0 +1,10 @@
+voice_id: higgs_narrador
+name: Narrador (Higgs)
+engine: higgs
+language: es
+speed: 1.0
+speaker_id: higgs_default
+reference_path: null
+description: Voz neutral de Higgs Audio v3 TTS para narración. Sin referencia de audio (TTS plain). Ideal para texto explicativo o introductorio.
+gender: Male
+locale: es-ES

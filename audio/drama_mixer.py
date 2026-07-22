@@ -21,6 +21,8 @@ from cast.voice_cast_manager import VoiceCastManager
 from core.tts_engine import TTSBase
 from core.edge_tts_engine import EdgeTTSEngine
 from core.xtts_engine import XTTSEngine
+from core.orpheus_engine import OrpheusEngine
+from core.higgs_engine import HiggsAudioEngine
 
 
 class DramaMixer:
@@ -58,6 +60,10 @@ class DramaMixer:
             engine = EdgeTTSEngine(device="cpu")
         elif engine_name == "xtts":
             engine = XTTSEngine(device=self.default_engine_device)
+        elif engine_name == "orpheus":
+            engine = OrpheusEngine(device=self.default_engine_device)
+        elif engine_name == "higgs":
+            engine = HiggsAudioEngine(device=self.default_engine_device)
         elif engine_name == "bark":
             # Lazy import to avoid loading heavy deps unless needed
             from core.bark_engine import BarkEngine

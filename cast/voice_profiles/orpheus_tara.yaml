@@ -1,0 +1,10 @@
+voice_id: orpheus_tara
+name: Tara (Orpheus)
+engine: orpheus
+language: es
+speed: 1.0
+speaker_id: tara
+reference_path: null
+description: Voz femenina predefinida de Orpheus TTS. La más conversacional y natural del modelo. Soporta tags de emoción inline como <laugh>, <sigh>, <chuckle>.
+gender: Female
+locale: es-ES

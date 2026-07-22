@@ -1,0 +1,10 @@
+voice_id: orpheus_dan
+name: Dan (Orpheus)
+engine: orpheus
+language: es
+speed: 1.0
+speaker_id: dan
+reference_path: null
+description: Voz masculina alternativa de Orpheus TTS. Tonos más graves, ideal para personajes serios o narración documental.
+gender: Male
+locale: es-ES

@@ -4,7 +4,7 @@ engine: xtts
 language: es
 speed: 1.0
 speaker_id: null
-reference_path: voices/clones/voz_homer_compat.wav
+reference_path: voices/clones/voz_homer_compat_mejorada.wav
 description: Voz principal clonada de Homero. Usada para presentación, narración emotiva y personajes principales.
 gender: Male
 locale: es-ES
