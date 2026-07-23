@@ -76,6 +76,7 @@ export interface CrewJobEvent {
   ts: number
   step: string
   message: string
+  content?: string
 }
 
 export interface CrewJobStart {

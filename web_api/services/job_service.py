@@ -34,13 +34,14 @@ class JobRegistry:
             }
         return job_id
 
-    def emit(self, job_id: str, step: str, message: str) -> None:
+    def emit(self, job_id: str, step: str, message: str, content: str | None = None) -> None:
         with self._lock:
             job = self._jobs.get(job_id)
             if job is not None:
-                job["events"].append(
-                    {"ts": time.time(), "step": step, "message": message}
-                )
+                event = {"ts": time.time(), "step": step, "message": message}
+                if content:
+                    event["content"] = content
+                job["events"].append(event)
 
     def finish(self, job_id: str, result: dict | None = None) -> None:
         with self._lock:

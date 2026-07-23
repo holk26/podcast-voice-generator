@@ -111,7 +111,9 @@ def generate_plan_entries(channel_id: int, db: Session = Depends(get_db)):
             proposed = generate_plan(
                 ch,
                 count=5,
-                on_progress=lambda step, msg: registry.emit(job_id, step, msg),
+                on_progress=lambda step, msg, content=None: registry.emit(
+                    job_id, step, msg, content
+                ),
             )
             for item in proposed:
                 session.add(
@@ -173,7 +175,9 @@ def approve_plan_entry(entry_id: int, db: Session = Depends(get_db)):
             script = generate_script(
                 channel,
                 ent,
-                on_progress=lambda step, msg: registry.emit(job_id, step, msg),
+                on_progress=lambda step, msg, content=None: registry.emit(
+                    job_id, step, msg, content
+                ),
             )
             episode = Episode(
                 title=ent.title,

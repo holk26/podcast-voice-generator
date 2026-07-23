@@ -43,14 +43,33 @@ export default function CrewJobActivity() {
       <ul className="space-y-1 text-sm">
         {activeJob.events.map((e, i) => {
           const isLast = i === activeJob.events.length - 1
+          const icon =
+            running && isLast ? (
+              <span className="inline-block w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <span className="text-green-600">✓</span>
+            )
           return (
-            <li key={i} className="flex items-center gap-2">
-              {running && isLast ? (
-                <span className="inline-block w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+            <li key={i}>
+              {e.content ? (
+                <details className="group">
+                  <summary className="flex items-center gap-2 cursor-pointer hover:text-purple-800">
+                    {icon}
+                    <span>{e.message}</span>
+                    <span className="text-xs text-gray-400 group-open:rotate-90 transition-transform">
+                      ▶
+                    </span>
+                  </summary>
+                  <pre className="mt-1 ml-5 p-2 bg-white/70 border rounded text-xs whitespace-pre-wrap max-h-64 overflow-y-auto">
+                    {e.content}
+                  </pre>
+                </details>
               ) : (
-                <span className="text-green-600">✓</span>
+                <span className="flex items-center gap-2">
+                  {icon}
+                  <span>{e.message}</span>
+                </span>
               )}
-              <span>{e.message}</span>
             </li>
           )
         })}

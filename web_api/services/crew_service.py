@@ -110,11 +110,12 @@ def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCr
     """Congreso de agentes: el estratega propone ideas en bruto y el editor
     jefe las debate, filtra y pule hasta quedarse con las mejores.
 
-    on_progress(step, message) se invoca al empezar cada paso (para SSE/UI).
+    on_progress(step, message, content=None) se invoca al empezar cada paso y
+    al terminarlo con la salida del agente (historial completo para SSE/UI).
     """
-    def emit(step: str, message: str) -> None:
+    def emit(step: str, message: str, content: str | None = None) -> None:
         if on_progress:
-            on_progress(step, message)
+            on_progress(step, message, content)
 
     strategist = Agent(
         role="Content Strategist",
@@ -142,6 +143,7 @@ def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCr
         ),
         "Un array JSON con objetos title y description",
     )
+    emit("strategist_done", "El estratega terminó su propuesta", raw_ideas)
 
     emit("critic", "El editor jefe debate y selecciona las mejores…")
     final = _run_single_task(
@@ -154,6 +156,7 @@ def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCr
         + f"\n\nIdeas propuestas por el estratega:\n{raw_ideas}",
         f"Un array JSON con exactamente {count} objetos title y description",
     )
+    emit("critic_done", "El editor jefe publicó su selección", final)
 
     emit("parse", "Validando el plan final…")
     return _parse_plan_result(final)[:count]
@@ -171,11 +174,12 @@ def generate_script(channel, entry, on_progress=None) -> str:
     """Congreso de agentes: el guionista escribe, el editor pule y el director
     de voz deja el texto limpio para síntesis TTS.
 
-    on_progress(step, message) se invoca al empezar cada paso (para SSE/UI).
+    on_progress(step, message, content=None) se invoca al empezar cada paso y
+    al terminarlo con la salida del agente (historial completo para SSE/UI).
     """
-    def emit(step: str, message: str) -> None:
+    def emit(step: str, message: str, content: str | None = None) -> None:
         if on_progress:
-            on_progress(step, message)
+            on_progress(step, message, content)
 
     writer = Agent(
         role="Script Writer",
@@ -210,6 +214,7 @@ def generate_script(channel, entry, on_progress=None) -> str:
         ),
         "Un guion en español listo para leer en voz alta",
     )
+    emit("writer_done", "Borrador del guionista", draft)
 
     emit("editor", "El editor pule ritmo y claridad…")
     polished = _run_single_task(
@@ -218,6 +223,7 @@ def generate_script(channel, entry, on_progress=None) -> str:
         f"el texto final del guion.\n\nGuion:\n{draft}",
         "Guion final pulido",
     )
+    emit("editor_done", "Versión pulida por el editor", polished)
 
     emit("voice_director", "El director de voz lo deja listo para TTS…")
     final = _run_single_task(
@@ -225,5 +231,6 @@ def generate_script(channel, entry, on_progress=None) -> str:
         CLEAN_PROMPT + f"\n\nGuion:\n{polished}",
         "Texto hablable limpio, sin markdown ni indicaciones",
     )
+    emit("voice_director_done", "Texto final para síntesis de voz", final)
 
     return _strip_markup(final)
