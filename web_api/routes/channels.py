@@ -1,7 +1,8 @@
+import threading
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from web_api.database import get_db
+from web_api.database import get_db, SessionLocal
 from web_api.models import Channel, ContentPlanEntry, Episode
 from web_api.schemas import (
     ChannelCreate,
@@ -11,6 +12,7 @@ from web_api.schemas import (
     PlanEntryResponse,
 )
 from web_api.services.crew_service import generate_plan, generate_script
+from web_api.services.job_service import registry
 
 router = APIRouter()
 
@@ -90,25 +92,46 @@ def list_plan_entries(channel_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/{channel_id}/plan/generate", response_model=List[PlanEntryResponse])
+@router.post("/{channel_id}/plan/generate", status_code=202)
 def generate_plan_entries(channel_id: int, db: Session = Depends(get_db)):
+    """Lanza la generación del plan en segundo plano y devuelve un job_id.
+
+    El progreso del congreso de agentes se sigue en /api/jobs/{job_id}/events.
+    """
     channel = db.query(Channel).filter(Channel.id == channel_id).first()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
-    try:
-        proposed = generate_plan(channel, count=5)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"CrewAI error: {e}")
 
-    entries = []
-    for item in proposed:
-        entry = ContentPlanEntry(channel_id=channel.id, title=item.title, description=item.description)
-        db.add(entry)
-        entries.append(entry)
-    db.commit()
-    for entry in entries:
-        db.refresh(entry)
-    return entries
+    job_id = registry.create("plan", detail=f"Plan editorial: {channel.name}")
+
+    def work():
+        session = SessionLocal()
+        try:
+            ch = session.query(Channel).filter(Channel.id == channel_id).first()
+            proposed = generate_plan(
+                ch,
+                count=5,
+                on_progress=lambda step, msg: registry.emit(job_id, step, msg),
+            )
+            for item in proposed:
+                session.add(
+                    ContentPlanEntry(
+                        channel_id=channel_id,
+                        title=item.title,
+                        description=item.description,
+                    )
+                )
+            session.commit()
+            registry.emit(job_id, "done", f"Plan listo: {len(proposed)} ideas")
+            registry.finish(job_id, {"channel_id": channel_id, "count": len(proposed)})
+        except Exception as e:
+            session.rollback()
+            registry.fail(job_id, str(e))
+        finally:
+            session.close()
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"job_id": job_id}
 
 
 @router.post("/{channel_id}/plan", response_model=PlanEntryResponse, status_code=201)
@@ -123,36 +146,63 @@ def create_plan_entry(channel_id: int, data: PlanEntryCreate, db: Session = Depe
     return entry
 
 
-@router.post("/plan/{entry_id}/approve", response_model=PlanEntryResponse)
+@router.post("/plan/{entry_id}/approve", status_code=202)
 def approve_plan_entry(entry_id: int, db: Session = Depends(get_db)):
+    """Lanza la generación del guion en segundo plano y devuelve un job_id.
+
+    El progreso del congreso (guionista → editor → director de voz) se sigue
+    en /api/jobs/{job_id}/events.
+    """
     entry = db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     if entry.status != "draft":
         raise HTTPException(status_code=400, detail="Entry already processed")
 
-    channel = db.query(Channel).filter(Channel.id == entry.channel_id).first()
-    try:
-        script = generate_script(channel, entry)
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"CrewAI error: {e}")
+    job_id = registry.create("script", detail=f"Guion: {entry.title}")
 
-    episode = Episode(
-        title=entry.title,
-        type=channel.format,
-        source_text=script,
-        voice_id=channel.default_voice_id,
-        status="pending",
-    )
-    db.add(episode)
-    db.commit()
-    db.refresh(episode)
+    def work():
+        session = SessionLocal()
+        try:
+            ent = session.query(ContentPlanEntry).filter(
+                ContentPlanEntry.id == entry_id
+            ).first()
+            channel = session.query(Channel).filter(
+                Channel.id == ent.channel_id
+            ).first()
+            script = generate_script(
+                channel,
+                ent,
+                on_progress=lambda step, msg: registry.emit(job_id, step, msg),
+            )
+            episode = Episode(
+                title=ent.title,
+                type=channel.format,
+                source_text=script,
+                voice_id=channel.default_voice_id,
+                status="pending",
+            )
+            session.add(episode)
+            session.commit()
+            session.refresh(episode)
 
-    entry.status = "generated"
-    entry.episode_id = episode.id
-    db.commit()
-    db.refresh(entry)
-    return entry
+            ent.status = "generated"
+            ent.episode_id = episode.id
+            session.commit()
+            registry.emit(job_id, "done", f"Guion listo, episodio #{episode.id} en cola")
+            registry.finish(
+                job_id,
+                {"entry_id": entry_id, "episode_id": episode.id,
+                 "channel_id": ent.channel_id},
+            )
+        except Exception as e:
+            session.rollback()
+            registry.fail(job_id, str(e))
+        finally:
+            session.close()
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"job_id": job_id}
 
 
 @router.post("/plan/{entry_id}/reject", response_model=PlanEntryResponse)

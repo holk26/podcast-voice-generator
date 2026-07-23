@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
 import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
+import CrewJobActivity from '../components/CrewJobActivity'
 
 export const Route = createFileRoute('/studio')({
   component: StudioPage,
@@ -47,6 +48,7 @@ function StudioPage() {
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
+      <CrewJobActivity />
       <StudioPanel channels={channels} onGenerate={generatePlan} loading={loading} />
     </div>
   )

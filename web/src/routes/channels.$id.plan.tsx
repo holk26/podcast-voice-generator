@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect } from 'react'
 import { useChannelStore } from '../stores/channelStore'
 import ContentPlanList from '../components/ContentPlanList'
+import CrewJobActivity from '../components/CrewJobActivity'
 
 export const Route = createFileRoute('/channels/$id/plan')({
   component: ChannelPlanPage,
@@ -47,6 +48,7 @@ function ChannelPlanPage() {
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
+      <CrewJobActivity />
       <ContentPlanList
         entries={planEntries}
         onApprove={approveEntry}

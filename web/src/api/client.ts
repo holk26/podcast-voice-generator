@@ -6,6 +6,7 @@ import {
   CreateChannelRequest,
   ContentPlanEntry,
   CreatePlanEntryRequest,
+  CrewJobStart,
 } from '../types'
 
 const API_BASE = '/api'
@@ -68,14 +69,14 @@ export const api = {
   getPlanEntries: (channelId: number) =>
     fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan`),
   generatePlan: (channelId: number) =>
-    fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan/generate`, { method: 'POST' }),
+    fetchJson<CrewJobStart>(`/channels/${channelId}/plan/generate`, { method: 'POST' }),
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) =>
     fetchJson<ContentPlanEntry>(`/channels/${channelId}/plan`, {
       method: 'POST',
       body: JSON.stringify(data),
     }),
   approvePlanEntry: (entryId: number) =>
-    fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/approve`, { method: 'POST' }),
+    fetchJson<CrewJobStart>(`/channels/plan/${entryId}/approve`, { method: 'POST' }),
   rejectPlanEntry: (entryId: number) =>
     fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/reject`, { method: 'POST' }),
   deletePlanEntry: (entryId: number) => fetchVoid(`/channels/plan/${entryId}`, { method: 'DELETE' }),

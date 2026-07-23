@@ -71,3 +71,22 @@ export interface CreatePlanEntryRequest {
   description?: string
   scheduled_date?: string
 }
+
+export interface CrewJobEvent {
+  ts: number
+  step: string
+  message: string
+}
+
+export interface CrewJobStart {
+  job_id: string
+}
+
+export interface ActiveCrewJob {
+  id: string
+  kind: 'plan' | 'script'
+  channelId?: number
+  events: CrewJobEvent[]
+  status: 'running' | 'done' | 'error'
+  error?: string
+}

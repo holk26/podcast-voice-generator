@@ -100,9 +100,22 @@ def _parse_plan_result(raw: str) -> List[PlanEntryCreate]:
     ]
 
 
-def generate_plan(channel, count: int = 5) -> List[PlanEntryCreate]:
+def _run_single_task(agent: Agent, description: str, expected_output: str) -> str:
+    """Ejecuta una tarea con un agente y devuelve su salida como texto."""
+    task = Task(description=description, expected_output=expected_output, agent=agent)
+    return str(Crew(agents=[agent], tasks=[task], verbose=False).kickoff())
+
+
+def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCreate]:
     """Congreso de agentes: el estratega propone ideas en bruto y el editor
-    jefe las debate, filtra y pule hasta quedarse con las mejores."""
+    jefe las debate, filtra y pule hasta quedarse con las mejores.
+
+    on_progress(step, message) se invoca al empezar cada paso (para SSE/UI).
+    """
+    def emit(step: str, message: str) -> None:
+        if on_progress:
+            on_progress(step, message)
+
     strategist = Agent(
         role="Content Strategist",
         goal="Proponer ideas de episodios relevantes para un canal",
@@ -118,34 +131,32 @@ def generate_plan(channel, count: int = 5) -> List[PlanEntryCreate]:
         verbose=False,
     )
 
-    propose_task = Task(
-        description=PLAN_PROMPT.format(
+    emit("strategist", f"El estratega propone ideas para «{channel.name}»…")
+    raw_ideas = _run_single_task(
+        strategist,
+        PLAN_PROMPT.format(
             name=channel.name,
             format=channel.format,
             niche=channel.niche or "general",
             count=count + 3,  # ideas de sobra para que el editor descarte
         ),
-        expected_output="Un array JSON con objetos title y description",
-        agent=strategist,
+        "Un array JSON con objetos title y description",
     )
-    critique_task = Task(
-        description=CRITIC_PROMPT.format(
+
+    emit("critic", "El editor jefe debate y selecciona las mejores…")
+    final = _run_single_task(
+        chief_editor,
+        CRITIC_PROMPT.format(
             name=channel.name,
             niche=channel.niche or "general",
             count=count,
-        ),
-        expected_output=f"Un array JSON con exactamente {count} objetos title y description",
-        agent=chief_editor,
-        context=[propose_task],
+        )
+        + f"\n\nIdeas propuestas por el estratega:\n{raw_ideas}",
+        f"Un array JSON con exactamente {count} objetos title y description",
     )
 
-    crew = Crew(
-        agents=[strategist, chief_editor],
-        tasks=[propose_task, critique_task],
-        verbose=False,
-    )
-    result = crew.kickoff()
-    return _parse_plan_result(str(result))[:count]
+    emit("parse", "Validando el plan final…")
+    return _parse_plan_result(final)[:count]
 
 
 def _strip_markup(text: str) -> str:
@@ -156,9 +167,16 @@ def _strip_markup(text: str) -> str:
     return text.strip()
 
 
-def generate_script(channel, entry) -> str:
+def generate_script(channel, entry, on_progress=None) -> str:
     """Congreso de agentes: el guionista escribe, el editor pule y el director
-    de voz deja el texto limpio para síntesis TTS."""
+    de voz deja el texto limpio para síntesis TTS.
+
+    on_progress(step, message) se invoca al empezar cada paso (para SSE/UI).
+    """
+    def emit(step: str, message: str) -> None:
+        if on_progress:
+            on_progress(step, message)
+
     writer = Agent(
         role="Script Writer",
         goal="Escribir guiones atractivos para audio",
@@ -181,35 +199,31 @@ def generate_script(channel, entry) -> str:
         verbose=False,
     )
 
-    write_task = Task(
-        description=SCRIPT_PROMPT.format(
+    emit("writer", f"El guionista escribe «{entry.title}»…")
+    draft = _run_single_task(
+        writer,
+        SCRIPT_PROMPT.format(
             format=channel.format,
             title=entry.title,
             description=entry.description or "",
             niche=channel.niche or "general",
         ),
-        expected_output="Un guion en español listo para leer en voz alta",
-        agent=writer,
+        "Un guion en español listo para leer en voz alta",
     )
 
-    edit_task = Task(
-        description="Revisa el guion anterior, mejora ritmo y claridad, y devuelve SOLO el texto final del guion.",
-        expected_output="Guion final pulido",
-        agent=editor,
-        context=[write_task],
+    emit("editor", "El editor pule ritmo y claridad…")
+    polished = _run_single_task(
+        editor,
+        "Revisa el guion siguiente, mejora ritmo y claridad, y devuelve SOLO "
+        f"el texto final del guion.\n\nGuion:\n{draft}",
+        "Guion final pulido",
     )
 
-    clean_task = Task(
-        description=CLEAN_PROMPT,
-        expected_output="Texto hablable limpio, sin markdown ni indicaciones",
-        agent=voice_director,
-        context=[edit_task],
+    emit("voice_director", "El director de voz lo deja listo para TTS…")
+    final = _run_single_task(
+        voice_director,
+        CLEAN_PROMPT + f"\n\nGuion:\n{polished}",
+        "Texto hablable limpio, sin markdown ni indicaciones",
     )
 
-    crew = Crew(
-        agents=[writer, editor, voice_director],
-        tasks=[write_task, edit_task, clean_task],
-        verbose=False,
-    )
-    result = crew.kickoff()
-    return _strip_markup(str(result))
+    return _strip_markup(final)
