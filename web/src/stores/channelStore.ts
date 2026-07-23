@@ -18,9 +18,10 @@ interface ChannelState {
   activeJob: ActiveCrewJob | null
   fetchChannels: () => Promise<void>
   createChannel: (data: CreateChannelRequest) => Promise<Channel>
+  updateChannel: (id: number, data: Partial<CreateChannelRequest>) => Promise<Channel>
   deleteChannel: (id: number) => Promise<void>
   fetchPlanEntries: (channelId: number) => Promise<void>
-  generatePlan: (channelId: number) => Promise<void>
+  generatePlan: (channelId: number, count?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
   approveEntry: (entryId: number) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
@@ -125,6 +126,15 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       return channel
     },
 
+    updateChannel: async (id, data) => {
+      set({ error: null })
+      const channel = await api.updateChannel(id, data)
+      set((state) => ({
+        channels: state.channels.map((c) => (c.id === id ? channel : c)),
+      }))
+      return channel
+    },
+
     deleteChannel: async (id) => {
       set({ error: null })
       await api.deleteChannel(id)
@@ -150,10 +160,10 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       }
     },
 
-    generatePlan: async (channelId) => {
+    generatePlan: async (channelId, count = 5) => {
       set({ error: null })
       try {
-        const { job_id } = await api.generatePlan(channelId)
+        const { job_id } = await api.generatePlan(channelId, count)
         trackJob(job_id, 'plan', channelId)
       } catch (error) {
         set({ error: formatError(error), loading: false })

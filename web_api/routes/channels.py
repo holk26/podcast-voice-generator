@@ -93,7 +93,7 @@ def list_plan_entries(channel_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{channel_id}/plan/generate", status_code=202)
-def generate_plan_entries(channel_id: int, db: Session = Depends(get_db)):
+def generate_plan_entries(channel_id: int, count: int = 5, db: Session = Depends(get_db)):
     """Lanza la generación del plan en segundo plano y devuelve un job_id.
 
     El progreso del congreso de agentes se sigue en /api/jobs/{job_id}/events.
@@ -101,6 +101,7 @@ def generate_plan_entries(channel_id: int, db: Session = Depends(get_db)):
     channel = db.query(Channel).filter(Channel.id == channel_id).first()
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
+    count = max(1, min(count, 10))
 
     job_id = registry.create("plan", detail=f"Plan editorial: {channel.name}")
 
@@ -110,7 +111,7 @@ def generate_plan_entries(channel_id: int, db: Session = Depends(get_db)):
             ch = session.query(Channel).filter(Channel.id == channel_id).first()
             proposed = generate_plan(
                 ch,
-                count=5,
+                count=count,
                 on_progress=lambda step, msg, content=None: registry.emit(
                     job_id, step, msg, content
                 ),

@@ -1,9 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
+import { useVoiceStore } from '../stores/voiceStore'
 import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
 import CrewJobActivity from '../components/CrewJobActivity'
+import ContentPlanList from '../components/ContentPlanList'
 
 export const Route = createFileRoute('/studio')({
   component: StudioPage,
@@ -17,13 +19,44 @@ interface LlmStatus {
 }
 
 function StudioPage() {
-  const { channels, loading, error, fetchChannels, generatePlan } = useChannelStore()
+  const {
+    channels,
+    entries,
+    loading,
+    error,
+    fetchChannels,
+    updateChannel,
+    fetchPlanEntries,
+    generatePlan,
+    approveEntry,
+    rejectEntry,
+    deleteEntry,
+  } = useChannelStore()
+  const { voices, fetchVoices } = useVoiceStore()
   const [llm, setLlm] = useState<LlmStatus | null>(null)
+  const [selectedId, setSelectedId] = useState<number | ''>('')
+  const [count, setCount] = useState(5)
 
   useEffect(() => {
     fetchChannels()
+    fetchVoices()
     api.getLlmStatus().then(setLlm).catch(() => setLlm({ available: false }))
-  }, [fetchChannels])
+  }, [fetchChannels, fetchVoices])
+
+  // Selecciona el primer canal cuando llegan los datos
+  useEffect(() => {
+    if (selectedId === '' && channels.length > 0) {
+      setSelectedId(channels[0].id)
+    }
+  }, [channels, selectedId])
+
+  // Carga el plan del canal seleccionado
+  useEffect(() => {
+    if (selectedId !== '') fetchPlanEntries(selectedId)
+  }, [selectedId, fetchPlanEntries])
+
+  const channel = channels.find((c) => c.id === selectedId)
+  const channelEntries = selectedId === '' ? [] : entries[selectedId] || []
 
   return (
     <div>
@@ -49,7 +82,33 @@ function StudioPage() {
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
       <CrewJobActivity />
-      <StudioPanel channels={channels} onGenerate={generatePlan} loading={loading} />
+      <StudioPanel
+        channels={channels}
+        selectedId={selectedId}
+        onSelectChannel={setSelectedId}
+        voices={voices}
+        voiceId={channel?.default_voice_id ?? 'jorge'}
+        onVoiceChange={(voiceId) => {
+          if (channel) updateChannel(channel.id, { default_voice_id: voiceId })
+        }}
+        count={count}
+        onCountChange={setCount}
+        onGenerate={() => {
+          if (channel) generatePlan(channel.id, count)
+        }}
+        loading={loading}
+      />
+      {channel && (
+        <div>
+          <h3 className="text-lg font-bold mb-2">Plan editorial de {channel.name}</h3>
+          <ContentPlanList
+            entries={channelEntries}
+            onApprove={approveEntry}
+            onReject={rejectEntry}
+            onDelete={deleteEntry}
+          />
+        </div>
+      )}
     </div>
   )
 }

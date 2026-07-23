@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { ChannelFormat, CreateChannelRequest } from '../types'
+import { ChannelFormat, CreateChannelRequest, Voice } from '../types'
 
 interface Props {
+  voices: Voice[]
   onSubmit: (data: CreateChannelRequest) => void
   onCancel: () => void
 }
@@ -13,12 +14,12 @@ const FORMATS: { value: ChannelFormat; label: string }[] = [
   { value: 'motivation', label: 'Motivación' },
 ]
 
-export default function ChannelForm({ onSubmit, onCancel }: Props) {
+export default function ChannelForm({ voices, onSubmit, onCancel }: Props) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [niche, setNiche] = useState('')
   const [format, setFormat] = useState<ChannelFormat>('podcast')
-  const [voiceId, setVoiceId] = useState('jorge')
+  const [voiceId, setVoiceId] = useState(voices[0]?.id ?? 'jorge')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -70,13 +71,19 @@ export default function ChannelForm({ onSubmit, onCancel }: Props) {
       </div>
       <div>
         <label htmlFor="channel-voice" className="block text-sm font-medium">Voz por defecto</label>
-        <input
+        <select
           id="channel-voice"
           className="w-full border rounded p-2"
           value={voiceId}
           onChange={(e) => setVoiceId(e.target.value)}
           required
-        />
+        >
+          {voices.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.name} ({v.engine})
+            </option>
+          ))}
+        </select>
       </div>
       <div className="space-x-2">
         <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">

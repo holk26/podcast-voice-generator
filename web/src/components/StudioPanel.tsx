@@ -1,42 +1,82 @@
-import { useEffect, useState } from 'react'
-import { Channel } from '../types'
+import { Channel, Voice } from '../types'
 
 interface Props {
   channels: Channel[]
-  onGenerate: (channelId: number) => void
+  selectedId: number | ''
+  onSelectChannel: (id: number) => void
+  voices: Voice[]
+  voiceId: string
+  onVoiceChange: (voiceId: string) => void
+  count: number
+  onCountChange: (count: number) => void
+  onGenerate: () => void
   loading: boolean
 }
 
-export default function StudioPanel({ channels, onGenerate, loading }: Props) {
-  const [selectedId, setSelectedId] = useState<number | ''>(channels[0]?.id ?? '')
+const COUNT_OPTIONS = [3, 5, 8]
 
-  // Los canales llegan de forma asíncrona: selecciona el primero al cargar
-  useEffect(() => {
-    if (selectedId === '' && channels.length > 0) {
-      setSelectedId(channels[0].id)
-    }
-  }, [channels, selectedId])
-
+export default function StudioPanel({
+  channels,
+  selectedId,
+  onSelectChannel,
+  voices,
+  voiceId,
+  onVoiceChange,
+  count,
+  onCountChange,
+  onGenerate,
+  loading,
+}: Props) {
   return (
-    <div className="bg-white p-6 rounded shadow">
+    <div className="bg-white p-6 rounded shadow mb-4">
       <h3 className="text-lg font-bold mb-4">CrewAI Studio</h3>
       <p className="text-sm text-gray-600 mb-4">
-        Selecciona un canal y genera un plan editorial con IA.
+        Elige canal, voz y cuántas ideas quieres. El congreso de agentes genera el
+        plan y, al aprobar una entrada, escribe el guion y crea el episodio.
       </p>
-      <div className="flex gap-2">
-        <select
-          className="border rounded p-2"
-          value={selectedId}
-          onChange={(e) => setSelectedId(Number(e.target.value))}
-        >
-          {channels.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
+      <div className="flex flex-wrap gap-4 items-end">
+        <div>
+          <label className="block text-sm font-medium mb-1">Canal</label>
+          <select
+            className="border rounded p-2"
+            value={selectedId}
+            onChange={(e) => onSelectChannel(Number(e.target.value))}
+          >
+            {channels.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Voz de los episodios</label>
+          <select
+            className="border rounded p-2"
+            value={voiceId}
+            onChange={(e) => onVoiceChange(e.target.value)}
+          >
+            {voices.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.name} ({v.engine})
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Ideas</label>
+          <select
+            className="border rounded p-2"
+            value={count}
+            onChange={(e) => onCountChange(Number(e.target.value))}
+          >
+            {COUNT_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
         <button
           type="button"
           disabled={loading || selectedId === ''}
-          onClick={() => onGenerate(Number(selectedId))}
+          onClick={onGenerate}
           className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-50"
         >
           {loading ? 'Generando...' : 'Generar plan'}
