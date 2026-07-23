@@ -33,6 +33,13 @@ Elimina TODO lo que no deba leerse en voz alta: notas de producción, indicacion
 (**, ##, *), títulos de sección y cualquier comentario técnico.
 Devuelve SOLO el texto hablable, en español, tal cual debe pronunciarse."""
 
+CHANNEL_SUGGEST_PROMPT = """Eres un estratega de canales de podcast. Propón UN canal de audio atractivo.
+{hint_line}
+Devuelve EXACTAMENTE este JSON:
+{{"name": "Nombre corto y llamativo", "description": "Descripción de 1-2 frases", "niche": "nicho temático", "format": "podcast"}}
+El campo "format" debe ser uno de: podcast, news, meditation, motivation.
+Solo JSON, sin explicaciones."""
+
 
 _JSON_ARRAY_RE = re.compile(r"\[.*\]", re.DOTALL)
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.DOTALL)
@@ -234,3 +241,34 @@ def generate_script(channel, entry, on_progress=None) -> str:
     emit("voice_director_done", "Texto final para síntesis de voz", final)
 
     return _strip_markup(final)
+
+
+VALID_FORMATS = {"podcast", "news", "meditation", "motivation"}
+
+
+def suggest_channel(hint: str | None = None) -> dict:
+    """Propone un canal completo (name/description/niche/format) con un agente."""
+    strategist = Agent(
+        role="Channel Strategist",
+        goal="Idear canales de podcast atractivos",
+        backstory="Experto en formatos de audio y nichos de audiencia.",
+        llm=get_planning_llm(),
+        verbose=False,
+    )
+    hint_line = f"Tema indicado por el usuario: {hint}." if hint else "Elige un tema popular con gancho."
+    result = _run_single_task(
+        strategist,
+        CHANNEL_SUGGEST_PROMPT.format(hint_line=hint_line),
+        "Un objeto JSON con name, description, niche y format",
+    )
+    data = _parse_json_flexible(result)
+    if not isinstance(data, dict):
+        raise ValueError("La sugerencia no es un objeto JSON")
+    if data.get("format") not in VALID_FORMATS:
+        data["format"] = "podcast"
+    return {
+        "name": str(data.get("name", "")).strip(),
+        "description": str(data.get("description", "")).strip(),
+        "niche": str(data.get("niche", "")).strip(),
+        "format": data["format"],
+    }

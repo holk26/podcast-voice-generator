@@ -7,6 +7,7 @@ import {
   ContentPlanEntry,
   CreatePlanEntryRequest,
   CrewJobStart,
+  ChannelSuggestion,
 } from '../types'
 
 const API_BASE = '/api'
@@ -57,6 +58,11 @@ export const api = {
   getChannels: () => fetchJson<Channel[]>('/channels'),
   createChannel: (data: CreateChannelRequest) =>
     fetchJson<Channel>('/channels', { method: 'POST', body: JSON.stringify(data) }),
+  suggestChannel: (hint?: string) =>
+    fetchJson<ChannelSuggestion>('/channels/suggest', {
+      method: 'POST',
+      body: JSON.stringify({ hint: hint || null }),
+    }),
   getChannel: (id: number) => fetchJson<Channel>(`/channels/${id}`),
   updateChannel: (id: number, data: Partial<CreateChannelRequest>) =>
     fetchJson<Channel>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

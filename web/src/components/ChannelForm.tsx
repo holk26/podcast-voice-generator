@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChannelFormat, CreateChannelRequest, Voice } from '../types'
+import { api } from '../api/client'
 
 interface Props {
   voices: Voice[]
@@ -20,14 +21,56 @@ export default function ChannelForm({ voices, onSubmit, onCancel }: Props) {
   const [niche, setNiche] = useState('')
   const [format, setFormat] = useState<ChannelFormat>('podcast')
   const [voiceId, setVoiceId] = useState(voices[0]?.id ?? 'jorge')
+  const [hint, setHint] = useState('')
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({ name, description, niche, format, default_voice_id: voiceId, is_active: true })
   }
 
+  const handleAiFill = async () => {
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const s = await api.suggestChannel(hint || undefined)
+      setName(s.name)
+      setDescription(s.description)
+      setNiche(s.niche)
+      setFormat(s.format)
+    } catch (err) {
+      setAiError(String(err))
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
   return (
     <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
+      <div className="bg-purple-50 border border-purple-200 rounded p-4 space-y-2">
+        <label htmlFor="channel-ai-hint" className="block text-sm font-medium">
+          Rellenar con IA
+        </label>
+        <div className="flex gap-2">
+          <input
+            id="channel-ai-hint"
+            className="flex-1 border rounded p-2"
+            placeholder="Tema del canal (opcional, p. ej. historia antigua)"
+            value={hint}
+            onChange={(e) => setHint(e.target.value)}
+          />
+          <button
+            type="button"
+            onClick={handleAiFill}
+            disabled={aiLoading}
+            className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-50 whitespace-nowrap"
+          >
+            {aiLoading ? 'Generando...' : '✨ Rellenar con IA'}
+          </button>
+        </div>
+        {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+      </div>
       <div>
         <label htmlFor="channel-name" className="block text-sm font-medium">Nombre</label>
         <input

@@ -83,6 +83,13 @@ export interface CrewJobStart {
   job_id: string
 }
 
+export interface ChannelSuggestion {
+  name: string
+  description: string
+  niche: string
+  format: ChannelFormat
+}
+
 export interface ActiveCrewJob {
   id: string
   kind: 'plan' | 'script'

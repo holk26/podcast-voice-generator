@@ -1,6 +1,7 @@
 import threading
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from web_api.database import get_db, SessionLocal
 from web_api.models import Channel, ContentPlanEntry, Episode
@@ -11,8 +12,12 @@ from web_api.schemas import (
     PlanEntryCreate,
     PlanEntryResponse,
 )
-from web_api.services.crew_service import generate_plan, generate_script
+from web_api.services.crew_service import generate_plan, generate_script, suggest_channel
 from web_api.services.job_service import registry
+
+
+class ChannelSuggestRequest(BaseModel):
+    hint: str | None = None
 
 router = APIRouter()
 
@@ -29,6 +34,15 @@ def create_channel(data: ChannelCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(channel)
     return channel
+
+
+@router.post("/suggest")
+def suggest_channel_endpoint(data: ChannelSuggestRequest):
+    """Propone un canal (name/description/niche/format) con IA."""
+    try:
+        return suggest_channel(data.hint)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"CrewAI error: {e}")
 
 
 @router.get("/{channel_id}", response_model=ChannelResponse)
