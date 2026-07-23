@@ -1,9 +1,0 @@
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/channels/$id/plan')({
-  component: RouteComponent,
-})
-
-function RouteComponent() {
-  return <div>Hello "/channels/$id/plan"!</div>
-}
