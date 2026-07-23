@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Channel } from '../types'
 
 interface Props {
@@ -9,6 +9,13 @@ interface Props {
 
 export default function StudioPanel({ channels, onGenerate, loading }: Props) {
   const [selectedId, setSelectedId] = useState<number | ''>(channels[0]?.id ?? '')
+
+  // Los canales llegan de forma asíncrona: selecciona el primero al cargar
+  useEffect(() => {
+    if (selectedId === '' && channels.length > 0) {
+      setSelectedId(channels[0].id)
+    }
+  }, [channels, selectedId])
 
   return (
     <div className="bg-white p-6 rounded shadow">

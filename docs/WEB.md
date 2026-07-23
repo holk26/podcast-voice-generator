@@ -47,13 +47,25 @@ API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 4. Ve a **Crear** para generar un nuevo episodio o audiolibro.
 5. Ve a **Cola** para ver el progreso en tiempo real (SSE).
 
-## Canales y CrewAI
+## Canales y CrewAI ("congreso de agentes")
 
 1. Crea un canal en **Canales**.
 2. Ve a **Studio**, selecciona el canal y pulsa **Generar plan**.
+   El Studio muestra arriba el estado de Ollama (verde si está listo).
 3. Revisa las entradas generadas en el plan editorial del canal.
 4. Pulsa **Aprobar** en una entrada para generar el guion con CrewAI y crear el episodio.
 5. Sigue la generación de audio en **Cola**.
+
+Cómo trabaja el congreso (`web_api/services/crew_service.py`):
+
+- **Plan editorial** (2 agentes): el *Content Strategist* propone 8 ideas en bruto
+  y el *Chief Editor* las debate, descarta las flojas y devuelve las 5 mejores.
+- **Guion** (3 agentes): el *Script Writer* escribe, el *Script Editor* pule ritmo
+  y claridad, y el *Voice Director* deja el texto limpio para TTS (sin notas de
+  producción ni markdown — además hay una limpieza regex de seguridad).
+
+Tiempos orientativos con `llama3.1:8b` caliente en GPU: plan ≈ 50 s, guion ≈ 30 s.
+Si el modelo está frío o en CPU (falta de VRAM), puede tardar varios minutos.
 
 ### Requisitos de Ollama
 
@@ -64,7 +76,13 @@ ollama pull llama3.1:8b
 ollama serve
 ```
 
-La URL y el modelo se configuran en `config.yaml` bajo la sección `llm`.
+La URL y el modelo se configuran en `config.yaml` bajo la sección `llm`
+(también `OLLAMA_PLANNING_MODEL` y `OLLAMA_SCRIPT_MODEL` por separado).
+
+**Nota VRAM (GPUs de ~8 GB)**: Ollama (≈5.6 GB) y el motor Higgs TTS (≈7 GB)
+no caben a la vez. Al cargarse, Higgs descarga automáticamente los modelos de
+Ollama de la GPU (`keep_alive=0`); Ollama los recarga en la siguiente llamada
+del congreso (caída a CPU si la GPU está ocupada = mucho más lento).
 
 ## Troubleshooting
 

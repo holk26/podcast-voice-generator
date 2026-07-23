@@ -84,11 +84,16 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   },
 
   generatePlan: async (channelId) => {
-    set({ error: null })
-    const entries = await api.generatePlan(channelId)
-    set((state) => ({
-      entries: { ...state.entries, [channelId]: entries },
-    }))
+    set({ loading: true, error: null })
+    try {
+      const entries = await api.generatePlan(channelId)
+      set((state) => ({
+        entries: { ...state.entries, [channelId]: entries },
+        loading: false,
+      }))
+    } catch (error) {
+      set({ error: formatError(error), loading: false })
+    }
   },
 
   createPlanEntry: async (channelId, data) => {
@@ -103,9 +108,13 @@ export const useChannelStore = create<ChannelState>((set, get) => ({
   },
 
   approveEntry: async (entryId) => {
-    set({ error: null })
-    const entry = await api.approvePlanEntry(entryId)
-    set((state) => ({ entries: updateEntryInState(state.entries, entry) }))
+    set({ loading: true, error: null })
+    try {
+      const entry = await api.approvePlanEntry(entryId)
+      set((state) => ({ entries: updateEntryInState(state.entries, entry), loading: false }))
+    } catch (error) {
+      set({ error: formatError(error), loading: false })
+    }
   },
 
   rejectEntry: async (entryId) => {

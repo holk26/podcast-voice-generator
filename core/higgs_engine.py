@@ -49,6 +49,33 @@ HIGGS_SFX = ["cough", "laughter", "crying", "screaming", "burping",
              "humming", "sigh", "sniff", "sneeze"]
 
 
+def _free_ollama_vram() -> None:
+    """Descarga los modelos de Ollama de la GPU antes de cargar Higgs.
+
+    En GPUs de ~8GB no caben Ollama (p. ej. llama3.1:8b ≈ 5.6GB) y Higgs
+    (~7GB) a la vez. Si no se libera, la carga de Higgs muere con OOM.
+    """
+    import json
+    import urllib.request
+
+    base = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    try:
+        with urllib.request.urlopen(f"{base}/api/ps", timeout=3) as resp:
+            models = [m["name"] for m in json.load(resp).get("models", [])]
+        for name in models:
+            req = urllib.request.Request(
+                f"{base}/api/generate",
+                data=json.dumps({"model": name, "keep_alive": 0}).encode(),
+                headers={"Content-Type": "application/json"},
+            )
+            urllib.request.urlopen(req, timeout=15).read()
+        if models:
+            print(f"[Higgs] Modelos de Ollama descargados de VRAM: {models}")
+    except Exception:
+        # Ollama no está corriendo o no responde: nada que liberar
+        pass
+
+
 class HiggsAudioEngine(TTSBase):
     """Higgs Audio v3 TTS engine using vLLM-Omni."""
 
@@ -109,6 +136,7 @@ class HiggsAudioEngine(TTSBase):
 
         print(f"[Higgs] Loading vLLM-Omni engine with {self.model_name}...")
         print("[Higgs] This may take 1-3 minutes on first load...")
+        _free_ollama_vram()
 
         try:
             from vllm_omni import Omni
