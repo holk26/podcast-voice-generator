@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from web_api.config import OUTPUT_DIR, API_PORT, init_dirs
 from web_api.database import init_db
 from web_api import models  # noqa: F401 - ensures tables are registered
-from web_api.routes import voices, tts, episodes, channels, llm, jobs
+from web_api.routes import voices, tts, episodes, channels, llm, jobs, books
 
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
 
@@ -39,6 +39,7 @@ app.include_router(episodes.router, prefix="/api/episodes", tags=["episodes"])
 app.include_router(channels.router, prefix="/api/channels", tags=["channels"])
 app.include_router(llm.router, prefix="/api/llm", tags=["llm"])
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])
+app.include_router(books.router, prefix="/api/books", tags=["books"])
 
 
 @app.get("/api/health")

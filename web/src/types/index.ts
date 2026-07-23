@@ -90,6 +90,19 @@ export interface ChannelSuggestion {
   format: ChannelFormat
 }
 
+export interface BookResult {
+  title: string
+  author: string
+  book_id: string
+  url: string
+}
+
+export interface BookChapter {
+  index: number
+  title: string
+  words: number
+}
+
 export interface ActiveCrewJob {
   id: string
   kind: 'plan' | 'script'

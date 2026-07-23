@@ -14,6 +14,7 @@ import { Route as StudioRouteImport } from './routes/studio'
 import { Route as QueueRouteImport } from './routes/queue'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as ChannelsRouteImport } from './routes/channels'
+import { Route as BooksRouteImport } from './routes/books'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ChannelsIndexRouteImport } from './routes/channels.index'
 import { Route as ChannelsNewRouteImport } from './routes/channels.new'
@@ -44,6 +45,11 @@ const ChannelsRoute = ChannelsRouteImport.update({
   path: '/channels',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BooksRoute = BooksRouteImport.update({
+  id: '/books',
+  path: '/books',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -67,6 +73,7 @@ const ChannelsIdPlanRoute = ChannelsIdPlanRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/books': typeof BooksRoute
   '/channels': typeof ChannelsRouteWithChildren
   '/create': typeof CreateRoute
   '/queue': typeof QueueRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/books': typeof BooksRoute
   '/create': typeof CreateRoute
   '/queue': typeof QueueRoute
   '/studio': typeof StudioRoute
@@ -89,6 +97,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/books': typeof BooksRoute
   '/channels': typeof ChannelsRouteWithChildren
   '/create': typeof CreateRoute
   '/queue': typeof QueueRoute
@@ -102,6 +111,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/books'
     | '/channels'
     | '/create'
     | '/queue'
@@ -113,6 +123,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/books'
     | '/create'
     | '/queue'
     | '/studio'
@@ -123,6 +134,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/books'
     | '/channels'
     | '/create'
     | '/queue'
@@ -135,6 +147,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BooksRoute: typeof BooksRoute
   ChannelsRoute: typeof ChannelsRouteWithChildren
   CreateRoute: typeof CreateRoute
   QueueRoute: typeof QueueRoute
@@ -177,6 +190,13 @@ declare module '@tanstack/react-router' {
       path: '/channels'
       fullPath: '/channels'
       preLoaderRoute: typeof ChannelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/books': {
+      id: '/books'
+      path: '/books'
+      fullPath: '/books'
+      preLoaderRoute: typeof BooksRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -228,6 +248,7 @@ const ChannelsRouteWithChildren = ChannelsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BooksRoute: BooksRoute,
   ChannelsRoute: ChannelsRouteWithChildren,
   CreateRoute: CreateRoute,
   QueueRoute: QueueRoute,

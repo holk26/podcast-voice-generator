@@ -8,6 +8,8 @@ import {
   CreatePlanEntryRequest,
   CrewJobStart,
   ChannelSuggestion,
+  BookResult,
+  BookChapter,
 } from '../types'
 
 const API_BASE = '/api'
@@ -86,6 +88,16 @@ export const api = {
   rejectPlanEntry: (entryId: number) =>
     fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/reject`, { method: 'POST' }),
   deletePlanEntry: (entryId: number) => fetchVoid(`/channels/plan/${entryId}`, { method: 'DELETE' }),
+
+  searchBooks: (q: string) =>
+    fetchJson<BookResult[]>(`/books/search?q=${encodeURIComponent(q)}`),
+  getBookChapters: (bookId: string) =>
+    fetchJson<BookChapter[]>(`/books/${bookId}/chapters`),
+  convertBookChapter: (bookId: string, chapterIndex: number, voiceId: string) =>
+    fetchJson<Episode>(`/books/${bookId}/to-episode`, {
+      method: 'POST',
+      body: JSON.stringify({ chapter_index: chapterIndex, voice_id: voiceId }),
+    }),
 
   getLlmStatus: () =>
     fetchJson<{ available: boolean; default_ready: boolean; error?: string }>('/llm/status'),
