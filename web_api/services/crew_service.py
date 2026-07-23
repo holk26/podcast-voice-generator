@@ -22,10 +22,45 @@ Devuelve SOLO el array JSON final con exactamente {count} objetos {{"title": ...
 sin explicaciones."""
 
 
+RESEARCH_PROMPT = """Eres un investigador. Para un episodio de tipo "{format}" titulado "{title}"
+(nicho: {niche}; descripción: {description}), recopila los puntos clave: datos interesantes,
+contexto, curiosidades y ángulos que harán el episodio rico y entretenido.
+Devuelve una lista de 6-10 puntos en texto plano, sin numerar páginas ni citar fuentes."""
+
+OUTLINE_PROMPT = """Eres el planificador de un episodio de audio de tipo "{format}" titulado "{title}"
+(nicho: {niche}) de unos {minutes} minutos. Diseña un esquema con {sections} secciones
+(incluye una introducción con gancho y un cierre memorable).
+Devuelve EXACTAMENTE este JSON:
+[
+  {{"title": "Nombre de la sección", "points": "qué contar en ella"}},
+  ...
+]
+Solo JSON, sin explicaciones."""
+
+SECTION_PROMPT = """Eres un guionista de audio escribiendo una sección de un episodio de tipo "{format}"
+titulado "{title}" (nicho: {niche}).
+Esquema completo del episodio:
+{outline}
+
+Investigación disponible:
+{research}
+
+Escribe SOLO el texto de la sección "{section_title}" ({section_points}): entre 250 y 400 palabras,
+en español, natural al leerse en voz alta, con transiciones suaves, sin notas de producción
+ni encabezados. Continúa el tono del episodio sin repetir la introducción si ya pasó."""
+
 SCRIPT_PROMPT = """Eres un guionista de audio. Escribe un guion completo en español para un episodio de tipo "{format}"
 titulado "{title}". Descripción: {description}. Nicho: {niche}.
 El guion debe tener entre 300 y 800 palabras, ser natural al leerse en voz alta y no incluir notas de producción.
 Devuelve SOLO el texto del guion, sin introducciones ni comentarios."""
+
+EDIT_FULL_PROMPT = """Eres el editor de un episodio de audio. Revisa el guion completo siguiente:
+elimina repeticiones, mejora las transiciones entre secciones y el ritmo general,
+y asegúrate de que se lee natural en voz alta. Devuelve SOLO el guion completo final,
+sin comentarios ni notas.
+
+Guion:
+{script}"""
 
 CLEAN_PROMPT = """Del guion anterior, prepara la versión FINAL PARA SÍNTESIS DE VOZ (TTS).
 Elimina TODO lo que no deba leerse en voz alta: notas de producción, indicaciones
@@ -177,9 +212,10 @@ def _strip_markup(text: str) -> str:
     return text.strip()
 
 
-def generate_script(channel, entry, on_progress=None) -> str:
-    """Congreso de agentes: el guionista escribe, el editor pule y el director
-    de voz deja el texto limpio para síntesis TTS.
+def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
+    """Congreso de agentes: investigador → planificador → guionista por
+    secciones → editor → director de voz. Genera guiones largos
+    (~150 palabras/minuto hablado).
 
     on_progress(step, message, content=None) se invoca al empezar cada paso y
     al terminarlo con la salida del agente (historial completo para SSE/UI).
@@ -188,50 +224,88 @@ def generate_script(channel, entry, on_progress=None) -> str:
         if on_progress:
             on_progress(step, message, content)
 
-    writer = Agent(
-        role="Script Writer",
-        goal="Escribir guiones atractivos para audio",
-        backstory="Experto en escritura para podcast y narración hablada.",
-        llm=get_script_llm(),
-        verbose=False,
-    )
-    editor = Agent(
-        role="Script Editor",
-        goal="Revisar guiones para mejorar ritmo y claridad",
-        backstory="Editor con oído para contenido hablado.",
-        llm=get_script_llm(),
-        verbose=False,
-    )
-    voice_director = Agent(
-        role="Voice Director",
-        goal="Dejar el guion listo para síntesis de voz, sin marcas ni indicaciones",
-        backstory="Director de doblaje: solo le importa lo que se pronuncia.",
-        llm=get_script_llm(),
-        verbose=False,
-    )
+    def make_agent(role: str, goal: str, backstory: str) -> Agent:
+        return Agent(role=role, goal=goal, backstory=backstory,
+                     llm=get_script_llm(), verbose=False)
 
-    emit("writer", f"El guionista escribe «{entry.title}»…")
-    draft = _run_single_task(
-        writer,
-        SCRIPT_PROMPT.format(
-            format=channel.format,
-            title=entry.title,
-            description=entry.description or "",
-            niche=channel.niche or "general",
-        ),
-        "Un guion en español listo para leer en voz alta",
-    )
-    emit("writer_done", "Borrador del guionista", draft)
+    researcher = make_agent("Researcher", "Recopilar datos y ángulos interesantes",
+                            "Periodista de investigación con gran memoria para datos.")
+    planner = make_agent("Episode Planner", "Diseñar la estructura del episodio",
+                         "Productor veterano de podcasts narrativos.")
+    writer = make_agent("Script Writer", "Escribir secciones atractivas para audio",
+                        "Experto en escritura para podcast y narración hablada.")
+    editor = make_agent("Script Editor", "Unificar y pulir el guion completo",
+                        "Editor con oído para contenido hablado.")
+    voice_director = make_agent("Voice Director",
+                                "Dejar el guion listo para síntesis de voz",
+                                "Director de doblaje: solo le importa lo que se pronuncia.")
 
-    emit("editor", "El editor pule ritmo y claridad…")
+    fmt = channel.format
+    niche = channel.niche or "general"
+    desc = entry.description or ""
+
+    # 1. Investigación
+    emit("research", "El investigador recopila datos y curiosidades…")
+    research = _run_single_task(
+        researcher,
+        RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc),
+        "Lista de puntos clave",
+    )
+    emit("research_done", "Investigación lista", research)
+
+    # 2. Esquema
+    n_sections = max(3, min(8, target_minutes // 2))
+    emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…")
+    outline_raw = _run_single_task(
+        planner,
+        OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
+                              minutes=target_minutes, sections=n_sections),
+        "Un array JSON de secciones",
+    )
+    emit("outline_done", "Esquema del episodio", outline_raw)
+
+    try:
+        sections = _parse_json_flexible(outline_raw)
+        if not isinstance(sections, list) or not sections:
+            raise ValueError("esquema vacío")
+        sections = [
+            {"title": str(s.get("title", f"Sección {i + 1}")),
+             "points": str(s.get("points", ""))}
+            for i, s in enumerate(sections)
+        ]
+    except Exception:
+        # Fallback: una sola sección con todo el tema
+        sections = [{"title": entry.title, "points": desc}]
+
+    # 3. Escritura por secciones
+    parts: list[str] = []
+    for i, section in enumerate(sections):
+        emit("write_section",
+             f"El guionista escribe la sección {i + 1}/{len(sections)}: «{section['title']}»…")
+        part = _run_single_task(
+            writer,
+            SECTION_PROMPT.format(
+                format=fmt, title=entry.title, niche=niche,
+                outline=outline_raw, research=research,
+                section_title=section["title"], section_points=section["points"],
+            ),
+            "Texto de la sección en español",
+        )
+        emit(f"write_section_done", f"Sección {i + 1}/{len(sections)} escrita", part)
+        parts.append(part.strip())
+
+    draft = "\n\n".join(parts)
+
+    # 4. Edición completa
+    emit("editor", "El editor unifica y pule el guion completo…")
     polished = _run_single_task(
         editor,
-        "Revisa el guion siguiente, mejora ritmo y claridad, y devuelve SOLO "
-        f"el texto final del guion.\n\nGuion:\n{draft}",
-        "Guion final pulido",
+        EDIT_FULL_PROMPT.format(script=draft),
+        "Guion completo pulido",
     )
     emit("editor_done", "Versión pulida por el editor", polished)
 
+    # 5. Limpieza para TTS
     emit("voice_director", "El director de voz lo deja listo para TTS…")
     final = _run_single_task(
         voice_director,

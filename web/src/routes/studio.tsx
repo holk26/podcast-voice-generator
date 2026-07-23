@@ -31,6 +31,8 @@ function StudioPage() {
     approveEntry,
     rejectEntry,
     deleteEntry,
+    targetMinutes,
+    setTargetMinutes,
   } = useChannelStore()
   const { voices, fetchVoices } = useVoiceStore()
   const [llm, setLlm] = useState<LlmStatus | null>(null)
@@ -93,6 +95,8 @@ function StudioPage() {
         }}
         count={count}
         onCountChange={setCount}
+        minutes={targetMinutes}
+        onMinutesChange={setTargetMinutes}
         onGenerate={() => {
           if (channel) generatePlan(channel.id, count)
         }}

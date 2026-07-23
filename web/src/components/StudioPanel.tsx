@@ -9,11 +9,14 @@ interface Props {
   onVoiceChange: (voiceId: string) => void
   count: number
   onCountChange: (count: number) => void
+  minutes: number
+  onMinutesChange: (minutes: number) => void
   onGenerate: () => void
   loading: boolean
 }
 
 const COUNT_OPTIONS = [3, 5, 8]
+const MINUTE_OPTIONS = [5, 10, 15]
 
 export default function StudioPanel({
   channels,
@@ -24,6 +27,8 @@ export default function StudioPanel({
   onVoiceChange,
   count,
   onCountChange,
+  minutes,
+  onMinutesChange,
   onGenerate,
   loading,
 }: Props) {
@@ -70,6 +75,18 @@ export default function StudioPanel({
           >
             {COUNT_OPTIONS.map((n) => (
               <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Duración objetivo</label>
+          <select
+            className="border rounded p-2"
+            value={minutes}
+            onChange={(e) => onMinutesChange(Number(e.target.value))}
+          >
+            {MINUTE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n} min</option>
             ))}
           </select>
         </div>

@@ -16,6 +16,8 @@ interface ChannelState {
   loading: boolean
   error: string | null
   activeJob: ActiveCrewJob | null
+  targetMinutes: number
+  setTargetMinutes: (minutes: number) => void
   fetchChannels: () => Promise<void>
   createChannel: (data: CreateChannelRequest) => Promise<Channel>
   updateChannel: (id: number, data: Partial<CreateChannelRequest>) => Promise<Channel>
@@ -106,6 +108,9 @@ export const useChannelStore = create<ChannelState>((set, get) => {
     loading: false,
     error: null,
     activeJob: null,
+    targetMinutes: 10,
+
+    setTargetMinutes: (minutes) => set({ targetMinutes: minutes }),
 
     clearJob: () => set({ activeJob: null }),
 
@@ -184,7 +189,7 @@ export const useChannelStore = create<ChannelState>((set, get) => {
     approveEntry: async (entryId) => {
       set({ error: null })
       try {
-        const { job_id } = await api.approvePlanEntry(entryId)
+        const { job_id } = await api.approvePlanEntry(entryId, get().targetMinutes)
         trackJob(job_id, 'script')
       } catch (error) {
         set({ error: formatError(error), loading: false })

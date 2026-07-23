@@ -164,17 +164,19 @@ def create_plan_entry(channel_id: int, data: PlanEntryCreate, db: Session = Depe
 
 
 @router.post("/plan/{entry_id}/approve", status_code=202)
-def approve_plan_entry(entry_id: int, db: Session = Depends(get_db)):
+def approve_plan_entry(entry_id: int, minutes: int = 10, db: Session = Depends(get_db)):
     """Lanza la generación del guion en segundo plano y devuelve un job_id.
 
-    El progreso del congreso (guionista → editor → director de voz) se sigue
-    en /api/jobs/{job_id}/events.
+    El progreso del congreso (investigador → planificador → guionista por
+    secciones → editor → director de voz) se sigue en /api/jobs/{job_id}/events.
+    `minutes` fija la duración objetivo del episodio (~150 palabras/minuto).
     """
     entry = db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry_id).first()
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     if entry.status != "draft":
         raise HTTPException(status_code=400, detail="Entry already processed")
+    minutes = max(2, min(minutes, 30))
 
     job_id = registry.create("script", detail=f"Guion: {entry.title}")
 
@@ -190,6 +192,7 @@ def approve_plan_entry(entry_id: int, db: Session = Depends(get_db)):
             script = generate_script(
                 channel,
                 ent,
+                target_minutes=minutes,
                 on_progress=lambda step, msg, content=None: registry.emit(
                     job_id, step, msg, content
                 ),
