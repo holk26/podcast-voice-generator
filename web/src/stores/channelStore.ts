@@ -25,6 +25,7 @@ interface ChannelState {
   fetchPlanEntries: (channelId: number) => Promise<void>
   generatePlan: (channelId: number, count?: number) => Promise<void>
   generateSeason: (channelId: number, weeks?: number) => Promise<void>
+  _handleActionError: (error: unknown, channelId?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
   approveEntry: (entryId: number) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
@@ -172,7 +173,7 @@ export const useChannelStore = create<ChannelState>((set, get) => {
         const { job_id } = await api.generatePlan(channelId, count)
         trackJob(job_id, 'plan', channelId)
       } catch (error) {
-        set({ error: formatError(error), loading: false })
+        await get()._handleActionError(error, channelId)
       }
     },
 
@@ -182,7 +183,7 @@ export const useChannelStore = create<ChannelState>((set, get) => {
         const { job_id } = await api.generateSeason(channelId, weeks)
         trackJob(job_id, 'season', channelId)
       } catch (error) {
-        set({ error: formatError(error), loading: false })
+        await get()._handleActionError(error, channelId)
       }
     },
 
@@ -203,6 +204,20 @@ export const useChannelStore = create<ChannelState>((set, get) => {
         const { job_id } = await api.approvePlanEntry(entryId, get().targetMinutes)
         trackJob(job_id, 'script')
       } catch (error) {
+        await get()._handleActionError(error)
+      }
+    },
+
+    _handleActionError: async (error: unknown, channelId?: number) => {
+      // 404 = canal/entrada borrados (estado obsoleto en la UI): refresca y avisa
+      if (String(error).includes('404')) {
+        await get().fetchChannels()
+        if (channelId) await get().fetchPlanEntries(channelId)
+        set({
+          error: 'Ese canal o entrada ya no existe — lista actualizada.',
+          loading: false,
+        })
+      } else {
         set({ error: formatError(error), loading: false })
       }
     },

@@ -14,6 +14,19 @@ import {
 
 const API_BASE = '/api'
 
+async function parseError(response: Response): Promise<Error> {
+  try {
+    const body = await response.json()
+    if (body?.detail) {
+      const detail = typeof body.detail === 'string' ? body.detail : JSON.stringify(body.detail)
+      return new Error(`HTTP ${response.status}: ${detail}`)
+    }
+  } catch {
+    // cuerpo no JSON
+  }
+  return new Error(`HTTP ${response.status}: ${response.statusText}`)
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
@@ -23,7 +36,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     },
   })
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    throw await parseError(response)
   }
   return response.json()
 }
@@ -37,7 +50,7 @@ async function fetchVoid(url: string, options?: RequestInit): Promise<void> {
     },
   })
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+    throw await parseError(response)
   }
 }
 
