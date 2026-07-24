@@ -23,6 +23,7 @@ def _migrate() -> None:
     """Añade columnas nuevas a tablas existentes (SQLite no lo hace create_all)."""
     new_columns = {
         "channels": [
+            ("brief", "TEXT"),
             ("autopilot", "BOOLEAN DEFAULT 0 NOT NULL"),
             ("episodes_per_week", "INTEGER DEFAULT 2 NOT NULL"),
             ("target_minutes", "INTEGER DEFAULT 10 NOT NULL"),

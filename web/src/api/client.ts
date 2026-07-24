@@ -79,6 +79,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ hint: hint || null }),
     }),
+  improveChannelPrompt: (id: number) =>
+    fetchJson<{ brief: string }>(`/channels/${id}/improve-prompt`, { method: 'POST' }),
   getChannel: (id: number) => fetchJson<Channel>(`/channels/${id}`),
   updateChannel: (id: number, data: Partial<CreateChannelRequest>) =>
     fetchJson<Channel>(`/channels/${id}`, { method: 'PUT', body: JSON.stringify(data) }),

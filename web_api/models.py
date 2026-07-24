@@ -30,6 +30,7 @@ class Channel(Base):
     format = Column(String, nullable=False, default="podcast")
     default_voice_id = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    brief = Column(Text, nullable=True)  # brief de producción generado por IA
     autopilot = Column(Boolean, default=False, nullable=False)
     episodes_per_week = Column(Integer, default=2, nullable=False)
     target_minutes = Column(Integer, default=10, nullable=False)

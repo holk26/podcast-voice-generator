@@ -61,6 +61,7 @@ class ChannelBase(BaseModel):
     format: str = "podcast"
     default_voice_id: str
     is_active: bool = True
+    brief: Optional[str] = None
     autopilot: bool = False
     episodes_per_week: int = 2
     target_minutes: int = 10
@@ -77,6 +78,7 @@ class ChannelUpdate(BaseModel):
     format: Optional[str] = None
     default_voice_id: Optional[str] = None
     is_active: Optional[bool] = None
+    brief: Optional[str] = None
     autopilot: Optional[bool] = None
     episodes_per_week: Optional[int] = None
     target_minutes: Optional[int] = None

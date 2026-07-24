@@ -44,6 +44,7 @@ export interface Channel {
   autopilot: boolean
   episodes_per_week: number
   target_minutes: number
+  brief?: string
   entries_total?: number
   entries_generated?: number
   created_at: string
@@ -70,6 +71,7 @@ export interface CreateChannelRequest {
   format: ChannelFormat
   default_voice_id: string
   is_active?: boolean
+  brief?: string
   autopilot?: boolean
   episodes_per_week?: number
   target_minutes?: number

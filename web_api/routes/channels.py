@@ -11,7 +11,7 @@ from web_api.schemas import (
     PlanEntryCreate,
     PlanEntryResponse,
 )
-from web_api.services.crew_service import suggest_channel
+from web_api.services.crew_service import suggest_channel, improve_channel_prompt
 from web_api.services.automation_service import start_plan_job, start_script_job, start_season_job
 
 
@@ -62,6 +62,22 @@ def suggest_channel_endpoint(data: ChannelSuggestRequest):
         return suggest_channel(data.hint)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"CrewAI error: {e}")
+
+
+@router.post("/{channel_id}/improve-prompt")
+def improve_prompt(channel_id: int, db: Session = Depends(get_db)):
+    """El productor ejecutivo reescribe el brief de producción del canal
+    (idioma, audiencia, tono, reglas) y lo guarda."""
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    try:
+        brief = improve_channel_prompt(channel)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"CrewAI error: {e}")
+    channel.brief = brief
+    db.commit()
+    return {"brief": brief}
 
 
 @router.get("/{channel_id}", response_model=ChannelResponse)

@@ -22,6 +22,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
   const [niche, setNiche] = useState(initial?.niche ?? '')
   const [format, setFormat] = useState<ChannelFormat>(initial?.format ?? 'podcast')
   const [voiceId, setVoiceId] = useState(initial?.default_voice_id ?? voices[0]?.id ?? 'jorge')
+  const [brief, setBrief] = useState(initial?.brief ?? '')
   const [hint, setHint] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -35,10 +36,25 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
       format,
       default_voice_id: voiceId,
       is_active: initial?.is_active ?? true,
+      brief: brief || undefined,
       autopilot: initial?.autopilot ?? false,
       episodes_per_week: initial?.episodes_per_week ?? 2,
       target_minutes: initial?.target_minutes ?? 10,
     })
+  }
+
+  const handleImprovePrompt = async () => {
+    if (!initial) return
+    setAiLoading(true)
+    setAiError(null)
+    try {
+      const { brief: newBrief } = await api.improveChannelPrompt(initial.id)
+      setBrief(newBrief)
+    } catch (err) {
+      setAiError(String(err))
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const handleAiFill = async () => {
@@ -138,6 +154,31 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
             </option>
           ))}
         </select>
+      </div>
+      <div>
+        <div className="flex justify-between items-center mb-1">
+          <label htmlFor="channel-brief" className="block text-sm font-medium">
+            Brief de producción (lo siguen los agentes al generar)
+          </label>
+          {initial && (
+            <button
+              type="button"
+              onClick={handleImprovePrompt}
+              disabled={aiLoading}
+              className="text-sm bg-indigo-600 text-white px-3 py-1 rounded disabled:opacity-50"
+            >
+              {aiLoading ? 'Mejorando...' : '🪄 Mejorar con IA'}
+            </button>
+          )}
+        </div>
+        <textarea
+          id="channel-brief"
+          className="w-full border rounded p-2 text-sm"
+          rows={5}
+          placeholder="Idioma del contenido, audiencia, tono, estructura y reglas del canal. Vacío = comportamiento por defecto (español)."
+          value={brief}
+          onChange={(e) => setBrief(e.target.value)}
+        />
       </div>
       <div className="space-x-2">
         <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">

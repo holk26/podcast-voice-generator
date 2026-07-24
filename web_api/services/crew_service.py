@@ -25,11 +25,13 @@ sin explicaciones."""
 RESEARCH_PROMPT = """Eres un investigador. Para un episodio de tipo "{format}" titulado "{title}"
 (nicho: {niche}; descripción: {description}), recopila los puntos clave: datos interesantes,
 contexto, curiosidades y ángulos que harán el episodio rico y entretenido.
+{specs}
 Devuelve una lista de 6-10 puntos en texto plano, sin numerar páginas ni citar fuentes."""
 
 OUTLINE_PROMPT = """Eres el planificador de un episodio de audio de tipo "{format}" titulado "{title}"
 (nicho: {niche}) de unos {minutes} minutos. Diseña un esquema con {sections} secciones
 (incluye una introducción con gancho y un cierre memorable).
+{specs}
 Devuelve EXACTAMENTE este JSON:
 [
   {{"title": "Nombre de la sección", "points": "qué contar en ella"}},
@@ -46,8 +48,10 @@ Investigación disponible:
 {research}
 
 Escribe SOLO el texto de la sección "{section_title}" ({section_points}): entre 250 y 400 palabras,
-en español, natural al leerse en voz alta, con transiciones suaves, sin notas de producción
-ni encabezados. Continúa el tono del episodio sin repetir la introducción si ya pasó."""
+natural al leerse en voz alta, con transiciones suaves, sin notas de producción
+ni encabezados. Continúa el tono del episodio sin repetir la introducción si ya pasó.
+{specs}
+RESPETA el idioma indicado en las especificaciones."""
 
 SCRIPT_PROMPT = """Eres un guionista de audio. Escribe un guion completo en español para un episodio de tipo "{format}"
 titulado "{title}". Descripción: {description}. Nicho: {niche}.
@@ -222,12 +226,24 @@ def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCr
     return _parse_plan_result(final)[:count]
 
 
+_META_PREFIX_RE = re.compile(
+    r"^(guion|aquí|texto|versión|script|borrador|claro|por supuesto|vale|perfecto"
+    r"|here|sure|certainly|translation|translated|let me)[^\n]*:\s*",
+    re.IGNORECASE,
+)
+
+
 def _strip_markup(text: str) -> str:
-    """Red de seguridad: quita formato markdown residual del guion final."""
+    """Red de seguridad: quita formato markdown y meta-prefijos del LLM."""
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", text)
     text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
-    return text.strip()
+    text = text.strip()
+    # Quita primeras líneas meta ("Guion revisado y corregido:", "Aquí está el guion:"...)
+    lines = text.split("\n", 1)
+    if len(lines) == 2 and _META_PREFIX_RE.match(lines[0].strip()):
+        text = lines[1].strip()
+    return _META_PREFIX_RE.sub("", text, count=1).strip()
 
 
 def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
@@ -263,7 +279,8 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     desc = entry.description or ""
 
     # 1. Investigación
-    prompt = RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc)
+    specs = _specs(channel)
+    prompt = RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc, specs=specs)
     emit("research", "El investigador recopila datos y curiosidades…", prompt)
     research = _run_single_task(researcher, prompt, "Lista de puntos clave")
     emit("research_done", "Investigación lista", research)
@@ -271,7 +288,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     # 2. Esquema
     n_sections = max(3, min(8, target_minutes // 2))
     prompt = OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
-                                   minutes=target_minutes, sections=n_sections)
+                                   minutes=target_minutes, sections=n_sections, specs=specs)
     emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…", prompt)
     outline_raw = _run_single_task(planner, prompt, "Un array JSON de secciones")
     emit("outline_done", "Esquema del episodio", outline_raw)
@@ -296,6 +313,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
             format=fmt, title=entry.title, niche=niche,
             outline=outline_raw, research=research,
             section_title=section["title"], section_points=section["points"],
+            specs=specs,
         )
         emit("write_section",
              f"El guionista escribe la sección {i + 1}/{len(sections)}: «{section['title']}»…",
@@ -320,6 +338,21 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         "Texto hablable limpio, sin markdown ni indicaciones",
     )
     emit("voice_director_done", "Texto final para síntesis de voz", final)
+
+    # 6. Control de idioma programático: si el brief pide inglés y el guion
+    # salió en español, un traductor lo pasa a inglés (tarea mecánica,
+    # mucho más fiable que un "QA" creativo con un modelo pequeño).
+    if _needs_english(specs) and _spanish_ratio(final) > 0.5:
+        translator = make_agent("Translator",
+                                "Traducir guiones al inglés de forma fiel",
+                                "Traductor profesional: fiel al texto, sin añadir nada.")
+        emit("translate", "El guion salió en español; el traductor lo pasa a inglés…")
+        final = _run_single_task(
+            translator,
+            TRANSLATE_PROMPT + f"\n\n{final}",
+            "English translation of the script",
+        )
+        emit("translate_done", "Guion traducido al inglés", final)
 
     return _strip_markup(final)
 
@@ -424,3 +457,93 @@ def generate_season(channel, season_number: int = 1, weeks: int = 4, on_progress
         raise ValueError("La temporada no contiene episodios")
 
     return {"theme": str(data.get("theme", "")).strip(), "episodes": episodes}
+
+
+IMPROVE_PROMPT = """Eres un productor ejecutivo de podcasts. Para el canal "{name}" ({format})
+sobre el nicho "{niche}", con esta descripción actual:
+"{description}"
+
+Reescribe y MEJORA el brief de producción del canal para que sea específico y accionable.
+Debe incluir en 4-8 líneas y de forma explícita:
+- IDIOMA exacto del contenido hablado (p. ej. "100% español", "narración en español con vocabulario en inglés", "80% inglés / 20% español")
+- Audiencia objetivo y nivel
+- Tono y estilo (p. ej. cercano, didáctico, energético)
+- Estructura de cada episodio (gancho, desarrollo, cierre)
+- Reglas concretas que NUNCA se deben romper
+Devuelve SOLO el brief, sin introducciones ni comentarios."""
+
+QUALITY_PROMPT = """Eres el control de calidad de un canal de podcast. Revisa el guion siguiente
+contra las especificaciones del canal y CORRÍGELO si se desvía.
+
+ESPECIFICACIONES DEL CANAL (obligatorias):
+{specs}
+
+Comprueba sobre todo:
+1. IDIOMA: ¿el guion respeta el idioma indicado en las especificaciones?
+   SI NO CUMPLE: REESCRIBE el guion completo en el idioma correcto (tradúcelo
+   fielmente, manteniendo estructura y duración). Esto es OBLIGATORIO.
+2. TEMA: ¿trata exactamente «{title}» del nicho "{niche}"?
+3. FORMATO: ¿es texto hablable natural, sin notas de producción ni markdown?
+
+Devuelve SOLO el guion final corregido (o el original si ya cumple),
+sin comentarios, sin encabezados, sin frases como "Guion revisado".
+
+Guion:
+{script}"""
+
+
+TRANSLATE_PROMPT = """Translate the following Spanish podcast script to natural, spoken English.
+Keep the same structure, sections and approximate length. Keep names and proper nouns.
+Output ONLY the English text, nothing else — no comments, no headers."""
+
+
+_ENGLISH_HINT_RE = re.compile(r"ingl[eé]s|english", re.IGNORECASE)
+_ES_STOPWORDS = re.compile(
+    r"\b(el|la|los|las|de|del|que|en|por|para|con|una|este|esta|hoy|vamos|nuestro|también)\b",
+    re.IGNORECASE,
+)
+_EN_STOPWORDS = re.compile(
+    r"\b(the|and|you|your|is|are|to|of|in|for|with|we|this|today)\b",
+    re.IGNORECASE,
+)
+
+
+def _needs_english(specs: str) -> bool:
+    return bool(_ENGLISH_HINT_RE.search(specs))
+
+
+def _spanish_ratio(text: str) -> float:
+    es = len(_ES_STOPWORDS.findall(text))
+    en = len(_EN_STOPWORDS.findall(text))
+    return es / max(1, es + en)
+
+
+def _specs(channel) -> str:
+    """Bloque de especificaciones del canal para los prompts (si tiene brief)."""
+    brief = getattr(channel, "brief", None)
+    if brief:
+        return f"ESPECIFICACIONES DEL CANAL (obligatorias):\n{brief}"
+    return (
+        f"Canal: {channel.name} ({channel.format}), nicho: {channel.niche or 'general'}. "
+        "Idioma del contenido: español salvo que el título/tema indique lo contrario."
+    )
+
+
+def improve_channel_prompt(channel) -> str:
+    """Agente optimizador: convierte la descripción vaga del canal en un brief
+    de producción específico y accionable."""
+    producer = Agent(
+        role="Executive Producer",
+        goal="Definir briefs de producción precisos para canales",
+        backstory="Productor ejecutivo: convierte ideas vagas en especificaciones claras.",
+        llm=get_planning_llm(),
+        verbose=False,
+    )
+    prompt = IMPROVE_PROMPT.format(
+        name=channel.name,
+        format=channel.format,
+        niche=channel.niche or "general",
+        description=(channel.description or "sin descripción").strip(),
+    )
+    brief = _run_single_task(producer, prompt, "Brief de producción mejorado")
+    return _strip_markup(brief)
