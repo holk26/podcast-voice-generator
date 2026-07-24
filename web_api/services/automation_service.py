@@ -235,13 +235,15 @@ def _post_job(path: str) -> str | None:
 
 
 def autopilot_tick() -> list[str]:
-    """Una acción por canal en piloto automático por pasada.
+    """Una acción por canal en piloto automático por pasada (diaria).
 
     - Sin borradores: lanza la planificación de una temporada nueva.
-    - Con borradores: lanza el guion del más antiguo.
+    - Con borradores: lanza el guion del más antiguo DE LOS QUE YA TOCAN
+      (scheduled_date <= hoy o sin fecha), respetando el calendario.
     Devuelve los job_ids lanzados (para logs).
     """
     launched: list[str] = []
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     session = SessionLocal()
     try:
         channels = (
@@ -255,12 +257,25 @@ def autopilot_tick() -> list[str]:
                 .filter(
                     ContentPlanEntry.channel_id == channel.id,
                     ContentPlanEntry.status == "draft",
+                    (ContentPlanEntry.scheduled_date.is_(None))
+                    | (ContentPlanEntry.scheduled_date <= now),
                 )
                 .order_by(ContentPlanEntry.scheduled_date.asc().nullsfirst(),
                           ContentPlanEntry.created_at.asc())
                 .first()
             )
             if draft is None:
+                # Solo planifica temporada si no queda NINGÚN borrador (ni futuro)
+                remaining = (
+                    session.query(ContentPlanEntry)
+                    .filter(
+                        ContentPlanEntry.channel_id == channel.id,
+                        ContentPlanEntry.status == "draft",
+                    )
+                    .count()
+                )
+                if remaining > 0:
+                    continue
                 job_id = _post_job(f"/api/channels/{channel.id}/season?weeks=4")
             else:
                 job_id = _post_job(

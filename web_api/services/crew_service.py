@@ -194,28 +194,26 @@ def generate_plan(channel, count: int = 5, on_progress=None) -> List[PlanEntryCr
         verbose=False,
     )
 
-    emit("strategist", f"El estratega propone ideas para «{channel.name}»…")
+    prompt = PLAN_PROMPT.format(
+        name=channel.name,
+        format=channel.format,
+        niche=channel.niche or "general",
+        count=count + 3,  # ideas de sobra para que el editor descarte
+    )
+    emit("strategist", f"El estratega propone ideas para «{channel.name}»…", prompt)
     raw_ideas = _run_single_task(
-        strategist,
-        PLAN_PROMPT.format(
-            name=channel.name,
-            format=channel.format,
-            niche=channel.niche or "general",
-            count=count + 3,  # ideas de sobra para que el editor descarte
-        ),
-        "Un array JSON con objetos title y description",
+        strategist, prompt, "Un array JSON con objetos title y description"
     )
     emit("strategist_done", "El estratega terminó su propuesta", raw_ideas)
 
-    emit("critic", "El editor jefe debate y selecciona las mejores…")
+    prompt = CRITIC_PROMPT.format(
+        name=channel.name,
+        niche=channel.niche or "general",
+        count=count,
+    ) + f"\n\nIdeas propuestas por el estratega:\n{raw_ideas}"
+    emit("critic", "El editor jefe debate y selecciona las mejores…", prompt)
     final = _run_single_task(
-        chief_editor,
-        CRITIC_PROMPT.format(
-            name=channel.name,
-            niche=channel.niche or "general",
-            count=count,
-        )
-        + f"\n\nIdeas propuestas por el estratega:\n{raw_ideas}",
+        chief_editor, prompt,
         f"Un array JSON con exactamente {count} objetos title y description",
     )
     emit("critic_done", "El editor jefe publicó su selección", final)
@@ -265,23 +263,17 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     desc = entry.description or ""
 
     # 1. Investigación
-    emit("research", "El investigador recopila datos y curiosidades…")
-    research = _run_single_task(
-        researcher,
-        RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc),
-        "Lista de puntos clave",
-    )
+    prompt = RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc)
+    emit("research", "El investigador recopila datos y curiosidades…", prompt)
+    research = _run_single_task(researcher, prompt, "Lista de puntos clave")
     emit("research_done", "Investigación lista", research)
 
     # 2. Esquema
     n_sections = max(3, min(8, target_minutes // 2))
-    emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…")
-    outline_raw = _run_single_task(
-        planner,
-        OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
-                              minutes=target_minutes, sections=n_sections),
-        "Un array JSON de secciones",
-    )
+    prompt = OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
+                                   minutes=target_minutes, sections=n_sections)
+    emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…", prompt)
+    outline_raw = _run_single_task(planner, prompt, "Un array JSON de secciones")
     emit("outline_done", "Esquema del episodio", outline_raw)
 
     try:
@@ -300,36 +292,31 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     # 3. Escritura por secciones
     parts: list[str] = []
     for i, section in enumerate(sections):
-        emit("write_section",
-             f"El guionista escribe la sección {i + 1}/{len(sections)}: «{section['title']}»…")
-        part = _run_single_task(
-            writer,
-            SECTION_PROMPT.format(
-                format=fmt, title=entry.title, niche=niche,
-                outline=outline_raw, research=research,
-                section_title=section["title"], section_points=section["points"],
-            ),
-            "Texto de la sección en español",
+        prompt = SECTION_PROMPT.format(
+            format=fmt, title=entry.title, niche=niche,
+            outline=outline_raw, research=research,
+            section_title=section["title"], section_points=section["points"],
         )
+        emit("write_section",
+             f"El guionista escribe la sección {i + 1}/{len(sections)}: «{section['title']}»…",
+             prompt)
+        part = _run_single_task(writer, prompt, "Texto de la sección en español")
         emit(f"write_section_done", f"Sección {i + 1}/{len(sections)} escrita", part)
         parts.append(part.strip())
 
     draft = "\n\n".join(parts)
 
     # 4. Edición completa
-    emit("editor", "El editor unifica y pule el guion completo…")
-    polished = _run_single_task(
-        editor,
-        EDIT_FULL_PROMPT.format(script=draft),
-        "Guion completo pulido",
-    )
+    prompt = EDIT_FULL_PROMPT.format(script=draft)
+    emit("editor", "El editor unifica y pule el guion completo…", prompt)
+    polished = _run_single_task(editor, prompt, "Guion completo pulido")
     emit("editor_done", "Versión pulida por el editor", polished)
 
     # 5. Limpieza para TTS
-    emit("voice_director", "El director de voz lo deja listo para TTS…")
+    prompt = CLEAN_PROMPT + f"\n\nGuion:\n{polished}"
+    emit("voice_director", "El director de voz lo deja listo para TTS…", prompt)
     final = _run_single_task(
-        voice_director,
-        CLEAN_PROMPT + f"\n\nGuion:\n{polished}",
+        voice_director, prompt,
         "Texto hablable limpio, sin markdown ni indicaciones",
     )
     emit("voice_director_done", "Texto final para síntesis de voz", final)
@@ -402,21 +389,19 @@ def generate_season(channel, season_number: int = 1, weeks: int = 4, on_progress
         verbose=False,
     )
 
-    emit("showrunner",
-         f"El showrunner diseña la temporada {season_number} de «{channel.name}» ({weeks} semanas)…")
-    raw = _run_single_task(
-        showrunner,
-        SEASON_PROMPT.format(
-            name=channel.name,
-            format=channel.format,
-            niche=channel.niche or "general",
-            season=season_number,
-            weeks=weeks,
-            per_week=per_week,
-            total=weeks * per_week,
-        ),
-        "Un objeto JSON con theme y episodes",
+    prompt = SEASON_PROMPT.format(
+        name=channel.name,
+        format=channel.format,
+        niche=channel.niche or "general",
+        season=season_number,
+        weeks=weeks,
+        per_week=per_week,
+        total=weeks * per_week,
     )
+    emit("showrunner",
+         f"El showrunner diseña la temporada {season_number} de «{channel.name}» ({weeks} semanas)…",
+         prompt)
+    raw = _run_single_task(showrunner, prompt, "Un objeto JSON con theme y episodes")
     emit("showrunner_done", f"Temporada {season_number} diseñada", raw)
 
     data = _parse_json_flexible(raw)

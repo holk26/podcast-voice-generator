@@ -1,5 +1,7 @@
+import os
 import time
 import logging
+from datetime import datetime
 from sqlalchemy.orm import Session
 from web_api.database import SessionLocal
 from web_api.models import Episode
@@ -8,7 +10,9 @@ from web_api.services.automation_service import autopilot_tick
 
 logger = logging.getLogger(__name__)
 
-AUTOPILOT_INTERVAL = 60.0  # segundos entre pasadas de piloto automático
+# Hora local a la que se ejecuta la producción diaria de los canales en
+# piloto automático (temporadas + guiones del día). Configurable por env.
+AUTOPILOT_HOUR = int(os.getenv("AUTOPILOT_HOUR", "7"))
 
 
 def process_pending_jobs():
@@ -42,17 +46,24 @@ def process_pending_jobs():
         db.close()
 
 
+def _autopilot_due(last_run_date: str | None) -> bool:
+    """True si hoy ya pasó la hora de ejecución y aún no se ha corrido hoy."""
+    now = datetime.now()
+    if now.hour < AUTOPILOT_HOUR:
+        return False
+    return last_run_date != now.date().isoformat()
+
+
 def run_loop(poll_interval: float = 2.0):
-    last_tick = 0.0
+    last_run_date: str | None = None
     while True:
         process_pending_jobs()
-        now = time.time()
-        if now - last_tick >= AUTOPILOT_INTERVAL:
-            last_tick = now
+        if _autopilot_due(last_run_date):
+            last_run_date = datetime.now().date().isoformat()
             try:
                 launched = autopilot_tick()
                 for job_id in launched:
-                    logger.info(f"Autopilot lanzó job {job_id}")
+                    logger.info(f"Autopilot diario lanzó job {job_id}")
             except Exception as e:
                 logger.error(f"Autopilot tick falló: {e}")
         time.sleep(poll_interval)
