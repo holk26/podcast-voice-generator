@@ -21,7 +21,7 @@ interface Props {
 }
 
 const COUNT_OPTIONS = [3, 5, 8]
-const MINUTE_OPTIONS = [5, 10, 15]
+const MINUTE_OPTIONS = [5, 10, 12, 15]
 const WEEK_OPTIONS = [1, 2, 3]
 
 export default function StudioPanel({

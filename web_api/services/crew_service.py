@@ -39,17 +39,18 @@ Devuelve EXACTAMENTE este JSON:
 ]
 Solo JSON, sin explicaciones."""
 
-SECTION_PROMPT = """Eres un guionista de audio escribiendo una sección de un episodio de tipo "{format}"
-titulado "{title}" (nicho: {niche}).
+SECTION_PROMPT = """Eres un guionista de audio escribiendo la sección {section_number} de {total_sections} de un episodio
+de tipo "{format}" titulado "{title}" (nicho: {niche}).
 Esquema completo del episodio:
 {outline}
 
 Investigación disponible:
 {research}
 
-Escribe SOLO el texto de la sección "{section_title}" ({section_points}): entre 250 y 400 palabras,
-natural al leerse en voz alta, con transiciones suaves, sin notas de producción
-ni encabezados. Continúa el tono del episodio sin repetir la introducción si ya pasó.
+Escribe SOLO el texto de la sección "{section_title}" ({section_points}): entre {min_words} y {max_words}
+palabras (es OBLIGATORIO llegar al mínimo), natural al leerse en voz alta, con transiciones suaves,
+sin notas de producción ni encabezados.
+{position_rules}
 {specs}
 RESPETA el idioma indicado en las especificaciones."""
 
@@ -60,8 +61,8 @@ Devuelve SOLO el texto del guion, sin introducciones ni comentarios."""
 
 EDIT_FULL_PROMPT = """Eres el editor de un episodio de audio. Revisa el guion completo siguiente:
 elimina repeticiones, mejora las transiciones entre secciones y el ritmo general,
-y asegúrate de que se lee natural en voz alta. Devuelve SOLO el guion completo final,
-sin comentarios ni notas.
+y asegúrate de que se lee natural en voz alta. NO ACORTES el guion: conserva toda su
+longitud y contenido. Devuelve SOLO el guion completo final, sin comentarios ni notas.
 
 Guion:
 {script}"""
@@ -70,7 +71,8 @@ CLEAN_PROMPT = """Del guion anterior, prepara la versión FINAL PARA SÍNTESIS D
 Elimina TODO lo que no deba leerse en voz alta: notas de producción, indicaciones
 ("Intro Musical", "Narrador:", "Pausa", efectos de sonido), formato markdown
 (**, ##, *), títulos de sección y cualquier comentario técnico.
-Devuelve SOLO el texto hablable, en español, tal cual debe pronunciarse."""
+NO ACORTES ni resumas: conserva TODO el contenido y la longitud.
+Devuelve SOLO el texto hablable, tal cual debe pronunciarse."""
 
 CHANNEL_SUGGEST_PROMPT = """Eres un estratega de canales de podcast. Propón UN canal de audio atractivo.
 {hint_line}
@@ -232,9 +234,17 @@ _META_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Líneas de meta-comentario del LLM (introducciones/cierres que NO son guion)
+_META_LINE_RE = re.compile(
+    r"(me alegra presentarte|versión final del guion|texto hablable|a continuación"
+    r"|este es el texto final|listo para síntesis|espero que (te )?sirva"
+    r"|here is the (final )?script|ready for (voice|tts))",
+    re.IGNORECASE,
+)
+
 
 def _strip_markup(text: str) -> str:
-    """Red de seguridad: quita formato markdown y meta-prefijos del LLM."""
+    """Red de seguridad: quita formato markdown y meta-comentarios del LLM."""
     text = re.sub(r"\*\*(.+?)\*\*", r"\1", text)
     text = re.sub(r"(?<!\w)\*(.+?)\*(?!\w)", r"\1", text)
     text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
@@ -243,7 +253,29 @@ def _strip_markup(text: str) -> str:
     lines = text.split("\n", 1)
     if len(lines) == 2 and _META_PREFIX_RE.match(lines[0].strip()):
         text = lines[1].strip()
-    return _META_PREFIX_RE.sub("", text, count=1).strip()
+    text = _META_PREFIX_RE.sub("", text, count=1).strip()
+    # Quita bloques meta al inicio (párrafos enteros de presentación)
+    while True:
+        first_block, sep, rest = text.partition("\n\n")
+        if sep and _META_LINE_RE.search(first_block) and len(first_block) < 400:
+            text = rest.strip()
+        else:
+            break
+    # Quita líneas meta sueltas al inicio
+    while True:
+        first_line, sep, rest = text.partition("\n")
+        if sep and _META_LINE_RE.search(first_line) and len(first_line) < 200:
+            text = rest.strip()
+        else:
+            break
+    # Quita líneas meta sueltas al final ("Este es el texto final...")
+    while True:
+        rest, sep, last_line = text.rpartition("\n")
+        if sep and _META_LINE_RE.search(last_line) and len(last_line) < 200:
+            text = rest.strip()
+        else:
+            break
+    return text
 
 
 def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
@@ -286,7 +318,9 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     emit("research_done", "Investigación lista", research)
 
     # 2. Esquema
-    n_sections = max(3, min(8, target_minutes // 2))
+    # Con modelos pequeños cada sección rinde ~250-350 palabras; mejor más
+    # secciones que pedir más palabras por sección (no lo cumple).
+    n_sections = max(3, min(10, target_minutes))
     prompt = OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
                                    minutes=target_minutes, sections=n_sections, specs=specs)
     emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…", prompt)
@@ -308,12 +342,34 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
 
     # 3. Escritura por secciones
     parts: list[str] = []
+    total = len(sections)
     for i, section in enumerate(sections):
+        if i == 0:
+            position_rules = (
+                "Esta es la PRIMERA sección: abre con el gancho del episodio. "
+                "NO te despidas ni cierres."
+            )
+        elif i == total - 1:
+            position_rules = (
+                "Esta es la ÚLTIMA sección: solo aquí va el cierre y la despedida "
+                "del episodio. NO abras con una nueva introducción."
+            )
+        else:
+            position_rules = (
+                "Esta es una sección INTERMEDIA: NO saludes, NO te despidas, "
+                "NO cierres el episodio y NO hagas introducción; continúa el hilo "
+                "directamente y deja una transición abierta hacia la siguiente sección."
+            )
+        # Palabras por sección según la duración objetivo (~150 palabras/min)
+        per_section = max(300, round(target_minutes * 150 / total))
         prompt = SECTION_PROMPT.format(
             format=fmt, title=entry.title, niche=niche,
             outline=outline_raw, research=research,
             section_title=section["title"], section_points=section["points"],
+            section_number=i + 1, total_sections=total,
+            position_rules=position_rules,
             specs=specs,
+            min_words=round(per_section * 0.9), max_words=round(per_section * 1.25),
         )
         emit("write_section",
              f"El guionista escribe la sección {i + 1}/{len(sections)}: «{section['title']}»…",
@@ -322,13 +378,46 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         emit(f"write_section_done", f"Sección {i + 1}/{len(sections)} escrita", part)
         parts.append(part.strip())
 
-    draft = "\n\n".join(parts)
+    # 3b. Garantía de longitud: el modelo a veces escribe de menos; las secciones
+    # cortas se expanden con ejemplos y detalle hasta llegar al objetivo.
+    target_words = round(target_minutes * 130)
+    for i, part in enumerate(parts):
+        if len(part.split()) >= per_section * 0.7:
+            continue
+        emit("expand_section",
+             f"La sección {i + 1} quedó corta; el guionista la expande…")
+        expand_prompt = (
+            f"Esta sección de un episodio titulado \"{entry.title}\" quedó demasiado corta. "
+            f"Expándela hasta al menos {round(per_section * 0.9)} palabras añadiendo ejemplos, "
+            f"historias y detalle práctico, manteniendo el mismo tono hablado y sin repetir ideas. "
+            f"Devuelve SOLO la sección completa expandida, sin comentarios.\n\n"
+            f"Sección:\n{part}"
+        )
+        expanded = _run_single_task(writer, expand_prompt, "Sección expandida")
+        if len(expanded.split()) > len(part.split()):
+            parts[i] = expanded.strip()
+            emit("expand_section_done", f"Sección {i + 1} expandida", expanded)
 
-    # 4. Edición completa
-    prompt = EDIT_FULL_PROMPT.format(script=draft)
-    emit("editor", "El editor unifica y pule el guion completo…", prompt)
-    polished = _run_single_task(editor, prompt, "Guion completo pulido")
-    emit("editor_done", "Versión pulida por el editor", polished)
+    # Segunda pasada si aún falta mucho texto
+    total_words = sum(len(p.split()) for p in parts)
+    if total_words < target_words * 0.75:
+        emit("expand_global", "El guion es corto para la duración; expansión global…")
+        deficit = target_words - total_words
+        global_prompt = (
+            f"El guion del episodio \"{entry.title}\" tiene {total_words} palabras y necesita "
+            f"unas {target_words}. Añade aproximadamente {deficit} palabras más de contenido "
+            f"valioso (ejemplos, historias, consejos prácticos) distribuidas en el guion, "
+            f"sin repetir y manteniendo el tono hablado. Devuelve SOLO el guion completo ampliado.\n\n"
+            f"Guion:\n" + "\n\n".join(parts)
+        )
+        expanded = _run_single_task(writer, global_prompt, "Guion completo ampliado")
+        if len(expanded.split()) > total_words:
+            emit("expand_global_done", "Guion ampliado", expanded)
+            parts = [expanded]
+
+    # Sin pasada de "editor": con modelos pequeños recorta la mitad del guion.
+    # Las secciones ya vienen coherentes del esquema compartido.
+    polished = "\n\n".join(parts)
 
     # 5. Limpieza para TTS
     prompt = CLEAN_PROMPT + f"\n\nGuion:\n{polished}"
