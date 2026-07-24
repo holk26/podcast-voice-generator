@@ -37,6 +37,8 @@ function StudioPage() {
   } = useChannelStore()
   const { voices, fetchVoices } = useVoiceStore()
   const [llm, setLlm] = useState<LlmStatus | null>(null)
+  const [models, setModels] = useState<string[]>([])
+  const [currentModel, setCurrentModel] = useState<string>('')
   const [selectedId, setSelectedId] = useState<number | ''>('')
   const [count, setCount] = useState(5)
 
@@ -44,6 +46,12 @@ function StudioPage() {
     fetchChannels()
     fetchVoices()
     api.getLlmStatus().then(setLlm).catch(() => setLlm({ available: false }))
+    api.getLlmModels()
+      .then((d) => {
+        setModels(d.models)
+        setCurrentModel(d.current)
+      })
+      .catch(() => setModels([]))
   }, [fetchChannels, fetchVoices])
 
   useEffect(() => {
@@ -71,8 +79,26 @@ function StudioPage() {
             }`}
             title={llmOk ? undefined : 'Arranca Ollama o descarga el modelo'}
           >
-            {llmOk ? `● IA lista (${llm.default_model})` : '● IA no disponible'}
+            {llmOk ? '● IA lista' : '● IA no disponible'}
           </span>
+        )}
+        {models.length > 0 && (
+          <label className="flex items-center gap-1 text-xs text-gray-600">
+            Modelo:
+            <select
+              className="border rounded px-1 py-0.5 text-xs"
+              value={currentModel}
+              onChange={async (e) => {
+                const model = e.target.value
+                setCurrentModel(model)
+                await api.setLlmModel(model)
+              }}
+            >
+              {models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
         )}
       </div>
 

@@ -1,58 +1,52 @@
 app:
-  name: "Podcast Voice Generator"
-  version: "1.0.0"
-
+  name: Podcast Voice Generator
+  version: 1.0.0
 gpu:
-  device: "auto"
+  device: auto
   use_fp16: true
   max_vram_gb: 22
   keep_model_loaded: true
-
 xtts:
-  model: "tts_models/multilingual/multi-dataset/xtts_v2"
-  gpu_layers: "all"
+  model: tts_models/multilingual/multi-dataset/xtts_v2
+  gpu_layers: all
   languages:
-    - "es"
-    - "en"
-    - "fr"
-    - "de"
-    - "it"
-    - "pt"
-    - "pl"
-    - "tr"
-    - "ru"
-    - "nl"
-    - "cs"
-    - "ar"
-    - "zh"
-    - "ja"
-    - "hu"
-    - "ko"
-
+  - es
+  - en
+  - fr
+  - de
+  - it
+  - pt
+  - pl
+  - tr
+  - ru
+  - nl
+  - cs
+  - ar
+  - zh
+  - ja
+  - hu
+  - ko
 bark:
   enabled: true
-  model_size: "large"
-  fallback_if_oom: "xtts"
-
+  model_size: large
+  fallback_if_oom: xtts
 paths:
-  voices_dir: "voices"
-  clones_dir: "voices/clones"
-  pretrained_dir: "voices/pretrained"
-  output_dir: "output"
-  projects_dir: "projects"
-  music_dir: "music"
-
+  voices_dir: voices
+  clones_dir: voices/clones
+  pretrained_dir: voices/pretrained
+  output_dir: output
+  projects_dir: projects
+  music_dir: music
 audio:
-  default_format: "mp3"
+  default_format: mp3
   default_sample_rate: 24000
-  default_bitrate: "192k"
+  default_bitrate: 192k
   normalize_default: true
   default_fade_in_ms: 500
   default_fade_out_ms: 1000
-
 llm:
   provider: ollama
   base_url: http://localhost:11434
-  default_model: llama3.1:8b
-  planning_model: llama3.1:8b
-  script_model: llama3.1:8b
+  default_model: qwen2.5-coder:7b
+  planning_model: qwen2.5-coder:7b
+  script_model: qwen2.5-coder:7b

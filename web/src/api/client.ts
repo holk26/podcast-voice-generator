@@ -121,4 +121,11 @@ export const api = {
 
   getLlmStatus: () =>
     fetchJson<{ available: boolean; default_ready: boolean; error?: string }>('/llm/status'),
+  getLlmModels: () =>
+    fetchJson<{ current: string; models: string[] }>('/llm/models'),
+  setLlmModel: (model: string) =>
+    fetchJson<{ current: string }>('/llm/model', {
+      method: 'POST',
+      body: JSON.stringify({ model }),
+    }),
 }

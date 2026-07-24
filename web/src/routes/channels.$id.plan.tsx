@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
 import ContentPlanList from '../components/ContentPlanList'
 import CongressTable from '../components/CongressTable'
@@ -23,6 +23,7 @@ function ChannelPlanPage() {
     rejectEntry,
     deleteEntry,
   } = useChannelStore()
+  const [seasonFilter, setSeasonFilter] = useState<number | null>(null) // null = todas
 
   useEffect(() => {
     fetchChannels()
@@ -34,6 +35,11 @@ function ChannelPlanPage() {
   const total = channel?.entries_total ?? planEntries.length
   const generated = channel?.entries_generated ?? planEntries.filter((e) => e.status === 'generated').length
   const pct = total > 0 ? Math.round((generated / total) * 100) : 0
+
+  const seasons = [...new Set(planEntries.map((e) => e.season ?? 1))].sort((a, b) => a - b)
+  const filtered = seasonFilter === null
+    ? planEntries
+    : planEntries.filter((e) => (e.season ?? 1) === seasonFilter)
 
   return (
     <div>
@@ -59,12 +65,37 @@ function ChannelPlanPage() {
           </div>
         </div>
       )}
+      {seasons.length > 1 && (
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setSeasonFilter(null)}
+            className={`px-3 py-1 rounded text-sm ${
+              seasonFilter === null ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700'
+            }`}
+          >
+            Todas
+          </button>
+          {seasons.map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setSeasonFilter(s)}
+              className={`px-3 py-1 rounded text-sm ${
+                seasonFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700'
+              }`}
+            >
+              Temporada {s}
+            </button>
+          ))}
+        </div>
+      )}
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
       <CongressTable />
       <ContentPlanList
-        entries={planEntries}
+        entries={filtered}
         onApprove={approveEntry}
         onReject={rejectEntry}
         onDelete={deleteEntry}
