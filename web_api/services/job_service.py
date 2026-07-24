@@ -62,6 +62,20 @@ class JobRegistry:
             job = self._jobs.get(job_id)
             return dict(job) if job is not None else None
 
+    def list_running(self) -> list[dict]:
+        with self._lock:
+            return [
+                {
+                    "id": j["id"],
+                    "kind": j["kind"],
+                    "detail": j["detail"],
+                    "created_at": j["created_at"],
+                    "event_count": len(j["events"]),
+                }
+                for j in self._jobs.values()
+                if j["status"] == "running"
+            ]
+
     def _gc(self) -> None:
         """Descarta jobs antiguos y limita el tamaño del registro."""
         now = time.time()

@@ -7,11 +7,18 @@ interface Props {
 }
 
 export default function ChannelCard({ channel, onDelete }: Props) {
+  const total = channel.entries_total ?? 0
+  const generated = channel.entries_generated ?? 0
+  const pct = total > 0 ? Math.round((generated / total) * 100) : 0
+
   return (
     <div className="bg-white p-4 rounded shadow">
       <div className="flex justify-between items-start">
         <div>
-          <h3 className="text-lg font-bold">{channel.name}</h3>
+          <h3 className="text-lg font-bold">
+            {channel.name}
+            {channel.autopilot && <span className="ml-2" title="Piloto automático">🤖</span>}
+          </h3>
           <p className="text-sm text-gray-600">{channel.niche || 'Sin nicho'} • {channel.format}</p>
           <p className="text-sm text-gray-500 mt-1">{channel.description}</p>
         </div>
@@ -19,6 +26,22 @@ export default function ChannelCard({ channel, onDelete }: Props) {
           {channel.is_active ? 'Activo' : 'Inactivo'}
         </span>
       </div>
+      {total > 0 && (
+        <div className="mt-3">
+          <div className="flex justify-between text-xs text-gray-600 mb-1">
+            <span>
+              {generated}/{total} capítulos generados
+            </span>
+            <span>{pct}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded h-2">
+            <div
+              className="bg-green-500 h-2 rounded"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+      )}
       <div className="mt-4 space-x-2">
         <Link
           to="/channels/$id/plan"

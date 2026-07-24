@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useEpisodeStore } from '../stores/episodeStore'
 import { useEpisodeSSE } from '../hooks/useEpisodeSSE'
 import EpisodeCard from '../components/EpisodeCard'
+import LiveJobsPanel from '../components/LiveJobsPanel'
 
 export const Route = createFileRoute('/queue')({
   component: QueuePage,
@@ -28,6 +29,7 @@ function QueuePage() {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-4">Cola de episodios</h2>
+      <LiveJobsPanel />
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">
           Error: {error}

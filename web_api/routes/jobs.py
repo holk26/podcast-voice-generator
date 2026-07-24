@@ -8,6 +8,12 @@ from web_api.services.job_service import registry
 router = APIRouter()
 
 
+@router.get("")
+def list_jobs():
+    """Jobs en curso (congreso CrewAI, síntesis TTS...)."""
+    return registry.list_running()
+
+
 @router.get("/{job_id}")
 def get_job(job_id: str):
     job = registry.get(job_id)

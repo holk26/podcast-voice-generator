@@ -47,6 +47,7 @@ class EpisodeResponse(BaseModel):
 class PreviewRequest(BaseModel):
     text: str
     voice_id: str
+    label: str | None = None
 
 
 class PreviewResponse(BaseModel):
@@ -85,6 +86,8 @@ class ChannelResponse(ChannelBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    entries_total: int = 0
+    entries_generated: int = 0
 
     class Config:
         from_attributes = True

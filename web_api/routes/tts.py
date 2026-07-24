@@ -7,6 +7,7 @@ from fastapi.concurrency import run_in_threadpool
 from web_api.schemas import PreviewRequest, PreviewResponse
 from web_api.config import PREVIEW_DIR
 from web_api.routes.voices import list_voices, VoiceResponse
+from web_api.services.job_service import registry
 
 router = APIRouter()
 
@@ -100,19 +101,24 @@ async def synthesize(request: PreviewRequest):
     """Síntesis de texto largo con voz clonada (para episodios del worker).
 
     Trocea el texto, sintetiza cada chunk con Higgs y concatena el resultado.
+    Emite un job "tts" con el progreso por partes (visible en /api/jobs).
     """
     voice = _find_voice(request.voice_id)
     if voice is None or voice.type != "cloned" or not voice.reference_path:
         raise HTTPException(status_code=400, detail="Solo voces clonadas (clone:*)")
 
     job = uuid.uuid4().hex
+    job_id = registry.create("tts", detail=request.label or f"Síntesis con {voice.name}")
     try:
         chunks = _split_text(request.text)
+        registry.emit(job_id, "start", f"Motor Higgs: {len(chunks)} partes a sintetizar")
         part_paths: list[Path] = []
         for i, chunk in enumerate(chunks):
+            registry.emit(job_id, "synth", f"Sintetizando parte {i + 1}/{len(chunks)}…")
             part = PREVIEW_DIR / f"{job}_{i:03d}.wav"
             await run_in_threadpool(_synthesize_clone, chunk, voice, part)
             part_paths.append(part)
+        registry.emit(job_id, "concat", "Uniendo el audio final…")
         final = PREVIEW_DIR / f"{job}_full.wav"
         if len(part_paths) == 1:
             part_paths[0].rename(final)
@@ -120,8 +126,11 @@ async def synthesize(request: PreviewRequest):
             await run_in_threadpool(_concat_wavs, part_paths, final)
             for p in part_paths:
                 p.unlink(missing_ok=True)
+        registry.emit(job_id, "done", "Audio listo")
+        registry.finish(job_id, {"audio_url": f"/outputs/previews/{final.name}"})
         return PreviewResponse(audio_url=f"/outputs/previews/{final.name}")
     except Exception as e:
+        registry.fail(job_id, str(e))
         import traceback
         tb = traceback.format_exc()
         raise HTTPException(status_code=500, detail=f"Higgs synthesize failed: {e}\n{tb}")

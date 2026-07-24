@@ -44,6 +44,8 @@ export interface Channel {
   autopilot: boolean
   episodes_per_week: number
   target_minutes: number
+  entries_total?: number
+  entries_generated?: number
   created_at: string
   updated_at: string
 }
@@ -117,4 +119,12 @@ export interface ActiveCrewJob {
   events: CrewJobEvent[]
   status: 'running' | 'done' | 'error'
   error?: string
+}
+
+export interface JobSummary {
+  id: string
+  kind: string
+  detail: string
+  created_at: number
+  event_count: number
 }

@@ -10,6 +10,7 @@ import {
   ChannelSuggestion,
   BookResult,
   BookChapter,
+  JobSummary,
 } from '../types'
 
 const API_BASE = '/api'
@@ -113,6 +114,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ chapter_index: chapterIndex, voice_id: voiceId }),
     }),
+
+  getJobs: () => fetchJson<JobSummary[]>('/jobs'),
 
   getLlmStatus: () =>
     fetchJson<{ available: boolean; default_ready: boolean; error?: string }>('/llm/status'),

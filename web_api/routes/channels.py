@@ -23,7 +23,27 @@ router = APIRouter()
 
 @router.get("", response_model=List[ChannelResponse])
 def list_channels(db: Session = Depends(get_db)):
-    return db.query(Channel).order_by(Channel.created_at.desc()).all()
+    channels = db.query(Channel).order_by(Channel.created_at.desc()).all()
+    result = []
+    for ch in channels:
+        total = (
+            db.query(ContentPlanEntry)
+            .filter(ContentPlanEntry.channel_id == ch.id)
+            .count()
+        )
+        generated = (
+            db.query(ContentPlanEntry)
+            .filter(
+                ContentPlanEntry.channel_id == ch.id,
+                ContentPlanEntry.status == "generated",
+            )
+            .count()
+        )
+        resp = ChannelResponse.model_validate(ch)
+        resp.entries_total = total
+        resp.entries_generated = generated
+        result.append(resp)
+    return result
 
 
 @router.post("", response_model=ChannelResponse, status_code=201)

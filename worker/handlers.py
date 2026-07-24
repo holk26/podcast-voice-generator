@@ -27,6 +27,7 @@ def _handle_cloned_episode(episode: Episode, output_dir: Path) -> Path:
         data=json.dumps({
             "voice_id": episode.voice_id,
             "text": episode.source_text or "",
+            "label": f"Episodio #{episode.id}: {episode.title}",
         }).encode(),
         headers={"Content-Type": "application/json"},
     )
