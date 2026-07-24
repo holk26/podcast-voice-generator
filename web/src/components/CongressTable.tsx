@@ -17,6 +17,7 @@ const AGENTS: Record<string, AgentDef> = {
   writer: { id: 'writer', name: 'Guionista', emoji: '✍️', role: 'Escribe secciones' },
   editor: { id: 'editor', name: 'Editor', emoji: '📝', role: 'Pule el guion' },
   voice_director: { id: 'voice_director', name: 'Dir. de Voz', emoji: '🎙️', role: 'Prepara para TTS' },
+  director: { id: 'director', name: 'Director', emoji: '🎯', role: 'Supervisa y da el visto bueno' },
   translate: { id: 'translate', name: 'Traductor', emoji: '🌐', role: 'Corrige el idioma' },
   curator: { id: 'curator', name: 'Curador', emoji: '📚', role: 'Limpia el audiolibro' },
 }
@@ -24,7 +25,7 @@ const AGENTS: Record<string, AgentDef> = {
 const ROSTER: Record<string, string[]> = {
   plan: ['strategist', 'critic'],
   season: ['showrunner'],
-  script: ['research', 'outline', 'writer', 'editor', 'voice_director'],
+  script: ['research', 'outline', 'writer', 'editor', 'voice_director', 'director'],
   audiobook: ['curator'],
 }
 
@@ -38,6 +39,7 @@ const KIND_TITLE: Record<string, string> = {
 function stepToAgent(step: string): string | null {
   const base = step.replace(/_done$/, '')
   if (base === 'write_section') return 'writer'
+  if (base === 'approved') return 'director'
   if (base === 'curate_chunk') return 'curator'
   return AGENTS[base] ? base : null
 }

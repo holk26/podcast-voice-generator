@@ -339,20 +339,50 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     )
     emit("voice_director_done", "Texto final para síntesis de voz", final)
 
-    # 6. Control de idioma programático: si el brief pide inglés y el guion
-    # salió en español, un traductor lo pasa a inglés (tarea mecánica,
-    # mucho más fiable que un "QA" creativo con un modelo pequeño).
-    if _needs_english(specs) and _spanish_ratio(final) > 0.5:
+    # 6. El Director de Producción supervisa: decide si el guion cumple el
+    # brief (idioma, tema) y ordena correcciones SOLO si hacen falta.
+    director = make_agent("Production Director",
+                          "Supervisar que cada guion cumple el brief del canal",
+                          "Director de producción: nada sale al aire sin su visto bueno.")
+    es_hint = round(_spanish_ratio(final) * 100)
+    director_prompt = DIRECTOR_PROMPT.format(
+        specs=specs, title=entry.title, es_hint=es_hint, script=final[:3000],
+    )
+    emit("director", "El Director de Producción revisa el guion…", director_prompt)
+    verdict_raw = _run_single_task(
+        director, director_prompt,
+        'Un JSON {"action": "ok"|"translate_en"|"translate_es", "reason": "..."}',
+    )
+    emit("director_done", "Veredicto del Director", verdict_raw)
+
+    action = "ok"
+    reason = ""
+    try:
+        verdict = _parse_json_flexible(verdict_raw)
+        if isinstance(verdict, dict):
+            action = str(verdict.get("action", "ok")).strip().lower()
+            reason = str(verdict.get("reason", "")).strip()
+    except Exception:
+        # Veredicto ilegible: no se toca el guion (seguro por defecto)
+        action = "ok"
+
+    if action in ("translate_en", "translate_es"):
+        target_lang = "inglés" if action == "translate_en" else "español"
         translator = make_agent("Translator",
-                                "Traducir guiones al inglés de forma fiel",
+                                "Traducir guiones de forma fiel",
                                 "Traductor profesional: fiel al texto, sin añadir nada.")
-        emit("translate", "El guion salió en español; el traductor lo pasa a inglés…")
+        emit("translate", f"Por orden del Director, el traductor pasa el guion a {target_lang}…",
+             reason or None)
+        prompt_template = TRANSLATE_EN_PROMPT if action == "translate_en" else TRANSLATE_ES_PROMPT
         final = _run_single_task(
             translator,
-            TRANSLATE_PROMPT + f"\n\n{final}",
-            "English translation of the script",
+            prompt_template + f"\n\n{final}",
+            f"Faithful translation to {target_lang}",
         )
-        emit("translate_done", "Guion traducido al inglés", final)
+        emit("translate_done", f"Guion traducido a {target_lang}", final)
+    else:
+        emit("approved", "El Director aprueba el guion sin cambios ✓",
+             reason or None)
 
     return _strip_markup(final)
 
@@ -492,9 +522,34 @@ Guion:
 {script}"""
 
 
-TRANSLATE_PROMPT = """Translate the following Spanish podcast script to natural, spoken English.
+DIRECTOR_PROMPT = """Eres el director de producción de un canal de podcast. Revisa el guion
+contra las especificaciones del canal y decide si necesita corrección de IDIOMA.
+
+ESPECIFICACIONES DEL CANAL:
+{specs}
+
+Título del episodio: "{title}"
+Detección automática: el guion parece ~{es_hint}% español.
+
+Reglas de decisión:
+- "ok": el idioma del guion ya cumple las especificaciones (o están en duda).
+- "translate_en": las especificaciones exigen inglés y el guion está en español.
+- "translate_es": las especificaciones exigen español y el guion está en inglés.
+Ante la duda, responde "ok". No traduzcas si no es estrictamente necesario.
+
+Responde SOLO este JSON, sin comentarios:
+{{"action": "ok|translate_en|translate_es", "reason": "justificación en una frase"}}
+
+Guion:
+{script}"""
+
+TRANSLATE_EN_PROMPT = """Translate the following Spanish podcast script to natural, spoken English.
 Keep the same structure, sections and approximate length. Keep names and proper nouns.
 Output ONLY the English text, nothing else — no comments, no headers."""
+
+TRANSLATE_ES_PROMPT = """Traduce el siguiente guion de podcast del inglés a un español natural y hablado.
+Mantén la misma estructura, secciones y longitud aproximada. Conserva nombres propios.
+Devuelve SOLO el texto en español, nada más — sin comentarios ni encabezados."""
 
 
 _ENGLISH_HINT_RE = re.compile(r"ingl[eé]s|english", re.IGNORECASE)
