@@ -1,8 +1,10 @@
 from unittest.mock import patch, AsyncMock
 from pathlib import Path
-from web_api.database import SessionLocal
+from web_api.database import SessionLocal, init_db
 from web_api.models import Episode
 from worker.runner import process_pending_jobs
+
+init_db()
 
 
 def test_worker_processes_pending_episode():
@@ -39,5 +41,6 @@ def test_worker_processes_pending_episode():
     updated = db.query(Episode).filter(Episode.id == episode_id).first()
     assert updated.status == "completed"
     assert updated.audio_url == f"/outputs/{episode_id}/final.mp3"
-    assert Path(f"output/{episode_id}/final.mp3").exists()
+    from web_api.config import OUTPUT_DIR
+    assert (OUTPUT_DIR / str(episode_id) / "final.mp3").exists()
     db.close()

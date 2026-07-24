@@ -78,6 +78,8 @@ export const api = {
     fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan`),
   generatePlan: (channelId: number, count: number = 5) =>
     fetchJson<CrewJobStart>(`/channels/${channelId}/plan/generate?count=${count}`, { method: 'POST' }),
+  generateSeason: (channelId: number, weeks: number = 4) =>
+    fetchJson<CrewJobStart>(`/channels/${channelId}/season?weeks=${weeks}`, { method: 'POST' }),
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) =>
     fetchJson<ContentPlanEntry>(`/channels/${channelId}/plan`, {
       method: 'POST',

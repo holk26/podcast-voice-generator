@@ -60,6 +60,9 @@ class ChannelBase(BaseModel):
     format: str = "podcast"
     default_voice_id: str
     is_active: bool = True
+    autopilot: bool = False
+    episodes_per_week: int = 2
+    target_minutes: int = 10
 
 
 class ChannelCreate(ChannelBase):
@@ -73,6 +76,9 @@ class ChannelUpdate(BaseModel):
     format: Optional[str] = None
     default_voice_id: Optional[str] = None
     is_active: Optional[bool] = None
+    autopilot: Optional[bool] = None
+    episodes_per_week: Optional[int] = None
+    target_minutes: Optional[int] = None
 
 
 class ChannelResponse(ChannelBase):
@@ -98,6 +104,7 @@ class PlanEntryResponse(PlanEntryBase):
     id: int
     channel_id: int
     status: str
+    season: int = 1
     episode_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime

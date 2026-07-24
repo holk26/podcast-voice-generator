@@ -28,6 +28,7 @@ function StudioPage() {
     updateChannel,
     fetchPlanEntries,
     generatePlan,
+    generateSeason,
     approveEntry,
     rejectEntry,
     deleteEntry,
@@ -95,10 +96,24 @@ function StudioPage() {
         }}
         count={count}
         onCountChange={setCount}
-        minutes={targetMinutes}
-        onMinutesChange={setTargetMinutes}
+        minutes={channel?.target_minutes ?? targetMinutes}
+        onMinutesChange={(m) => {
+          setTargetMinutes(m)
+          if (channel) updateChannel(channel.id, { target_minutes: m })
+        }}
         onGenerate={() => {
           if (channel) generatePlan(channel.id, count)
+        }}
+        onGenerateSeason={() => {
+          if (channel) generateSeason(channel.id, 4)
+        }}
+        autopilot={channel?.autopilot ?? false}
+        onAutopilotChange={(v) => {
+          if (channel) updateChannel(channel.id, { autopilot: v })
+        }}
+        episodesPerWeek={channel?.episodes_per_week ?? 2}
+        onEpisodesPerWeekChange={(v) => {
+          if (channel) updateChannel(channel.id, { episodes_per_week: v })
         }}
         loading={loading}
       />

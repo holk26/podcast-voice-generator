@@ -20,9 +20,22 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
         <div>
           <h4 className="font-bold">{entry.title}</h4>
           <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
-          <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded mt-2 inline-block">
-            {statusLabels[entry.status] || entry.status}
-          </span>
+          <div className="flex gap-2 mt-2">
+            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded inline-block">
+              {statusLabels[entry.status] || entry.status}
+            </span>
+            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded inline-block">
+              T{entry.season ?? 1}
+            </span>
+            {entry.scheduled_date && (
+              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-block">
+                {new Date(entry.scheduled_date).toLocaleDateString('es-ES', {
+                  day: 'numeric',
+                  month: 'short',
+                })}
+              </span>
+            )}
+          </div>
         </div>
         <div className="space-x-2">
           {entry.status === 'draft' && (

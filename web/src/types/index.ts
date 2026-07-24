@@ -41,6 +41,9 @@ export interface Channel {
   format: ChannelFormat
   default_voice_id: string
   is_active: boolean
+  autopilot: boolean
+  episodes_per_week: number
+  target_minutes: number
   created_at: string
   updated_at: string
 }
@@ -51,6 +54,7 @@ export interface ContentPlanEntry {
   title: string
   description?: string
   scheduled_date?: string
+  season: number
   status: PlanEntryStatus
   episode_id?: number
   created_at: string
@@ -64,6 +68,9 @@ export interface CreateChannelRequest {
   format: ChannelFormat
   default_voice_id: string
   is_active?: boolean
+  autopilot?: boolean
+  episodes_per_week?: number
+  target_minutes?: number
 }
 
 export interface CreatePlanEntryRequest {
@@ -105,7 +112,7 @@ export interface BookChapter {
 
 export interface ActiveCrewJob {
   id: string
-  kind: 'plan' | 'script'
+  kind: 'plan' | 'script' | 'season'
   channelId?: number
   events: CrewJobEvent[]
   status: 'running' | 'done' | 'error'

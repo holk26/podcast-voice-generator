@@ -1,9 +1,8 @@
-import threading
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from web_api.database import get_db, SessionLocal
+from web_api.database import get_db
 from web_api.models import Channel, ContentPlanEntry, Episode
 from web_api.schemas import (
     ChannelCreate,
@@ -12,8 +11,8 @@ from web_api.schemas import (
     PlanEntryCreate,
     PlanEntryResponse,
 )
-from web_api.services.crew_service import generate_plan, generate_script, suggest_channel
-from web_api.services.job_service import registry
+from web_api.services.crew_service import suggest_channel
+from web_api.services.automation_service import start_plan_job, start_script_job, start_season_job
 
 
 class ChannelSuggestRequest(BaseModel):
@@ -117,37 +116,24 @@ def generate_plan_entries(channel_id: int, count: int = 5, db: Session = Depends
         raise HTTPException(status_code=404, detail="Channel not found")
     count = max(1, min(count, 10))
 
-    job_id = registry.create("plan", detail=f"Plan editorial: {channel.name}")
+    job_id = start_plan_job(channel, count=count)
+    if job_id is None:
+        raise HTTPException(status_code=409, detail="Ya hay un plan en generación para este canal")
+    return {"job_id": job_id}
 
-    def work():
-        session = SessionLocal()
-        try:
-            ch = session.query(Channel).filter(Channel.id == channel_id).first()
-            proposed = generate_plan(
-                ch,
-                count=count,
-                on_progress=lambda step, msg, content=None: registry.emit(
-                    job_id, step, msg, content
-                ),
-            )
-            for item in proposed:
-                session.add(
-                    ContentPlanEntry(
-                        channel_id=channel_id,
-                        title=item.title,
-                        description=item.description,
-                    )
-                )
-            session.commit()
-            registry.emit(job_id, "done", f"Plan listo: {len(proposed)} ideas")
-            registry.finish(job_id, {"channel_id": channel_id, "count": len(proposed)})
-        except Exception as e:
-            session.rollback()
-            registry.fail(job_id, str(e))
-        finally:
-            session.close()
 
-    threading.Thread(target=work, daemon=True).start()
+@router.post("/{channel_id}/season", status_code=202)
+def generate_channel_season(channel_id: int, weeks: int = 4, db: Session = Depends(get_db)):
+    """Lanza el showrunner: diseña una temporada completa (arco + episodios
+    repartidos por semana) y devuelve un job_id."""
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    weeks = max(1, min(weeks, 12))
+
+    job_id = start_season_job(channel, weeks=weeks)
+    if job_id is None:
+        raise HTTPException(status_code=409, detail="Ya hay una temporada en generación para este canal")
     return {"job_id": job_id}
 
 
@@ -178,52 +164,9 @@ def approve_plan_entry(entry_id: int, minutes: int = 10, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="Entry already processed")
     minutes = max(2, min(minutes, 30))
 
-    job_id = registry.create("script", detail=f"Guion: {entry.title}")
-
-    def work():
-        session = SessionLocal()
-        try:
-            ent = session.query(ContentPlanEntry).filter(
-                ContentPlanEntry.id == entry_id
-            ).first()
-            channel = session.query(Channel).filter(
-                Channel.id == ent.channel_id
-            ).first()
-            script = generate_script(
-                channel,
-                ent,
-                target_minutes=minutes,
-                on_progress=lambda step, msg, content=None: registry.emit(
-                    job_id, step, msg, content
-                ),
-            )
-            episode = Episode(
-                title=ent.title,
-                type=channel.format,
-                source_text=script,
-                voice_id=channel.default_voice_id,
-                status="pending",
-            )
-            session.add(episode)
-            session.commit()
-            session.refresh(episode)
-
-            ent.status = "generated"
-            ent.episode_id = episode.id
-            session.commit()
-            registry.emit(job_id, "done", f"Guion listo, episodio #{episode.id} en cola")
-            registry.finish(
-                job_id,
-                {"entry_id": entry_id, "episode_id": episode.id,
-                 "channel_id": ent.channel_id},
-            )
-        except Exception as e:
-            session.rollback()
-            registry.fail(job_id, str(e))
-        finally:
-            session.close()
-
-    threading.Thread(target=work, daemon=True).start()
+    job_id = start_script_job(entry, minutes=minutes)
+    if job_id is None:
+        raise HTTPException(status_code=409, detail="Ya hay un guion en generación para esta entrada")
     return {"job_id": job_id}
 
 

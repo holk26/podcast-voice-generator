@@ -89,15 +89,34 @@ def _extract_json_block(raw: str) -> str:
             if inner.lower().startswith("json"):
                 inner = inner[4:].strip()
             return inner
-    start = raw.find("[")
-    if start == -1:
-        start = raw.find("{")
-    if start == -1:
+    # Empieza por el delimitador que aparezca primero ([ de un array o { de un objeto)
+    bracket = raw.find("[")
+    brace = raw.find("{")
+    if bracket != -1 and (brace == -1 or bracket < brace):
+        start, closer = bracket, "]"
+    elif brace != -1:
+        start, closer = brace, "}"
+    else:
         return raw
-    end = raw.rfind("]") if raw[start] == "[" else raw.rfind("}")
+    end = raw.rfind(closer)
     if end == -1 or end < start:
-        return raw
+        return raw[start:]  # posible JSON truncado: lo repara _close_truncated_json
     return raw[start : end + 1]
+
+
+def _close_truncated_json(raw: str) -> str:
+    """Cierra strings, arrays y objetos abiertos (LLM cortó por max tokens)."""
+    out = raw.rstrip()
+    if out.count('"') % 2 == 1:
+        out += '"'
+    open_brackets = out.count("[") - out.count("]")
+    open_braces = out.count("{") - out.count("}")
+    # Cierra primero el último objeto de un array de objetos
+    if open_braces > 0:
+        out += "}" * open_braces
+    if open_brackets > 0:
+        out += "]" * open_brackets
+    return out
 
 
 def _repair_json(raw: str) -> str:
@@ -112,16 +131,17 @@ def _repair_json(raw: str) -> str:
 
 def _parse_json_flexible(raw: str):
     cleaned = _extract_json_block(raw)
-    try:
-        return json.loads(cleaned)
-    except json.JSONDecodeError:
-        pass
+    for candidate in (cleaned, _close_truncated_json(cleaned)):
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
 
-    repaired = _repair_json(cleaned)
-    try:
-        return json.loads(repaired)
-    except json.JSONDecodeError:
-        pass
+        repaired = _repair_json(candidate)
+        try:
+            return json.loads(repaired)
+        except json.JSONDecodeError:
+            pass
 
     # Fallback for single-quoted dicts/lists (e.g. Python repr)
     try:
@@ -346,3 +366,76 @@ def suggest_channel(hint: str | None = None) -> dict:
         "niche": str(data.get("niche", "")).strip(),
         "format": data["format"],
     }
+
+
+SEASON_PROMPT = """Eres el estratega jefe del canal "{name}" ({format}) sobre el nicho "{niche}".
+Diseña la TEMPORADA {season} completa a largo plazo: {weeks} semanas, {per_week} episodios por semana
+({total} episodios en total).
+Piensa como un showrunner: un arco temático que enganche, progresión entre episodios,
+variedad para no repetir, y un cierre de temporada memorable.
+Devuelve EXACTAMENTE este JSON:
+{{
+  "theme": "Tema o arco de la temporada en una frase",
+  "episodes": [
+    {{"title": "Título del episodio", "description": "Descripción corta", "week": 1}},
+    ...
+  ]
+}}
+Cada "week" es un entero entre 1 y {weeks}. Solo JSON, sin explicaciones."""
+
+
+def generate_season(channel, season_number: int = 1, weeks: int = 4, on_progress=None) -> dict:
+    """Estratega de temporadas: diseña un arco completo con episodios por semana.
+
+    Devuelve {"theme": str, "episodes": [{title, description, week}]}.
+    """
+    def emit(step: str, message: str, content: str | None = None) -> None:
+        if on_progress:
+            on_progress(step, message, content)
+
+    per_week = max(1, getattr(channel, "episodes_per_week", 2) or 2)
+    showrunner = Agent(
+        role="Season Showrunner",
+        goal="Diseñar temporadas de podcast con arco a largo plazo",
+        backstory="Showrunner veterano: piensa en temporadas, arcos y fidelización.",
+        llm=get_planning_llm(),
+        verbose=False,
+    )
+
+    emit("showrunner",
+         f"El showrunner diseña la temporada {season_number} de «{channel.name}» ({weeks} semanas)…")
+    raw = _run_single_task(
+        showrunner,
+        SEASON_PROMPT.format(
+            name=channel.name,
+            format=channel.format,
+            niche=channel.niche or "general",
+            season=season_number,
+            weeks=weeks,
+            per_week=per_week,
+            total=weeks * per_week,
+        ),
+        "Un objeto JSON con theme y episodes",
+    )
+    emit("showrunner_done", f"Temporada {season_number} diseñada", raw)
+
+    data = _parse_json_flexible(raw)
+    if not isinstance(data, dict) or not isinstance(data.get("episodes"), list):
+        raise ValueError("La temporada no tiene el formato esperado")
+
+    episodes = []
+    for item in data["episodes"]:
+        try:
+            week = int(item.get("week", 1))
+        except (TypeError, ValueError):
+            week = 1
+        episodes.append({
+            "title": str(item.get("title", "")).strip(),
+            "description": str(item.get("description", "")).strip(),
+            "week": max(1, min(week, weeks)),
+        })
+    episodes = [e for e in episodes if e["title"]]
+    if not episodes:
+        raise ValueError("La temporada no contiene episodios")
+
+    return {"theme": str(data.get("theme", "")).strip(), "episodes": episodes}

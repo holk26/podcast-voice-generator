@@ -30,6 +30,9 @@ class Channel(Base):
     format = Column(String, nullable=False, default="podcast")
     default_voice_id = Column(String, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    autopilot = Column(Boolean, default=False, nullable=False)
+    episodes_per_week = Column(Integer, default=2, nullable=False)
+    target_minutes = Column(Integer, default=10, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
@@ -44,6 +47,7 @@ class ContentPlanEntry(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
     scheduled_date = Column(DateTime, nullable=True)
+    season = Column(Integer, default=1, nullable=False)
     status = Column(String, nullable=False, default="draft")
     episode_id = Column(Integer, ForeignKey("episodes.id"), nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

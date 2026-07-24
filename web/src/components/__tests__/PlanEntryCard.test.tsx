@@ -8,7 +8,7 @@ const entry: ContentPlanEntry = {
   channel_id: 1,
   title: 'E1',
   description: 'Desc',
-  status: 'draft',
+  status: 'draft', season: 1,
   created_at: '',
   updated_at: '',
 }

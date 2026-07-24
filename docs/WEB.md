@@ -49,23 +49,30 @@ API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 
 ## Canales y CrewAI ("congreso de agentes")
 
-1. Crea un canal en **Canales**.
-2. Ve a **Studio**, selecciona el canal y pulsa **Generar plan**.
-   El Studio muestra arriba el estado de Ollama (verde si está listo).
-3. Revisa las entradas generadas en el plan editorial del canal.
-4. Pulsa **Aprobar** en una entrada para generar el guion con CrewAI y crear el episodio.
-5. Sigue la generación de audio en **Cola**.
+1. Crea un canal en **Canales** (el botón **✨ Rellenar con IA** propone el canal completo a partir de un tema).
+2. Ve a **Studio**, elige canal, **voz** y **duración objetivo**.
+3. **Generar plan** (5 ideas rápidas) o **📅 Planificar temporada** (el *showrunner* diseña un arco de 4 semanas con episodios fechados).
+4. Aprueba entradas: el congreso (investigador → planificador → guionista por secciones → editor → director de voz) escribe el guion largo y crea el episodio.
+5. El progreso de cada agente se ve en vivo (panel morado, pasos expandibles con su salida completa).
+6. Sigue la generación de audio en **Cola**.
 
-Cómo trabaja el congreso (`web_api/services/crew_service.py`):
+### Piloto automático 🤖
 
-- **Plan editorial** (2 agentes): el *Content Strategist* propone 8 ideas en bruto
-  y el *Chief Editor* las debate, descarta las flojas y devuelve las 5 mejores.
-- **Guion** (3 agentes): el *Script Writer* escribe, el *Script Editor* pule ritmo
-  y claridad, y el *Voice Director* deja el texto limpio para TTS (sin notas de
-  producción ni markdown — además hay una limpieza regex de seguridad).
+Actívalo en el Studio por canal (con **episodios/semana**). Cada 60 s el worker
+revisa los canales en autopilot y, sin intervención:
 
-Tiempos orientativos con `llama3.1:8b` caliente en GPU: plan ≈ 50 s, guion ≈ 30 s.
-Si el modelo está frío o en CPU (falta de VRAM), puede tardar varios minutos.
+- si no hay borradores → lanza el showrunner para planificar una temporada nueva
+- si hay borradores → lanza el congreso de guion para el más antiguo
+- el episodio entra en la cola y se sintetiza con la voz del canal
+
+Los jobs del autopilot se ven en tiempo real igual que los manuales
+(`/api/jobs/{id}/events`). Desactívalo cuando quieras; no hay trabajos
+"fantasma": la API rechaza duplicados (409).
+
+### Libros → Audiolibros
+
+En **Libros** busca en Project Gutenberg, elige un libro y convierte cualquier
+capítulo en episodio con la voz que prefieras (edge o clonada).
 
 ### Requisitos de Ollama
 

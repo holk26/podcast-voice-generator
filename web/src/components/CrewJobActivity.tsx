@@ -3,6 +3,7 @@ import { useChannelStore } from '../stores/channelStore'
 const KIND_LABEL: Record<string, string> = {
   plan: 'Generando plan editorial',
   script: 'Generando guion',
+  season: 'Diseñando temporada',
 }
 
 /** Muestra en tiempo real lo que hace el congreso de agentes (SSE). */

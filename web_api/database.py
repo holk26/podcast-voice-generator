@@ -19,5 +19,27 @@ def get_db():
         db.close()
 
 
+def _migrate() -> None:
+    """Añade columnas nuevas a tablas existentes (SQLite no lo hace create_all)."""
+    new_columns = {
+        "channels": [
+            ("autopilot", "BOOLEAN DEFAULT 0 NOT NULL"),
+            ("episodes_per_week", "INTEGER DEFAULT 2 NOT NULL"),
+            ("target_minutes", "INTEGER DEFAULT 10 NOT NULL"),
+        ],
+        "content_plan_entries": [
+            ("season", "INTEGER DEFAULT 1 NOT NULL"),
+        ],
+    }
+    with engine.connect() as conn:
+        for table, columns in new_columns.items():
+            existing = {row[1] for row in conn.exec_driver_sql(f"PRAGMA table_info({table})")}
+            for name, ddl in columns:
+                if name not in existing:
+                    conn.exec_driver_sql(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}")
+        conn.commit()
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _migrate()

@@ -24,6 +24,7 @@ interface ChannelState {
   deleteChannel: (id: number) => Promise<void>
   fetchPlanEntries: (channelId: number) => Promise<void>
   generatePlan: (channelId: number, count?: number) => Promise<void>
+  generateSeason: (channelId: number, weeks?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
   approveEntry: (entryId: number) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
@@ -170,6 +171,16 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       try {
         const { job_id } = await api.generatePlan(channelId, count)
         trackJob(job_id, 'plan', channelId)
+      } catch (error) {
+        set({ error: formatError(error), loading: false })
+      }
+    },
+
+    generateSeason: async (channelId, weeks = 4) => {
+      set({ error: null })
+      try {
+        const { job_id } = await api.generateSeason(channelId, weeks)
+        trackJob(job_id, 'season', channelId)
       } catch (error) {
         set({ error: formatError(error), loading: false })
       }

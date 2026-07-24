@@ -51,7 +51,7 @@ def test_generate_plan_creates_entries():
         })
         channel_id = response.json()["id"]
 
-        with patch("web_api.routes.channels.generate_plan") as mock_generate:
+        with patch("web_api.services.automation_service.generate_plan") as mock_generate:
             mock_generate.return_value = [
                 PlanEntryCreate(title="T1", description="D1"),
                 PlanEntryCreate(title="T2", description="D2"),
@@ -83,7 +83,7 @@ def test_approve_entry_creates_episode():
         })
         entry_id = response.json()["id"]
 
-        with patch("web_api.routes.channels.generate_script") as mock_script:
+        with patch("web_api.services.automation_service.generate_script") as mock_script:
             mock_script.return_value = "Guion generado"
             response = client.post(f"/api/channels/plan/{entry_id}/approve")
             assert response.status_code == 202
