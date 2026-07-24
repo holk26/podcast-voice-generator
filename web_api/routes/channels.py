@@ -133,12 +133,21 @@ def deactivate_channel(channel_id: int, db: Session = Depends(get_db)):
 
 @router.get("/{channel_id}/plan", response_model=List[PlanEntryResponse])
 def list_plan_entries(channel_id: int, db: Session = Depends(get_db)):
-    return (
+    entries = (
         db.query(ContentPlanEntry)
         .filter(ContentPlanEntry.channel_id == channel_id)
         .order_by(ContentPlanEntry.created_at.desc())
         .all()
     )
+    result = []
+    for entry in entries:
+        resp = PlanEntryResponse.model_validate(entry)
+        if entry.episode_id:
+            episode = db.query(Episode).filter(Episode.id == entry.episode_id).first()
+            if episode:
+                resp.audio_url = episode.audio_url
+        result.append(resp)
+    return result
 
 
 @router.post("/{channel_id}/plan/generate", status_code=202)

@@ -36,6 +36,11 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
               </span>
             )}
           </div>
+          {entry.status === 'generated' && entry.audio_url && (
+            <div className="mt-3">
+              <audio controls preload="none" src={entry.audio_url} className="w-full h-8" />
+            </div>
+          )}
         </div>
         <div className="space-x-2">
           {entry.status === 'draft' && (

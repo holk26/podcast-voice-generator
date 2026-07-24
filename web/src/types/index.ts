@@ -60,6 +60,7 @@ export interface ContentPlanEntry {
   season: number
   status: PlanEntryStatus
   episode_id?: number
+  audio_url?: string
   created_at: string
   updated_at: string
 }

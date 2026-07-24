@@ -111,6 +111,7 @@ class PlanEntryResponse(PlanEntryBase):
     status: str
     season: int = 1
     episode_id: Optional[int] = None
+    audio_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

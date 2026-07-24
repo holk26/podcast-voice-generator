@@ -31,6 +31,9 @@ function ChannelPlanPage() {
 
   const channel = channels.find((c) => c.id === channelId)
   const planEntries = entries[channelId] || []
+  const total = channel?.entries_total ?? planEntries.length
+  const generated = channel?.entries_generated ?? planEntries.filter((e) => e.status === 'generated').length
+  const pct = total > 0 ? Math.round((generated / total) * 100) : 0
 
   return (
     <div>
@@ -45,6 +48,17 @@ function ChannelPlanPage() {
           Generar con IA
         </button>
       </div>
+      {total > 0 && (
+        <div className="mb-4">
+          <div className="flex justify-between text-sm text-gray-600 mb-1">
+            <span>{generated}/{total} capítulos generados</span>
+            <span>{pct}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded h-2">
+            <div className="bg-green-500 h-2 rounded" style={{ width: `${pct}%` }} />
+          </div>
+        </div>
+      )}
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
