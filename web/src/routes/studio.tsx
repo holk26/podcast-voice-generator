@@ -4,7 +4,7 @@ import { useChannelStore } from '../stores/channelStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
-import CrewJobActivity from '../components/CrewJobActivity'
+import CongressTable from '../components/CongressTable'
 import ContentPlanList from '../components/ContentPlanList'
 
 export const Route = createFileRoute('/studio')({
@@ -46,45 +46,42 @@ function StudioPage() {
     api.getLlmStatus().then(setLlm).catch(() => setLlm({ available: false }))
   }, [fetchChannels, fetchVoices])
 
-  // Selecciona el primer canal cuando llegan los datos
   useEffect(() => {
     if (selectedId === '' && channels.length > 0) {
       setSelectedId(channels[0].id)
     }
   }, [channels, selectedId])
 
-  // Carga el plan del canal seleccionado
   useEffect(() => {
     if (selectedId !== '') fetchPlanEntries(selectedId)
   }, [selectedId, fetchPlanEntries])
 
   const channel = channels.find((c) => c.id === selectedId)
   const channelEntries = selectedId === '' ? [] : entries[selectedId] || []
+  const llmOk = llm?.available && llm.default_ready
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Studio</h2>
-      {llm && !llm.available && (
-        <div className="bg-yellow-100 text-yellow-800 p-3 rounded mb-4">
-          Ollama no está disponible — la generación con IA fallará. Arráncalo con{' '}
-          <code className="bg-yellow-200 px-1 rounded">ollama serve</code>.
-        </div>
-      )}
-      {llm?.available && llm.default_ready === false && (
-        <div className="bg-yellow-100 text-yellow-800 p-3 rounded mb-4">
-          El modelo {llm.default_model} no está descargado en Ollama. Ejecuta:{' '}
-          <code className="bg-yellow-200 px-1 rounded">ollama pull {llm.default_model}</code>
-        </div>
-      )}
-      {llm?.available && llm.default_ready && (
-        <div className="bg-green-100 text-green-800 p-3 rounded mb-4">
-          IA lista — Ollama con {llm.default_model}.
-        </div>
-      )}
+      <div className="flex items-center gap-3 mb-4">
+        <h2 className="text-2xl font-bold">Studio</h2>
+        {llm && (
+          <span
+            className={`text-xs px-2 py-1 rounded ${
+              llmOk ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            }`}
+            title={llmOk ? undefined : 'Arranca Ollama o descarga el modelo'}
+          >
+            {llmOk ? `● IA lista (${llm.default_model})` : '● IA no disponible'}
+          </span>
+        )}
+      </div>
+
+      <CongressTable />
+
       {error && (
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
-      <CrewJobActivity />
+
       <StudioPanel
         channels={channels}
         selectedId={selectedId}
@@ -117,6 +114,7 @@ function StudioPage() {
         }}
         loading={loading}
       />
+
       {channel && (
         <div>
           <h3 className="text-lg font-bold mb-2">Plan editorial de {channel.name}</h3>
