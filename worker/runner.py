@@ -38,10 +38,22 @@ def process_pending_jobs():
             handle_podcast_episode(episode, db)
             logger.info(f"Episode {episode.id} completed")
         except Exception as e:
-            episode.status = "failed"
-            episode.error_message = str(e)
-            db.commit()
+            # La sesión puede estar rota (p. ej. episodio borrado a mitad de
+            # síntesis): rollback obligatorio antes de reintentar commit.
+            db.rollback()
+            try:
+                fresh = db.query(Episode).filter(Episode.id == episode.id).first()
+                if fresh is not None:
+                    fresh.status = "failed"
+                    fresh.error_message = str(e)[:500]
+                    db.commit()
+            except Exception as e2:
+                db.rollback()
+                logger.error(f"No se pudo marcar el episodio {episode.id} como failed: {e2}")
             logger.error(f"Episode {episode.id} failed: {e}")
+    except Exception as e:
+        db.rollback()
+        logger.error(f"process_pending_jobs error: {e}")
     finally:
         db.close()
 
