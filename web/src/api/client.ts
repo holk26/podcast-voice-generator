@@ -112,7 +112,7 @@ export const api = {
   getBookChapters: (bookId: string) =>
     fetchJson<BookChapter[]>(`/books/${bookId}/chapters`),
   convertBookChapter: (bookId: string, chapterIndex: number, voiceId: string) =>
-    fetchJson<Episode>(`/books/${bookId}/to-episode`, {
+    fetchJson<CrewJobStart>(`/books/${bookId}/to-episode`, {
       method: 'POST',
       body: JSON.stringify({ chapter_index: chapterIndex, voice_id: voiceId }),
     }),

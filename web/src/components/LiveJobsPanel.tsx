@@ -7,6 +7,7 @@ const KIND_LABEL: Record<string, string> = {
   script: 'Guion',
   season: 'Temporada',
   tts: 'Síntesis de voz',
+  audiobook: 'Audiolibro',
 }
 
 interface JobState {

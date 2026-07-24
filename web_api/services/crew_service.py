@@ -547,3 +547,65 @@ def improve_channel_prompt(channel) -> str:
     )
     brief = _run_single_task(producer, prompt, "Brief de producción mejorado")
     return _strip_markup(brief)
+
+
+CURATE_PROMPT = """Eres el curador de un audiolibro en español. Prepara este fragmento del libro
+"{title}" para ser NARRADO en voz alta. Es una tarea de LIMPIEZA fiel, no de reescritura:
+
+- Elimina: números de página, notas de transcripción, pies de ilustración ("Ilustración", "Grabado"),
+  corchetes editoriales [así], líneas de guiones bajos o separadores decorativos, cabeceras repetidas.
+- Conserva TODO el texto narrativo original, palabra por palabra: no resumas, no modernices,
+  no traduzcas, no añadas nada.
+- Normaliza la puntuación para que las pausas sean naturales al escucharlo.
+- Si un fragmento es solo ruido sin contenido narrativo, devuelve una línea vacía.
+
+Devuelve SOLO el texto curado, sin comentarios.
+
+Fragmento:
+{chunk}"""
+
+
+def _word_chunks(text: str, max_words: int = 1200) -> list[str]:
+    """Trocea por palabras respetando párrafos cuando se puede."""
+    words = text.split()
+    if len(words) <= max_words:
+        return [text]
+    chunks: list[str] = []
+    current: list[str] = []
+    for paragraph in text.split("\n"):
+        para_words = paragraph.split()
+        if current and len(current) + len(para_words) > max_words:
+            chunks.append(" ".join(current))
+            current = []
+        current.extend(para_words)
+    if current:
+        chunks.append(" ".join(current))
+    return chunks
+
+
+def curate_audiobook(text: str, title: str, on_progress=None) -> str:
+    """Curaduría de audiolibro: un agente limpia el texto crudo para narración,
+    troceado en chunks (capítulos de Gutenberg traen ruido editorial)."""
+    def emit(step: str, message: str, content: str | None = None) -> None:
+        if on_progress:
+            on_progress(step, message, content)
+
+    curator = Agent(
+        role="Audiobook Curator",
+        goal="Limpiar texto de libros para narración fiel en audio",
+        backstory="Editor de audiolibros: quita el ruido editorial sin tocar el texto.",
+        llm=get_script_llm(),
+        verbose=False,
+    )
+
+    chunks = _word_chunks(text)
+    emit("curate", f"El curador prepara el texto ({len(chunks)} fragmentos)…")
+    curated: list[str] = []
+    for i, chunk in enumerate(chunks):
+        prompt = CURATE_PROMPT.format(title=title, chunk=chunk)
+        emit("curate_chunk", f"Curando fragmento {i + 1}/{len(chunks)}…", prompt)
+        part = _run_single_task(curator, prompt, "Texto curado fiel")
+        curated.append(part.strip())
+        emit("curate_chunk_done", f"Fragmento {i + 1}/{len(chunks)} curado", part)
+
+    return _strip_markup("\n\n".join(p for p in curated if p))

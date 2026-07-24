@@ -58,8 +58,8 @@ function BooksPage() {
     setConverting(chapter.index)
     setError(null)
     try {
-      const episode = await api.convertBookChapter(selected.book_id, chapter.index, voiceId)
-      navigate({ to: '/queue', search: { highlight: episode.id } })
+      await api.convertBookChapter(selected.book_id, chapter.index, voiceId)
+      navigate({ to: '/queue' })
     } catch (err) {
       setError(String(err))
       setConverting(null)

@@ -2,14 +2,14 @@ import re
 import threading
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 
 from content.gutenberg_fetcher import GutenbergFetcher
-from web_api.database import get_db
+from web_api.database import SessionLocal
 from web_api.models import Episode
-from web_api.schemas import EpisodeResponse
+from web_api.services.crew_service import curate_audiobook
+from web_api.services.job_service import registry
 
 router = APIRouter()
 
@@ -68,33 +68,52 @@ def list_chapters(book_id: str):
         raise HTTPException(status_code=502, detail=f"Gutenberg error: {e}")
 
 
-@router.post("/{book_id}/to-episode", response_model=EpisodeResponse, status_code=201)
-def convert_chapter(book_id: str, data: ConvertRequest, db: Session = Depends(get_db)):
-    """Crea un episodio (audiolibro) con el texto de un capítulo del libro.
+@router.post("/{book_id}/to-episode", status_code=202)
+def convert_chapter(book_id: str, data: ConvertRequest):
+    """Lanza la conversión del capítulo a audiolibro en segundo plano.
 
-    El worker lo sintetiza con la voz indicada (edge o clonada vía Higgs).
+    El congreso cura el texto (ruido editorial de Gutenberg) antes de crear
+    el episodio. Progreso en /api/jobs/{job_id}/events.
     """
-    try:
-        book = _get_book(book_id)
-        chapters = _fetcher.split_into_chapters(book["cleaned_text"])
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Gutenberg error: {e}")
+    job_id = registry.create("audiobook", detail=f"Audiolibro: {book_id}")
 
-    if not (0 <= data.chapter_index < len(chapters)):
-        raise HTTPException(status_code=404, detail="Chapter not found")
+    def work():
+        session = SessionLocal()
+        try:
+            book = _get_book(book_id)
+            registry.emit(job_id, "load", f"Libro cargado: {book['title']}")
+            chapters = _fetcher.split_into_chapters(book["cleaned_text"])
+            if not (0 <= data.chapter_index < len(chapters)):
+                registry.fail(job_id, "Chapter not found")
+                return
+            chapter = chapters[data.chapter_index]
+            text = re.sub(r"\n{3,}", "\n\n", chapter["text"]).strip()
 
-    chapter = chapters[data.chapter_index]
-    # Limpieza ligera: títulos de capítulo en mayúsculas seguidas molestan al TTS
-    text = re.sub(r"\n{3,}", "\n\n", chapter["text"]).strip()
+            curated = curate_audiobook(
+                text,
+                f"{book['title']} — {chapter['title']}",
+                on_progress=lambda step, msg, content=None: registry.emit(
+                    job_id, step, msg, content
+                ),
+            )
 
-    episode = Episode(
-        title=f"{book['title']} — {chapter['title'][:60]}",
-        type="audiobook",
-        source_text=text,
-        voice_id=data.voice_id,
-        status="pending",
-    )
-    db.add(episode)
-    db.commit()
-    db.refresh(episode)
-    return episode
+            episode = Episode(
+                title=f"{book['title']} — {chapter['title'][:60]}",
+                type="audiobook",
+                source_text=curated,
+                voice_id=data.voice_id,
+                status="pending",
+            )
+            session.add(episode)
+            session.commit()
+            session.refresh(episode)
+            registry.emit(job_id, "done", f"Episodio #{episode.id} en cola de síntesis")
+            registry.finish(job_id, {"episode_id": episode.id})
+        except Exception as e:
+            session.rollback()
+            registry.fail(job_id, str(e))
+        finally:
+            session.close()
+
+    threading.Thread(target=work, daemon=True).start()
+    return {"job_id": job_id}
