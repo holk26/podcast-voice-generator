@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { ChannelFormat, CreateChannelRequest, Voice } from '../types'
+import { Channel, ChannelFormat, CreateChannelRequest, Voice } from '../types'
 import { api } from '../api/client'
 
 interface Props {
   voices: Voice[]
+  initial?: Channel
   onSubmit: (data: CreateChannelRequest) => void
   onCancel: () => void
 }
@@ -15,19 +16,29 @@ const FORMATS: { value: ChannelFormat; label: string }[] = [
   { value: 'motivation', label: 'Motivación' },
 ]
 
-export default function ChannelForm({ voices, onSubmit, onCancel }: Props) {
-  const [name, setName] = useState('')
-  const [description, setDescription] = useState('')
-  const [niche, setNiche] = useState('')
-  const [format, setFormat] = useState<ChannelFormat>('podcast')
-  const [voiceId, setVoiceId] = useState(voices[0]?.id ?? 'jorge')
+export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Props) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [description, setDescription] = useState(initial?.description ?? '')
+  const [niche, setNiche] = useState(initial?.niche ?? '')
+  const [format, setFormat] = useState<ChannelFormat>(initial?.format ?? 'podcast')
+  const [voiceId, setVoiceId] = useState(initial?.default_voice_id ?? voices[0]?.id ?? 'jorge')
   const [hint, setHint] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({ name, description, niche, format, default_voice_id: voiceId, is_active: true })
+    onSubmit({
+      name,
+      description,
+      niche,
+      format,
+      default_voice_id: voiceId,
+      is_active: initial?.is_active ?? true,
+      autopilot: initial?.autopilot ?? false,
+      episodes_per_week: initial?.episodes_per_week ?? 2,
+      target_minutes: initial?.target_minutes ?? 10,
+    })
   }
 
   const handleAiFill = async () => {

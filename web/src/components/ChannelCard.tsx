@@ -27,6 +27,13 @@ export default function ChannelCard({ channel, onDelete }: Props) {
         >
           Ver plan
         </Link>
+        <Link
+          to="/channels/$id/edit"
+          params={{ id: String(channel.id) }}
+          className="text-indigo-600 hover:underline text-sm"
+        >
+          Editar
+        </Link>
         <button
           type="button"
           onClick={() => onDelete(channel.id)}
