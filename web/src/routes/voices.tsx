@@ -39,19 +39,19 @@ function VoicesPage() {
     }
   }
 
-  if (loading) return <div>Cargando voces...</div>
+  if (loading) return <div className="text-slate-400">Cargando voces...</div>
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-2xl font-bold mb-4">Probar voces</h2>
-      {error && <div className="bg-red-100 text-red-800 p-3 rounded mb-4">{error}</div>}
-      <div className="bg-white p-6 rounded shadow">
-        <label htmlFor="voice-select" className="block mb-2 font-medium">Voz</label>
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Probar voces</h2>
+      {error && <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">{error}</div>}
+      <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20">
+        <label htmlFor="voice-select" className="block mb-2 font-medium text-slate-200">Voz</label>
         <select
           id="voice-select"
           value={selectedVoice}
           onChange={(e) => setSelectedVoice(e.target.value)}
-          className="w-full p-2 border rounded mb-4"
+          className="w-full p-2 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
         >
           {voices.map((voice) => (
             <option key={voice.id} value={voice.id}>
@@ -60,21 +60,21 @@ function VoicesPage() {
           ))}
         </select>
 
-        <label htmlFor="voice-text" className="block mb-2 font-medium">Texto</label>
+        <label htmlFor="voice-text" className="block mb-2 font-medium text-slate-200">Texto</label>
         <textarea
           id="voice-text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={4}
-          className="w-full p-2 border rounded mb-4"
+          className="w-full p-2 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
         />
 
-        {previewError && <div className="bg-red-100 text-red-800 p-3 rounded mb-4">{previewError}</div>}
+        {previewError && <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">{previewError}</div>}
 
         <button
           onClick={handlePreview}
           disabled={previewLoading || !selectedVoice}
-          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {previewLoading ? 'Generando...' : 'Escuchar'}
         </button>

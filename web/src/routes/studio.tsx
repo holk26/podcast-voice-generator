@@ -71,11 +71,13 @@ function StudioPage() {
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <h2 className="text-2xl font-bold">Studio</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Studio</h2>
         {llm && (
           <span
-            className={`text-xs px-2 py-1 rounded ${
-              llmOk ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            className={`text-xs px-2 py-1 rounded-lg border ${
+              llmOk
+                ? 'bg-green-500/15 border-green-500/40 text-green-300'
+                : 'bg-amber-500/15 border-amber-500/40 text-amber-300'
             }`}
             title={llmOk ? undefined : 'Arranca Ollama o descarga el modelo'}
           >
@@ -83,10 +85,10 @@ function StudioPage() {
           </span>
         )}
         {models.length > 0 && (
-          <label className="flex items-center gap-1 text-xs text-gray-600">
+          <label className="flex items-center gap-1 text-xs text-slate-400">
             Modelo:
             <select
-              className="border rounded px-1 py-0.5 text-xs"
+              className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg px-1 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
               value={currentModel}
               onChange={async (e) => {
                 const model = e.target.value
@@ -105,7 +107,7 @@ function StudioPage() {
       <CongressTable />
 
       {error && (
-        <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
+        <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">Error: {error}</div>
       )}
 
       <StudioPanel
@@ -143,7 +145,7 @@ function StudioPage() {
 
       {channel && (
         <div>
-          <h3 className="text-lg font-bold mb-2">Plan editorial de {channel.name}</h3>
+          <h3 className="text-lg font-bold tracking-tight mb-2">Plan editorial de {channel.name}</h3>
           <ContentPlanList
             entries={channelEntries}
             onApprove={approveEntry}

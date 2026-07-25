@@ -24,14 +24,14 @@ function QueuePage() {
 
   useEpisodeSSE(episodes, applyEpisodeUpdate)
 
-  if (loading) return <div>Cargando episodios...</div>
+  if (loading) return <div className="text-slate-400">Cargando episodios...</div>
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Cola de episodios</h2>
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Cola de episodios</h2>
       <LiveJobsPanel />
       {error && (
-        <div className="bg-red-100 text-red-800 p-3 rounded mb-4">
+        <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">
           Error: {error}
         </div>
       )}

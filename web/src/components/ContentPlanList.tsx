@@ -9,7 +9,7 @@ interface Props {
 }
 
 export default function ContentPlanList({ entries, onApprove, onReject, onDelete }: Props) {
-  if (entries.length === 0) return <p className="text-gray-500">No hay entradas en el plan.</p>
+  if (entries.length === 0) return <p className="text-slate-400">No hay entradas en el plan.</p>
 
   // Agrupa por temporada (las más recientes primero)
   const seasons = new Map<number, ContentPlanEntry[]>()
@@ -27,8 +27,8 @@ export default function ContentPlanList({ entries, onApprove, onReject, onDelete
         return (
           <section key={season}>
             <div className="flex items-center gap-3 mb-2">
-              <h3 className="text-md font-bold text-purple-800">Temporada {season}</h3>
-              <span className="text-xs text-gray-500">
+              <h3 className="text-md font-bold tracking-tight text-purple-300">Temporada {season}</h3>
+              <span className="text-xs text-slate-400">
                 {generated}/{seasonEntries.length} generados
               </span>
             </div>

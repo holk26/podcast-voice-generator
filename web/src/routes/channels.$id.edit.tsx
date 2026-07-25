@@ -29,12 +29,12 @@ function EditChannelPage() {
   }
 
   if (!channel) {
-    return <div>Cargando canal...</div>
+    return <div className="text-slate-400">Cargando canal...</div>
   }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Editar canal: {channel.name}</h2>
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Editar canal: {channel.name}</h2>
       <ChannelForm
         voices={voices}
         initial={channel}

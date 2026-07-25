@@ -25,7 +25,7 @@ function NewChannelPage() {
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-4">Nuevo canal</h2>
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Nuevo canal</h2>
       <ChannelForm
         voices={voices}
         onSubmit={handleSubmit}

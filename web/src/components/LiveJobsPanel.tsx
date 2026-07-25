@@ -104,28 +104,28 @@ export default function LiveJobsPanel() {
 
   return (
     <div className="mb-6 space-y-3">
-      <h3 className="text-lg font-bold">Procesos en curso</h3>
+      <h3 className="text-lg font-bold tracking-tight">Procesos en curso</h3>
       {jobList.map(({ summary, events }) => (
-        <div key={summary.id} className="bg-purple-50 border border-purple-300 rounded p-4">
+        <div key={summary.id} className="bg-purple-500/10 border border-purple-500/40 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-2">
-            <span className="inline-block w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-            <strong className="text-sm">
+            <span className="inline-block w-3 h-3 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            <strong className="text-sm text-slate-100">
               {KIND_LABEL[summary.kind] ?? summary.kind}: {summary.detail}
             </strong>
           </div>
-          <ul className="space-y-1 text-sm ml-5">
+          <ul className="space-y-1 text-sm text-slate-300 ml-5">
             {events.slice(-4).map((e, i, arr) => (
               <li key={i} className="flex items-center gap-2">
                 {i === arr.length - 1 ? (
-                  <span className="inline-block w-2 h-2 bg-purple-600 rounded-full animate-pulse" />
+                  <span className="inline-block w-2 h-2 bg-purple-400 rounded-full animate-pulse" />
                 ) : (
-                  <span className="text-green-600">✓</span>
+                  <span className="text-green-400">✓</span>
                 )}
                 <span>{e.message}</span>
               </li>
             ))}
             {events.length === 0 && (
-              <li className="text-gray-500">Arrancando…</li>
+              <li className="text-slate-400">Arrancando…</li>
             )}
           </ul>
         </div>

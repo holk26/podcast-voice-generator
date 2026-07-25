@@ -15,6 +15,12 @@ const statusLabels: Record<string, string> = {
   rejected: 'Rechazado',
 }
 
+const statusBadge: Record<string, string> = {
+  draft: 'bg-amber-500/15 border border-amber-500/40 text-amber-300',
+  generated: 'bg-green-500/15 border border-green-500/40 text-green-300',
+  rejected: 'bg-red-500/15 border border-red-500/40 text-red-300',
+}
+
 export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: Props) {
   const updateEntry = useChannelStore((s) => s.updateEntry)
   const [editing, setEditing] = useState(false)
@@ -33,23 +39,23 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
 
   if (editing) {
     return (
-      <div className="bg-white p-4 rounded shadow border-l-4 border-indigo-500 space-y-2">
+      <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl shadow-lg shadow-black/20 border-l-4 border-l-violet-500 space-y-2">
         <input
-          className="w-full border rounded p-2 font-bold"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 font-bold focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <textarea
-          className="w-full border rounded p-2 text-sm"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           rows={2}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
         <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Fecha:</label>
+          <label className="text-sm text-slate-400">Fecha:</label>
           <input
             type="date"
-            className="border rounded p-1 text-sm"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={date}
             onChange={(e) => setDate(e.target.value)}
           />
@@ -58,14 +64,14 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
           <button
             type="button"
             onClick={handleSave}
-            className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
+            className="bg-purple-600 text-white px-3 py-1 rounded-lg text-sm hover:bg-purple-500 transition-colors"
           >
             Guardar
           </button>
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="bg-gray-300 px-3 py-1 rounded text-sm"
+            className="bg-slate-700 text-slate-100 px-3 py-1 rounded-lg text-sm hover:bg-slate-600 transition-colors"
           >
             Cancelar
           </button>
@@ -75,20 +81,20 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow border-l-4 border-blue-500">
+    <div className="bg-slate-800/50 border border-slate-700 p-4 rounded-xl shadow-lg shadow-black/20 border-l-4 border-l-purple-500">
       <div className="flex justify-between items-start">
         <div className="flex-1 min-w-0">
-          <h4 className="font-bold">{entry.title}</h4>
-          <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
+          <h4 className="font-bold tracking-tight text-slate-100">{entry.title}</h4>
+          <p className="text-sm text-slate-400 mt-1">{entry.description}</p>
           <div className="flex gap-2 mt-2">
-            <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded inline-block">
+            <span className={`text-xs px-2 py-1 rounded-lg inline-block ${statusBadge[entry.status] || 'bg-slate-700/50 border border-slate-600 text-slate-300'}`}>
               {statusLabels[entry.status] || entry.status}
             </span>
-            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded inline-block">
+            <span className="text-xs bg-purple-500/15 border border-purple-500/40 text-purple-300 px-2 py-1 rounded-lg inline-block">
               T{entry.season ?? 1}
             </span>
             {entry.scheduled_date && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded inline-block">
+              <span className="text-xs bg-slate-700/50 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg inline-block">
                 {new Date(entry.scheduled_date).toLocaleDateString('es-ES', {
                   day: 'numeric',
                   month: 'short',
@@ -108,14 +114,14 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
               <button
                 type="button"
                 onClick={() => onApprove(entry.id)}
-                className="text-green-600 hover:underline text-sm"
+                className="text-green-400 hover:text-green-300 hover:underline text-sm transition-colors"
               >
                 Aprobar
               </button>
               <button
                 type="button"
                 onClick={() => onReject(entry.id)}
-                className="text-yellow-600 hover:underline text-sm"
+                className="text-amber-400 hover:text-amber-300 hover:underline text-sm transition-colors"
               >
                 Rechazar
               </button>
@@ -129,14 +135,14 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
               setDate((entry.scheduled_date ?? '').slice(0, 10))
               setEditing(true)
             }}
-            className="text-indigo-600 hover:underline text-sm"
+            className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
           >
             Editar
           </button>
           <button
             type="button"
             onClick={() => onDelete(entry.id)}
-            className="text-red-600 hover:underline text-sm"
+            className="text-red-400 hover:text-red-300 hover:underline text-sm transition-colors"
           >
             Eliminar
           </button>

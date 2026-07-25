@@ -46,19 +46,19 @@ function ChannelPlanPage() {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Plan editorial: {channel?.name}</h2>
+        <h2 className="text-2xl font-bold tracking-tight">Plan editorial: {channel?.name}</h2>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
-            className="bg-blue-600 text-white px-4 py-2 rounded"
+            className="bg-slate-700 text-slate-100 px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors"
           >
             {view === 'list' ? '📅 Calendario' : '📋 Lista'}
           </button>
           <button
             type="button"
             onClick={() => generatePlan(channelId)}
-            className="bg-purple-600 text-white px-4 py-2 rounded"
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             disabled={loading}
           >
             Generar con IA
@@ -67,12 +67,12 @@ function ChannelPlanPage() {
       </div>
       {total > 0 && (
         <div className="mb-4">
-          <div className="flex justify-between text-sm text-gray-600 mb-1">
+          <div className="flex justify-between text-sm text-slate-400 mb-1">
             <span>{generated}/{total} capítulos generados</span>
             <span>{pct}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded h-2">
-            <div className="bg-green-500 h-2 rounded" style={{ width: `${pct}%` }} />
+          <div className="w-full bg-slate-700 rounded-full h-2">
+            <div className="bg-green-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
           </div>
         </div>
       )}
@@ -81,8 +81,8 @@ function ChannelPlanPage() {
           <button
             type="button"
             onClick={() => setSeasonFilter(null)}
-            className={`px-3 py-1 rounded text-sm ${
-              seasonFilter === null ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700'
+            className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+              seasonFilter === null ? 'bg-purple-600 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
             }`}
           >
             Todas
@@ -92,8 +92,8 @@ function ChannelPlanPage() {
               key={s}
               type="button"
               onClick={() => setSeasonFilter(s)}
-              className={`px-3 py-1 rounded text-sm ${
-                seasonFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 text-gray-700'
+              className={`px-3 py-1 rounded-lg text-sm transition-colors ${
+                seasonFilter === s ? 'bg-purple-600 text-white' : 'bg-slate-800 border border-slate-700 text-slate-300 hover:bg-slate-700'
               }`}
             >
               Temporada {s}
@@ -102,7 +102,7 @@ function ChannelPlanPage() {
         </div>
       )}
       {error && (
-        <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
+        <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">Error: {error}</div>
       )}
       <CongressTable />
       {view === 'list' ? (

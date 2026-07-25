@@ -14,18 +14,18 @@ function ChannelsPage() {
     fetchChannels()
   }, [fetchChannels])
 
-  if (loading) return <div>Cargando canales...</div>
+  if (loading) return <div className="text-slate-400">Cargando canales...</div>
 
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Canales</h2>
-        <Link to="/channels/new" className="bg-blue-600 text-white px-4 py-2 rounded">
+        <h2 className="text-2xl font-bold tracking-tight">Canales</h2>
+        <Link to="/channels/new" className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors">
           Nuevo canal
         </Link>
       </div>
       {error && (
-        <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
+        <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">Error: {error}</div>
       )}
       <div className="grid gap-4 md:grid-cols-2">
         {channels.map((channel) => (

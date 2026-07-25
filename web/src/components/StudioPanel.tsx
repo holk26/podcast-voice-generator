@@ -44,17 +44,17 @@ export default function StudioPanel({
   loading,
 }: Props) {
   return (
-    <div className="bg-white p-6 rounded shadow mb-4">
-      <h3 className="text-lg font-bold mb-4">CrewAI Studio</h3>
-      <p className="text-sm text-gray-600 mb-4">
+    <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20 mb-4">
+      <h3 className="text-lg font-bold tracking-tight mb-4">CrewAI Studio</h3>
+      <p className="text-sm text-slate-400 mb-4">
         Elige canal, voz y duración. El showrunner diseña temporadas completas y,
         con el piloto automático, el congreso escribe y produce los episodios solo.
       </p>
       <div className="flex flex-wrap gap-4 items-end">
         <div>
-          <label className="block text-sm font-medium mb-1">Canal</label>
+          <label className="block text-sm font-medium text-slate-200 mb-1">Canal</label>
           <select
-            className="border rounded p-2"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={selectedId}
             onChange={(e) => onSelectChannel(Number(e.target.value))}
           >
@@ -64,9 +64,9 @@ export default function StudioPanel({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Voz</label>
+          <label className="block text-sm font-medium text-slate-200 mb-1">Voz</label>
           <select
-            className="border rounded p-2"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={voiceId}
             onChange={(e) => onVoiceChange(e.target.value)}
           >
@@ -78,9 +78,9 @@ export default function StudioPanel({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Ideas</label>
+          <label className="block text-sm font-medium text-slate-200 mb-1">Ideas</label>
           <select
-            className="border rounded p-2"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={count}
             onChange={(e) => onCountChange(Number(e.target.value))}
           >
@@ -90,9 +90,9 @@ export default function StudioPanel({
           </select>
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">Duración</label>
+          <label className="block text-sm font-medium text-slate-200 mb-1">Duración</label>
           <select
-            className="border rounded p-2"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={minutes}
             onChange={(e) => onMinutesChange(Number(e.target.value))}
           >
@@ -105,7 +105,7 @@ export default function StudioPanel({
           type="button"
           disabled={loading || selectedId === ''}
           onClick={onGenerate}
-          className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Generar plan
         </button>
@@ -113,26 +113,26 @@ export default function StudioPanel({
           type="button"
           disabled={loading || selectedId === ''}
           onClick={onGenerateSeason}
-          className="bg-indigo-600 text-white px-4 py-2 rounded disabled:opacity-50"
+          className="bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           📅 Planificar temporada
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t">
+      <div className="flex flex-wrap gap-4 items-center mt-4 pt-4 border-t border-slate-700">
         <label className="flex items-center gap-2 cursor-pointer">
           <input
             type="checkbox"
             checked={autopilot}
             onChange={(e) => onAutopilotChange(e.target.checked)}
-            className="w-4 h-4"
+            className="w-4 h-4 accent-purple-500"
           />
-          <span className="text-sm font-medium">🤖 Piloto automático</span>
+          <span className="text-sm font-medium text-slate-200">🤖 Piloto automático</span>
         </label>
         <div>
-          <label className="block text-sm font-medium mb-1">Episodios/semana</label>
+          <label className="block text-sm font-medium text-slate-200 mb-1">Episodios/semana</label>
           <select
-            className="border rounded p-2"
+            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500 disabled:opacity-50"
             value={episodesPerWeek}
             onChange={(e) => onEpisodesPerWeekChange(Number(e.target.value))}
             disabled={!autopilot}
@@ -143,7 +143,7 @@ export default function StudioPanel({
           </select>
         </div>
         {autopilot && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-slate-400">
             El congreso generará temporadas y episodios de este canal sin intervención.
           </p>
         )}

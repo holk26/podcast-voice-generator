@@ -33,7 +33,7 @@ function CreatePage() {
 
   return (
     <div className="max-w-2xl">
-      <h2 className="text-2xl font-bold mb-4">Crear episodio</h2>
+      <h2 className="text-2xl font-bold tracking-tight mb-4">Crear episodio</h2>
       <CreateEpisodeForm onSubmit={handleSubmit} loading={loading} />
     </div>
   )

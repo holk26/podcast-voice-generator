@@ -95,9 +95,9 @@ export default function CongressTable() {
   const n = roster.length || 1
 
   return (
-    <div className="mb-4 rounded-xl bg-gradient-to-b from-indigo-950 to-purple-950 p-5 text-white shadow-lg">
+    <div className="mb-4 rounded-xl bg-gradient-to-b from-indigo-950 to-purple-950 p-5 text-white shadow-lg shadow-purple-950/40 border border-purple-500/30">
       <div className="flex justify-between items-center mb-3">
-        <h3 className="font-bold text-lg">
+        <h3 className="font-bold text-lg tracking-tight">
           {KIND_TITLE[activeJob.kind] ?? 'Mesa redonda'}
           {running && <span className="ml-2 animate-pulse">●</span>}
           {activeJob.status === 'done' && ' ✓'}
@@ -111,9 +111,9 @@ export default function CongressTable() {
 
       {/* La mesa con los agentes alrededor */}
       <div className="relative mx-auto my-6 h-64 w-full max-w-xl">
-        <div className="absolute left-1/2 top-1/2 h-28 w-56 -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-amber-900 shadow-inner border-4 border-amber-950" />
+        <div className="absolute left-1/2 top-1/2 h-28 w-56 -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-purple-900/60 shadow-inner border-4 border-purple-950" />
         {lastEvent && (
-          <div className="absolute left-1/2 top-1/2 z-10 w-52 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white/95 p-2 text-center text-xs text-gray-800 shadow">
+          <div className="absolute left-1/2 top-1/2 z-10 w-52 -translate-x-1/2 -translate-y-1/2 rounded-lg bg-slate-800/95 border border-purple-500/40 p-2 text-center text-xs text-slate-100 shadow">
             {running ? (
               <>
                 <span className="font-medium">{lastEvent.message}</span>

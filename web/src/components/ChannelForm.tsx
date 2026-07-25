@@ -74,15 +74,15 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded shadow space-y-4">
-      <div className="bg-purple-50 border border-purple-200 rounded p-4 space-y-2">
-        <label htmlFor="channel-ai-hint" className="block text-sm font-medium">
+    <form onSubmit={handleSubmit} className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20 space-y-4">
+      <div className="bg-purple-500/10 border border-purple-500/40 rounded-xl p-4 space-y-2">
+        <label htmlFor="channel-ai-hint" className="block text-sm font-medium text-purple-200">
           Rellenar con IA
         </label>
         <div className="flex gap-2">
           <input
             id="channel-ai-hint"
-            className="flex-1 border rounded p-2"
+            className="flex-1 bg-slate-800 border border-slate-600 text-slate-100 placeholder-slate-500 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             placeholder="Tema del canal (opcional, p. ej. historia antigua)"
             value={hint}
             onChange={(e) => setHint(e.target.value)}
@@ -91,46 +91,46 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
             type="button"
             onClick={handleAiFill}
             disabled={aiLoading}
-            className="bg-purple-600 text-white px-4 py-2 rounded disabled:opacity-50 whitespace-nowrap"
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
           >
             {aiLoading ? 'Generando...' : '✨ Rellenar con IA'}
           </button>
         </div>
-        {aiError && <p className="text-sm text-red-600">{aiError}</p>}
+        {aiError && <p className="text-sm text-red-400">{aiError}</p>}
       </div>
       <div>
-        <label htmlFor="channel-name" className="block text-sm font-medium">Nombre</label>
+        <label htmlFor="channel-name" className="block text-sm font-medium text-slate-200">Nombre</label>
         <input
           id="channel-name"
-          className="w-full border rounded p-2"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
         />
       </div>
       <div>
-        <label htmlFor="channel-description" className="block text-sm font-medium">Descripción</label>
+        <label htmlFor="channel-description" className="block text-sm font-medium text-slate-200">Descripción</label>
         <textarea
           id="channel-description"
-          className="w-full border rounded p-2"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
         />
       </div>
       <div>
-        <label htmlFor="channel-niche" className="block text-sm font-medium">Nicho</label>
+        <label htmlFor="channel-niche" className="block text-sm font-medium text-slate-200">Nicho</label>
         <input
           id="channel-niche"
-          className="w-full border rounded p-2"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={niche}
           onChange={(e) => setNiche(e.target.value)}
         />
       </div>
       <div>
-        <label htmlFor="channel-format" className="block text-sm font-medium">Formato</label>
+        <label htmlFor="channel-format" className="block text-sm font-medium text-slate-200">Formato</label>
         <select
           id="channel-format"
-          className="w-full border rounded p-2"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={format}
           onChange={(e) => setFormat(e.target.value as ChannelFormat)}
         >
@@ -140,10 +140,10 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
         </select>
       </div>
       <div>
-        <label htmlFor="channel-voice" className="block text-sm font-medium">Voz por defecto</label>
+        <label htmlFor="channel-voice" className="block text-sm font-medium text-slate-200">Voz por defecto</label>
         <select
           id="channel-voice"
-          className="w-full border rounded p-2"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
           value={voiceId}
           onChange={(e) => setVoiceId(e.target.value)}
           required
@@ -157,7 +157,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
       </div>
       <div>
         <div className="flex justify-between items-center mb-1">
-          <label htmlFor="channel-brief" className="block text-sm font-medium">
+          <label htmlFor="channel-brief" className="block text-sm font-medium text-slate-200">
             Brief de producción (lo siguen los agentes al generar)
           </label>
           {initial && (
@@ -165,7 +165,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
               type="button"
               onClick={handleImprovePrompt}
               disabled={aiLoading}
-              className="text-sm bg-indigo-600 text-white px-3 py-1 rounded disabled:opacity-50"
+              className="text-sm bg-violet-600 text-white px-3 py-1 rounded-lg hover:bg-violet-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {aiLoading ? 'Mejorando...' : '🪄 Mejorar con IA'}
             </button>
@@ -173,7 +173,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
         </div>
         <textarea
           id="channel-brief"
-          className="w-full border rounded p-2 text-sm"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 placeholder-slate-500 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           rows={5}
           placeholder="Idioma del contenido, audiencia, tono, estructura y reglas del canal. Vacío = comportamiento por defecto (español)."
           value={brief}
@@ -181,10 +181,10 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
         />
       </div>
       <div className="space-x-2">
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+        <button type="submit" className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors">
           Guardar
         </button>
-        <button type="button" onClick={onCancel} className="bg-gray-300 px-4 py-2 rounded">
+        <button type="button" onClick={onCancel} className="bg-slate-700 text-slate-100 px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors">
           Cancelar
         </button>
       </div>

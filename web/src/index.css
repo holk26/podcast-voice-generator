@@ -3,5 +3,24 @@
 @tailwind utilities;
 
 body {
-  @apply bg-gray-50 text-gray-900;
+  @apply bg-slate-950 text-slate-100 antialiased;
+}
+
+::selection {
+  @apply bg-purple-600/60 text-white;
+}
+
+/* Scrollbar oscura acorde al tema studio */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-slate-900;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-700 rounded-full border-2 border-slate-900;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-600;
 }
