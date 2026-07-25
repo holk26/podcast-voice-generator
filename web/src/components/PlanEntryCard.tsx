@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useChannelStore } from '../stores/channelStore'
 import { ContentPlanEntry } from '../types'
 
 interface Props {
@@ -14,10 +16,68 @@ const statusLabels: Record<string, string> = {
 }
 
 export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: Props) {
+  const updateEntry = useChannelStore((s) => s.updateEntry)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState(entry.title)
+  const [description, setDescription] = useState(entry.description ?? '')
+  const [date, setDate] = useState((entry.scheduled_date ?? '').slice(0, 10))
+
+  const handleSave = async () => {
+    await updateEntry(entry.id, {
+      title,
+      description,
+      scheduled_date: date || undefined,
+    })
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <div className="bg-white p-4 rounded shadow border-l-4 border-indigo-500 space-y-2">
+        <input
+          className="w-full border rounded p-2 font-bold"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <textarea
+          className="w-full border rounded p-2 text-sm"
+          rows={2}
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-gray-600">Fecha:</label>
+          <input
+            type="date"
+            className="border rounded p-1 text-sm"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+          />
+        </div>
+        <div className="space-x-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="bg-indigo-600 text-white px-3 py-1 rounded text-sm"
+          >
+            Guardar
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditing(false)}
+            className="bg-gray-300 px-3 py-1 rounded text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="bg-white p-4 rounded shadow border-l-4 border-blue-500">
       <div className="flex justify-between items-start">
-        <div>
+        <div className="flex-1 min-w-0">
           <h4 className="font-bold">{entry.title}</h4>
           <p className="text-sm text-gray-600 mt-1">{entry.description}</p>
           <div className="flex gap-2 mt-2">
@@ -42,7 +102,7 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
             </div>
           )}
         </div>
-        <div className="space-x-2">
+        <div className="space-x-2 whitespace-nowrap">
           {entry.status === 'draft' && (
             <>
               <button
@@ -61,6 +121,18 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
               </button>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => {
+              setTitle(entry.title)
+              setDescription(entry.description ?? '')
+              setDate((entry.scheduled_date ?? '').slice(0, 10))
+              setEditing(true)
+            }}
+            className="text-indigo-600 hover:underline text-sm"
+          >
+            Editar
+          </button>
           <button
             type="button"
             onClick={() => onDelete(entry.id)}

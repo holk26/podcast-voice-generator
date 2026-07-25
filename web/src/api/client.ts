@@ -103,6 +103,11 @@ export const api = {
     }),
   approvePlanEntry: (entryId: number, minutes: number = 10) =>
     fetchJson<CrewJobStart>(`/channels/plan/${entryId}/approve?minutes=${minutes}`, { method: 'POST' }),
+  updatePlanEntry: (entryId: number, data: CreatePlanEntryRequest) =>
+    fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   rejectPlanEntry: (entryId: number) =>
     fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/reject`, { method: 'POST' }),
   deletePlanEntry: (entryId: number) => fetchVoid(`/channels/plan/${entryId}`, { method: 'DELETE' }),

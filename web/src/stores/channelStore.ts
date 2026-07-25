@@ -28,6 +28,7 @@ interface ChannelState {
   _handleActionError: (error: unknown, channelId?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
   approveEntry: (entryId: number) => Promise<void>
+  updateEntry: (entryId: number, data: CreatePlanEntryRequest) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
   deleteEntry: (entryId: number) => Promise<void>
   clearJob: () => void
@@ -220,6 +221,12 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       } else {
         set({ error: formatError(error), loading: false })
       }
+    },
+
+    updateEntry: async (entryId, data) => {
+      set({ error: null })
+      const entry = await api.updatePlanEntry(entryId, data)
+      set((state) => ({ entries: updateEntryInState(state.entries, entry) }))
     },
 
     rejectEntry: async (entryId) => {

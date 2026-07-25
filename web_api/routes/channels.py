@@ -215,6 +215,22 @@ def approve_plan_entry(entry_id: int, minutes: int = 10, db: Session = Depends(g
     return {"job_id": job_id}
 
 
+@router.put("/plan/{entry_id}", response_model=PlanEntryResponse)
+def update_plan_entry(entry_id: int, data: PlanEntryCreate, db: Session = Depends(get_db)):
+    """Edita título, descripción y fecha programada de una entrada."""
+    entry = db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry_id).first()
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    entry.title = data.title
+    if data.description is not None:
+        entry.description = data.description
+    if data.scheduled_date is not None:
+        entry.scheduled_date = data.scheduled_date
+    db.commit()
+    db.refresh(entry)
+    return entry
+
+
 @router.post("/plan/{entry_id}/reject", response_model=PlanEntryResponse)
 def reject_plan_entry(entry_id: int, db: Session = Depends(get_db)):
     entry = db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry_id).first()

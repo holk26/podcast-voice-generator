@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
 import ContentPlanList from '../components/ContentPlanList'
+import PlanCalendar from '../components/PlanCalendar'
 import CongressTable from '../components/CongressTable'
 
 export const Route = createFileRoute('/channels/$id/plan')({
@@ -24,6 +25,7 @@ function ChannelPlanPage() {
     deleteEntry,
   } = useChannelStore()
   const [seasonFilter, setSeasonFilter] = useState<number | null>(null) // null = todas
+  const [view, setView] = useState<'list' | 'calendar'>('list')
 
   useEffect(() => {
     fetchChannels()
@@ -45,14 +47,23 @@ function ChannelPlanPage() {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Plan editorial: {channel?.name}</h2>
-        <button
-          type="button"
-          onClick={() => generatePlan(channelId)}
-          className="bg-purple-600 text-white px-4 py-2 rounded"
-          disabled={loading}
-        >
-          Generar con IA
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => setView(view === 'list' ? 'calendar' : 'list')}
+            className="bg-blue-600 text-white px-4 py-2 rounded"
+          >
+            {view === 'list' ? '📅 Calendario' : '📋 Lista'}
+          </button>
+          <button
+            type="button"
+            onClick={() => generatePlan(channelId)}
+            className="bg-purple-600 text-white px-4 py-2 rounded"
+            disabled={loading}
+          >
+            Generar con IA
+          </button>
+        </div>
       </div>
       {total > 0 && (
         <div className="mb-4">
@@ -94,12 +105,16 @@ function ChannelPlanPage() {
         <div className="bg-red-100 text-red-800 p-3 rounded mb-4">Error: {error}</div>
       )}
       <CongressTable />
-      <ContentPlanList
-        entries={filtered}
-        onApprove={approveEntry}
-        onReject={rejectEntry}
-        onDelete={deleteEntry}
-      />
+      {view === 'list' ? (
+        <ContentPlanList
+          entries={filtered}
+          onApprove={approveEntry}
+          onReject={rejectEntry}
+          onDelete={deleteEntry}
+        />
+      ) : (
+        <PlanCalendar entries={filtered} />
+      )}
     </div>
   )
 }
