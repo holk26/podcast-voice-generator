@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
 import { useVoiceStore } from '../stores/voiceStore'
@@ -108,6 +108,27 @@ function StudioPage() {
 
       {error && (
         <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">Error: {error}</div>
+      )}
+
+      {channel && (
+        <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20 mb-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <h3 className="text-lg font-bold tracking-tight text-slate-100">{channel.name}</h3>
+              <p className="text-sm text-slate-400 mt-1">{channel.description || 'Sin descripción'}</p>
+              <p className="text-xs text-slate-500 mt-2">
+                {channel.format} · nicho: {channel.niche || 'general'}
+              </p>
+            </div>
+            <Link
+              to="/channels/$id/edit"
+              params={{ id: String(channel.id) }}
+              className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
+            >
+              Editar canal
+            </Link>
+          </div>
+        </div>
       )}
 
       <StudioPanel
