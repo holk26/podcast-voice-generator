@@ -93,6 +93,11 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
             <span className="text-xs bg-purple-500/15 border border-purple-500/40 text-purple-300 px-2 py-1 rounded-lg inline-block">
               T{entry.season ?? 1}
             </span>
+            {entry.episode_published_at && (
+              <span className="text-xs bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 px-2 py-1 rounded-lg inline-block">
+                Publicado
+              </span>
+            )}
             {entry.scheduled_date && (
               <span className="text-xs bg-slate-700/50 border border-slate-600 text-slate-300 px-2 py-1 rounded-lg inline-block">
                 {new Date(entry.scheduled_date).toLocaleDateString('es-ES', {
