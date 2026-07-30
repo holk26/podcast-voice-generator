@@ -4,6 +4,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
 
+import soundfile as sf
+
 from web_api.config import BASE_DIR
 
 router = APIRouter()
@@ -42,6 +44,15 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
             continue
         if entry.suffix.lower() not in AUDIO_EXTENSIONS:
             continue
+        try:
+            info = sf.info(entry)
+            if info.samplerate != 24000 or info.channels != 1:
+                print(
+                    f"[voices] WARNING {entry.name}: expected 24000 Hz mono, "
+                    f"got {info.samplerate} Hz {info.channels}ch"
+                )
+        except Exception as e:
+            print(f"[voices] WARNING could not inspect {entry.name}: {e}")
         stem = entry.stem
         for engine in CLONE_ENGINES:
             suffix = "" if engine == "higgs" else f":{engine}"
