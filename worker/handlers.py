@@ -91,7 +91,7 @@ def _normalize_loudness(path: Path, target_i: float = -16.0) -> None:
     fmt_args = ["-codec:a", "libmp3lame", "-b:a", "192k"] if path.suffix.lower() == ".mp3" else []
     result = subprocess.run(
         ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-         "-i", str(path), "-af", loudness, *fmt_args, str(tmp)],
+         "-i", str(path), "-af", loudness, "-ar", "48000", *fmt_args, str(tmp)],
         capture_output=True, text=True, timeout=600,
     )
     if result.returncode == 0 and tmp.exists():

@@ -114,6 +114,56 @@ class HiggsAudioEngine(TTSBase):
         self.name = "higgs"
         self._loaded = False
 
+    # ── Tokenizer patch ────────────────────────────────────────────────
+
+    def _patch_tokenizer_config(self) -> None:
+        """Patch tokenizer_config.json so transformers>=5.5 can load it.
+
+        The Higgs model ships ``extra_special_tokens`` as a **list**, but
+        newer transformers versions require a **dict**.  We convert the list
+        in-place so subsequent ``AutoTokenizer.from_pretrained`` calls succeed.
+        """
+        import json
+
+        # Resolve the local model directory
+        # self.model_name is the hub ID "bosonai/higgs-audio-v3-tts-4b".
+        # Local copies live under models/<stem>/ (e.g. models/higgs-audio-v3-tts-4b/).
+        hub_path = Path(self.model_name)
+        stem = hub_path.stem  # "higgs-audio-v3-tts-4b"
+        candidates = [
+            hub_path if hub_path.is_absolute() else Path.cwd() / hub_path,
+            Path.cwd() / "models" / stem,
+            Path.cwd() / "models" / self.model_name,
+        ]
+        model_path = next((p for p in candidates if p.is_dir()), None)
+        if model_path is None:
+            print(f"[Higgs] WARNING: could not locate model dir for {self.model_name}, skipping patch.")
+            return
+
+        config_path = model_path / "tokenizer_config.json"
+        if not config_path.exists():
+            print(f"[Higgs] WARNING: {config_path} not found, skipping patch.")
+            return
+
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = json.load(f)
+
+        extra = config.get("extra_special_tokens")
+        if extra is None:
+            return  # Nothing to patch
+        if isinstance(extra, dict):
+            return  # Already in dict format — nothing to do
+
+        if isinstance(extra, list):
+            # Convert list → dict: each string becomes both key and value
+            config["extra_special_tokens"] = {tok: tok for tok in extra}
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+            print(f"[Higgs] Patched {config_path} — converted extra_special_tokens from list to dict.")
+        else:
+            print(f"[Higgs] WARNING: extra_special_tokens has unexpected type {type(extra).__name__}, skipping.")
+
     # ── Lifecycle ───────────────────────────────────────────────────────
 
     def load(self) -> None:
@@ -168,6 +218,10 @@ class HiggsAudioEngine(TTSBase):
         from vllm_omni.model_executor.models.higgs_audio_v3.higgs_audio_v3_tokenizer import (
             HiggsAudioV3TokenizerAdapter,
         )
+
+        # Fix: transformers>=5.5 expects extra_special_tokens to be a dict,
+        # but the Higgs tokenizer_config.json ships it as a list.
+        self._patch_tokenizer_config()
 
         self._tokenizer = AutoTokenizer.from_pretrained(
             self.model_name, trust_remote_code=True

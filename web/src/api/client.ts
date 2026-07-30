@@ -70,6 +70,8 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteEpisode: (id: number) => fetchVoid(`/episodes/${id}`, { method: 'DELETE' }),
+  retryEpisode: (id: number) =>
+    fetchJson<Episode>(`/episodes/${id}/retry`, { method: 'POST' }),
 
   getChannels: () => fetchJson<Channel[]>('/channels'),
   createChannel: (data: CreateChannelRequest) =>

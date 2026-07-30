@@ -1,3 +1,4 @@
+import pytest
 from unittest.mock import patch
 from web_api.services.crew_service import generate_plan, generate_script, _parse_plan_result
 
@@ -64,6 +65,57 @@ def test_generate_script_returns_string():
     })()
 
     with patch("web_api.services.crew_service.Crew") as mock_crew:
-        mock_crew.return_value.kickoff.return_value = "Guion final"
+        mock_crew.return_value.kickoff.return_value = " ".join(["Guion"] * 150)
         result = generate_script(channel, entry)
-        assert result == "Guion final"
+        assert result == " ".join(["Guion"] * 150)
+
+
+def test_generate_script_rejects_llm_refusal():
+    """Un rechazo del LLM nunca debe convertirse en episodio: el job falla."""
+    channel = type("Channel", (), {
+        "name": "Test",
+        "format": "podcast",
+        "niche": "tech",
+    })()
+    entry = type("Entry", (), {
+        "title": "T1",
+        "description": "D1",
+    })()
+
+    with patch("web_api.services.crew_service.Crew") as mock_crew:
+        mock_crew.return_value.kickoff.return_value = (
+            "Sorry, but I can't assist with that. "
+            "If you have any other questions, feel free to ask!"
+        )
+        with pytest.raises(ValueError, match="rechazó"):
+            generate_script(channel, entry)
+
+
+def test_generate_script_survives_voice_director_collapse():
+    """Si la limpieza TTS colapsa el guion a unas líneas, se usa el original."""
+    channel = type("Channel", (), {
+        "name": "Test",
+        "format": "podcast",
+        "niche": "tech",
+    })()
+    entry = type("Entry", (), {
+        "title": "T1",
+        "description": "D1",
+    })()
+    long_script = " ".join(["contenido"] * 300)
+
+    with patch("web_api.services.crew_service.Crew") as mock_crew:
+        class FakeCrew:
+            def __init__(self, agents=None, tasks=None, verbose=False):
+                self._task_desc = tasks[0].description if tasks else ""
+
+            def kickoff(self):
+                if "FINAL PARA SÍNTESIS DE VOZ" in self._task_desc:
+                    return "Hasta la próxima. ¡Que tengáis un día fantástico!"
+                if "JSON" in self._task_desc and "action" in self._task_desc:
+                    return '{"action": "ok", "reason": "ok"}'
+                return long_script
+
+        mock_crew.side_effect = lambda **kw: FakeCrew(**kw)
+        result = generate_script(channel, entry)
+        assert len(result.split()) >= 100

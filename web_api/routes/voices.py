@@ -11,6 +11,10 @@ router = APIRouter()
 CLONES_DIR = BASE_DIR / "voices" / "clones"
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".opus"}
 
+# Motores disponibles para voces clonadas. Cada wav se expone dos veces,
+# una por motor, para que el usuario elija en el dropdown de la UI.
+CLONE_ENGINES = ("higgs", "qwen3")
+
 
 class VoiceResponse(BaseModel):
     id: str
@@ -39,17 +43,19 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
         if entry.suffix.lower() not in AUDIO_EXTENSIONS:
             continue
         stem = entry.stem
-        cloned.append(
-            VoiceResponse(
-                id=f"clone:{stem}",
-                name=stem,
-                engine="higgs",
-                language="es",
-                gender="unknown",
-                type="cloned",
-                reference_path=str(entry),
+        for engine in CLONE_ENGINES:
+            suffix = "" if engine == "higgs" else f":{engine}"
+            cloned.append(
+                VoiceResponse(
+                    id=f"clone:{stem}{suffix}",
+                    name=f"{stem} ({engine})" if engine != "higgs" else stem,
+                    engine=engine,
+                    language="es",
+                    gender="unknown",
+                    type="cloned",
+                    reference_path=str(entry),
+                )
             )
-        )
     return cloned
 
 

@@ -1,3 +1,4 @@
+import os
 import re
 import uuid
 import edge_tts
@@ -20,6 +21,7 @@ VOICE_MAP = {
 DEFAULT_VOICE = "es-ES-AlvaroNeural"
 
 _higgs_engine = None
+_qwen_engine = None
 
 
 def _get_higgs_engine():
@@ -36,6 +38,28 @@ def _get_higgs_engine():
     return _higgs_engine
 
 
+def _get_qwen_engine():
+    """Motor Qwen3-TTS-12Hz-1.7B-Base (lazy singleton).
+    Clonación de voz por referencia de 3 s. Ver docs/QWEN3_TTS_SETUP.md."""
+    global _qwen_engine
+    if _qwen_engine is None:
+        from core.qwen_tts_engine import Qwen3TTSEngine, DEFAULT_MODEL
+        model_name = os.getenv("QWEN3_TTS_MODEL", DEFAULT_MODEL)
+        device = os.getenv("QWEN3_TTS_DEVICE", "cuda")
+        dtype = os.getenv("QWEN3_TTS_DTYPE") or None
+        _qwen_engine = Qwen3TTSEngine(
+            model_name=model_name, device=device, dtype=dtype
+        )
+    return _qwen_engine
+
+
+def _get_clone_engine(voice: VoiceResponse):
+    """Devuelve el singleton del motor correspondiente al campo `engine`."""
+    if voice.engine == "qwen3":
+        return _get_qwen_engine()
+    return _get_higgs_engine()
+
+
 def _find_voice(voice_id: str) -> VoiceResponse | None:
     for v in list_voices():
         if v.id == voice_id:
@@ -44,18 +68,26 @@ def _find_voice(voice_id: str) -> VoiceResponse | None:
 
 
 def _synthesize_clone(text: str, voice: VoiceResponse, output_path: Path) -> Path:
-    """Sintetiza texto con voz clonada vía Higgs (bloqueante)."""
+    """Sintetiza texto con voz clonada vía el motor correspondiente
+    al campo `engine` de la voz (higgs | qwen3)."""
+    import traceback as tb_mod
     from core.project import Voice as CoreVoice
+
     core_voice = CoreVoice(
         id=voice.id,
         name=voice.name,
         type="cloned",
-        engine="higgs",
+        engine=voice.engine,
         language=voice.language,
         reference_path=voice.reference_path,
     )
-    engine = _get_higgs_engine()
-    engine.synthesize(text, core_voice, str(output_path))
+    engine = _get_clone_engine(voice)
+    try:
+        engine.synthesize(text, core_voice, str(output_path))
+    except Exception:
+        tb = tb_mod.format_exc()
+        print(f"[tts] ERROR en síntesis {voice.engine} para '{voice.name}':\n{tb}", flush=True)
+        raise
     return output_path
 
 
@@ -111,7 +143,7 @@ async def synthesize(request: PreviewRequest):
     job_id = registry.create("tts", detail=request.label or f"Síntesis con {voice.name}")
     try:
         chunks = _split_text(request.text)
-        registry.emit(job_id, "start", f"Motor Higgs: {len(chunks)} partes a sintetizar")
+        registry.emit(job_id, "start", f"Motor {voice.engine}: {len(chunks)} partes a sintetizar")
         part_paths: list[Path] = []
         for i, chunk in enumerate(chunks):
             registry.emit(job_id, "synth", f"Sintetizando parte {i + 1}/{len(chunks)}…")
@@ -133,7 +165,7 @@ async def synthesize(request: PreviewRequest):
         registry.fail(job_id, str(e))
         import traceback
         tb = traceback.format_exc()
-        raise HTTPException(status_code=500, detail=f"Higgs synthesize failed: {e}\n{tb}")
+        raise HTTPException(status_code=500, detail=f"Synthesize failed: {e}\n{tb}")
 
 
 @router.post("/preview", response_model=PreviewResponse)
@@ -151,7 +183,7 @@ async def preview(request: PreviewRequest):
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
-            raise HTTPException(status_code=500, detail=f"Higgs preview failed: {e}\n{tb}")
+            raise HTTPException(status_code=500, detail=f"Preview failed ({voice.engine}): {e}\n{tb}")
 
     edge_voice = VOICE_MAP.get(request.voice_id, DEFAULT_VOICE)
     communicate = edge_tts.Communicate(request.text, voice=edge_voice)

@@ -234,6 +234,28 @@ _META_PREFIX_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Rechazos del LLM: si la "salida" es una negativa, no es un guion válido.
+_REFUSAL_RE = re.compile(
+    r"(i can'?t assist|i cannot assist|i'?m sorry|lo siento.{0,40}(no puedo|no me es posible)"
+    r"|no puedo (ayudar|cumplir|generar|escribir)|can'?t help with that"
+    r"|as an ai\b|como (modelo de )?ia\b)",
+    re.IGNORECASE,
+)
+
+
+def _ensure_valid_script(text: str, min_words: int = 100) -> str:
+    """Red final: un rechazo o un texto irrisorio nunca debe llegar a TTS."""
+    words = len(text.split())
+    if _REFUSAL_RE.search(text[:500]):
+        raise ValueError(
+            f"El LLM rechazó generar el guion (modelo inadecuado o filtro): {text[:120]!r}"
+        )
+    if words < min_words:
+        raise ValueError(
+            f"El guion generado es demasiado corto ({words} palabras, mínimo {min_words})"
+        )
+    return text
+
 # Líneas de meta-comentario del LLM (introducciones/cierres que NO son guion)
 _META_LINE_RE = re.compile(
     r"(me alegra presentarte|versión final del guion|texto hablable|a continuación"
@@ -422,10 +444,21 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     # 5. Limpieza para TTS
     prompt = CLEAN_PROMPT + f"\n\nGuion:\n{polished}"
     emit("voice_director", "El director de voz lo deja listo para TTS…", prompt)
-    final = _run_single_task(
+    cleaned = _run_single_task(
         voice_director, prompt,
         "Texto hablable limpio, sin markdown ni indicaciones",
     )
+    # Modelos pequeños a veces colapsan un guion largo a unas líneas (solo la
+    # despedida, un resumen…). Si la limpieza encoge demasiado el texto, se
+    # descarta y se usa el guion sin limpiar (_strip_markup ya quita markdown).
+    if len(cleaned.split()) < 0.4 * len(polished.split()):
+        emit("voice_director_fallback",
+             f"La limpieza colapsó el guion ({len(cleaned.split())} de "
+             f"{len(polished.split())} palabras); se usa el texto sin limpiar",
+             cleaned)
+        final = polished
+    else:
+        final = cleaned
     emit("voice_director_done", "Texto final para síntesis de voz", final)
 
     # 6. El Director de Producción supervisa: decide si el guion cumple el
@@ -463,17 +496,26 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         emit("translate", f"Por orden del Director, el traductor pasa el guion a {target_lang}…",
              reason or None)
         prompt_template = TRANSLATE_EN_PROMPT if action == "translate_en" else TRANSLATE_ES_PROMPT
-        final = _run_single_task(
+        translated = _run_single_task(
             translator,
             prompt_template + f"\n\n{final}",
             f"Faithful translation to {target_lang}",
         )
+        # Misma guarda que en la limpieza: una traducción que colapsa el
+        # guion se descarta y se mantiene el texto original.
+        if len(translated.split()) < 0.4 * len(final.split()):
+            emit("translate_fallback",
+                 f"La traducción colapsó el guion ({len(translated.split())} de "
+                 f"{len(final.split())} palabras); se mantiene el original",
+                 translated)
+        else:
+            final = translated
         emit("translate_done", f"Guion traducido a {target_lang}", final)
     else:
         emit("approved", "El Director aprueba el guion sin cambios ✓",
              reason or None)
 
-    return _strip_markup(final)
+    return _ensure_valid_script(_strip_markup(final))
 
 
 VALID_FORMATS = {"podcast", "news", "meditation", "motivation"}

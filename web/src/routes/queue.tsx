@@ -16,6 +16,7 @@ function QueuePage() {
   const error = useEpisodeStore((state) => state.error)
   const fetchEpisodes = useEpisodeStore((state) => state.fetchEpisodes)
   const deleteEpisode = useEpisodeStore((state) => state.deleteEpisode)
+  const retryEpisode = useEpisodeStore((state) => state.retryEpisode)
   const applyEpisodeUpdate = useEpisodeStore((state) => state.applyEpisodeUpdate)
 
   useEffect(() => {
@@ -41,6 +42,7 @@ function QueuePage() {
             key={episode.id}
             episode={episode}
             onDelete={deleteEpisode}
+            onRetry={retryEpisode}
             highlighted={Number(search.highlight) === episode.id}
           />
         ))}

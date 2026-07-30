@@ -47,6 +47,6 @@ audio:
 llm:
   provider: ollama
   base_url: http://localhost:11434
-  default_model: qwen2.5-coder:7b
-  planning_model: qwen2.5-coder:7b
-  script_model: qwen2.5-coder:7b
+  default_model: llama3.1:8b
+  planning_model: llama3.1:8b
+  script_model: llama3.1:8b

@@ -10,6 +10,7 @@ interface EpisodeState {
   fetchEpisodes: () => Promise<void>
   createEpisode: (data: CreateEpisodeRequest) => Promise<Episode>
   deleteEpisode: (id: number) => Promise<void>
+  retryEpisode: (id: number) => Promise<Episode>
   applyEpisodeUpdate: (id: number, data: Partial<Episode>) => void
 }
 
@@ -44,6 +45,21 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
       set((state) => ({
         episodes: state.episodes.filter((e) => e.id !== id),
       }))
+    } catch (error) {
+      set({ error: formatError(error) })
+      throw error
+    }
+  },
+  retryEpisode: async (id) => {
+    set({ error: null })
+    try {
+      const episode = await api.retryEpisode(id)
+      set((state) => ({
+        episodes: state.episodes.map((e) =>
+          e.id === id ? episode : e
+        ),
+      }))
+      return episode
     } catch (error) {
       set({ error: formatError(error) })
       throw error

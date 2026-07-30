@@ -1,9 +1,11 @@
 import { Episode } from '../types'
 import AudioPlayer from './AudioPlayer'
+import { useEpisodeStore } from '../stores/episodeStore'
 
 interface Props {
   episode: Episode
   onDelete: (id: number) => void
+  onRetry: (id: number) => void
   highlighted?: boolean
 }
 
@@ -14,7 +16,7 @@ const statusColors: Record<Episode['status'], string> = {
   failed: 'bg-red-500/15 border border-red-500/40 text-red-300',
 }
 
-export default function EpisodeCard({ episode, onDelete, highlighted }: Props) {
+export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }: Props) {
   return (
     <div className={`bg-slate-800/50 border border-slate-700 p-4 rounded-xl shadow-lg shadow-black/20 ${highlighted ? 'ring-2 ring-purple-500' : ''}`}>
       <div className="flex justify-between items-start">
@@ -35,14 +37,26 @@ export default function EpisodeCard({ episode, onDelete, highlighted }: Props) {
         <AudioPlayer src={episode.audio_url} />
       )}
 
-      <button
-        type="button"
-        onClick={() => onDelete(episode.id)}
-        aria-label={`Eliminar episodio ${episode.title}`}
-        className="mt-3 text-red-400 text-sm hover:text-red-300 hover:underline transition-colors"
-      >
-        Eliminar
-      </button>
+      <div className="mt-3 flex gap-4">
+        {episode.status === 'failed' && (
+          <button
+            type="button"
+            onClick={() => onRetry(episode.id)}
+            aria-label={`Reintentar episodio ${episode.title}`}
+            className="text-blue-400 text-sm hover:text-blue-300 hover:underline transition-colors"
+          >
+            Reintentar
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onDelete(episode.id)}
+          aria-label={`Eliminar episodio ${episode.title}`}
+          className="text-red-400 text-sm hover:text-red-300 hover:underline transition-colors"
+        >
+          Eliminar
+        </button>
+      </div>
     </div>
   )
 }
