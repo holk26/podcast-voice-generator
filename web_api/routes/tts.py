@@ -9,6 +9,7 @@ from web_api.schemas import PreviewRequest, PreviewResponse
 from web_api.config import PREVIEW_DIR
 from web_api.routes.voices import list_voices, VoiceResponse
 from web_api.services.job_service import registry
+from core.emotion_tags import sanitize_emotion_tags
 
 router = APIRouter()
 
@@ -138,11 +139,13 @@ async def synthesize(request: PreviewRequest):
     voice = _find_voice(request.voice_id)
     if voice is None or voice.type != "cloned" or not voice.reference_path:
         raise HTTPException(status_code=400, detail="Solo voces clonadas (clone:*)")
+    engine_kind = voice.engine if voice.engine in ("higgs", "qwen3") else "higgs"
+    clean_text = sanitize_emotion_tags(request.text, engine_kind)
 
     job = uuid.uuid4().hex
     job_id = registry.create("tts", detail=request.label or f"Síntesis con {voice.name}")
     try:
-        chunks = _split_text(request.text)
+        chunks = _split_text(clean_text)
         registry.emit(job_id, "start", f"Motor {voice.engine}: {len(chunks)} partes a sintetizar")
         part_paths: list[Path] = []
         for i, chunk in enumerate(chunks):
@@ -177,8 +180,12 @@ async def preview(request: PreviewRequest):
     if voice is not None and voice.type == "cloned" and voice.reference_path:
         try:
             wav_path = output_path.with_suffix(".wav")
+            text = sanitize_emotion_tags(
+                request.text,
+                voice.engine if voice.engine in ("higgs", "qwen3") else "higgs"
+            )
             # La síntesis es bloqueante (~1-4 s tras la carga inicial del motor)
-            await run_in_threadpool(_synthesize_clone, request.text, voice, wav_path)
+            await run_in_threadpool(_synthesize_clone, text, voice, wav_path)
             return PreviewResponse(audio_url=f"/outputs/previews/{wav_path.name}")
         except Exception as e:
             import traceback
@@ -186,6 +193,6 @@ async def preview(request: PreviewRequest):
             raise HTTPException(status_code=500, detail=f"Preview failed ({voice.engine}): {e}\n{tb}")
 
     edge_voice = VOICE_MAP.get(request.voice_id, DEFAULT_VOICE)
-    communicate = edge_tts.Communicate(request.text, voice=edge_voice)
+    communicate = edge_tts.Communicate(sanitize_emotion_tags(request.text, "edge"), voice=edge_voice)
     await communicate.save(str(output_path))
     return PreviewResponse(audio_url=f"/outputs/previews/{filename}")

@@ -121,8 +121,9 @@ def handle_podcast_episode(episode: Episode, db: Session) -> Path:
         voice = VOICE_MAP.get(episode.voice_id, DEFAULT_VOICE)
 
         async def _run():
+            from core.emotion_tags import sanitize_emotion_tags
             communicate = edge_tts.Communicate(
-                episode.source_text or "",
+                sanitize_emotion_tags(episode.source_text or "", "edge"),
                 voice=voice
             )
             await communicate.save(str(output_path))

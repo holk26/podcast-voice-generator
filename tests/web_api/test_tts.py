@@ -22,3 +22,12 @@ def test_preview_generates_audio(mock_communicate):
     mock_communicate.assert_called_once()
     _, kwargs = mock_communicate.call_args
     assert kwargs["voice"] == "es-ES-AlvaroNeural"
+
+
+def test_sanitize_applied_for_edge_preview():
+    """Un texto con tokens <|…|> llega limpio a edge-tts."""
+    from core.emotion_tags import sanitize_emotion_tags
+    out = sanitize_emotion_tags("<|emotion:awe|> Hola qué tal", "edge")
+    assert out == "Hola qué tal"
+    out = sanitize_emotion_tags("<|emotion:awe|> Hola", "higgs")
+    assert out == "<|emotion:awe|> Hola"
