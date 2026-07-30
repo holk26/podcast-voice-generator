@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -101,6 +102,32 @@ def retry_episode(episode_id: int, db: Session = Depends(get_db)):
     episode.status = "pending"
     episode.error_message = None
     episode.audio_url = None
+    db.commit()
+    db.refresh(episode)
+    return episode
+
+
+@router.post("/{episode_id}/publish", response_model=EpisodeResponse)
+def publish_episode(episode_id: int, db: Session = Depends(get_db)):
+    """Marca manualmente el episodio como publicado (guarda la fecha)."""
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    if episode.status != "completed":
+        raise HTTPException(status_code=409, detail="Solo se pueden publicar episodios completados")
+    episode.published_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(episode)
+    return episode
+
+
+@router.post("/{episode_id}/unpublish", response_model=EpisodeResponse)
+def unpublish_episode(episode_id: int, db: Session = Depends(get_db)):
+    """Quita la marca de publicado (reversible)."""
+    episode = db.query(Episode).filter(Episode.id == episode_id).first()
+    if not episode:
+        raise HTTPException(status_code=404, detail="Episode not found")
+    episode.published_at = None
     db.commit()
     db.refresh(episode)
     return episode

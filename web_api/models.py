@@ -18,6 +18,7 @@ class Episode(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     target_duration_minutes = Column(Float, nullable=True)
+    published_at = Column(DateTime, nullable=True)  # marca manual de publicación
 
 
 class Channel(Base):

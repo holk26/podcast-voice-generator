@@ -39,6 +39,7 @@ class EpisodeResponse(BaseModel):
     target_duration_minutes: Optional[float] = None
     created_at: datetime
     updated_at: datetime
+    published_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

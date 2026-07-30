@@ -31,6 +31,9 @@ def _migrate() -> None:
         "content_plan_entries": [
             ("season", "INTEGER DEFAULT 1 NOT NULL"),
         ],
+        "episodes": [
+            ("published_at", "DATETIME"),
+        ],
     }
     with engine.connect() as conn:
         for table, columns in new_columns.items():
