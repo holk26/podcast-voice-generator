@@ -113,6 +113,7 @@ class PlanEntryResponse(PlanEntryBase):
     season: int = 1
     episode_id: Optional[int] = None
     audio_url: Optional[str] = None
+    episode_published_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

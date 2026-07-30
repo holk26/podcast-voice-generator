@@ -146,6 +146,7 @@ def list_plan_entries(channel_id: int, db: Session = Depends(get_db)):
             episode = db.query(Episode).filter(Episode.id == entry.episode_id).first()
             if episode:
                 resp.audio_url = episode.audio_url
+                resp.episode_published_at = episode.published_at
         result.append(resp)
     return result
 

@@ -99,3 +99,33 @@ def test_approve_entry_creates_episode():
         entry = [e for e in response.json() if e["id"] == entry_id][0]
         assert entry["status"] == "generated"
         assert entry["episode_id"] == episode_id
+
+
+def test_plan_entries_include_episode_published_at():
+    with TestClient(app) as client:
+        ch = client.post("/api/channels", json={
+            "name": "Canal pub",
+            "format": "podcast",
+            "default_voice_id": "jorge",
+        }).json()
+        entry = client.post(f"/api/channels/{ch['id']}/plan", json={
+            "title": "Cap 1",
+        }).json()
+        ep = client.post("/api/episodes", json={
+            "title": "Cap 1",
+            "type": "podcast",
+            "source_text": "Texto",
+            "voice_id": "jorge",
+        }).json()
+        from web_api.database import SessionLocal
+        from web_api.models import Episode, ContentPlanEntry
+        db = SessionLocal()
+        db.query(Episode).filter(Episode.id == ep["id"]).first().status = "completed"
+        db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry["id"]).first().episode_id = ep["id"]
+        db.commit()
+        db.close()
+        client.post(f"/api/episodes/{ep['id']}/publish")
+
+        entries = client.get(f"/api/channels/{ch['id']}/plan").json()
+        linked = next(e for e in entries if e["id"] == entry["id"])
+        assert linked["episode_published_at"] is not None
