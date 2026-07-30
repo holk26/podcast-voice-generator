@@ -17,6 +17,10 @@ const statusColors: Record<Episode['status'], string> = {
 }
 
 export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }: Props) {
+  const publishEpisode = useEpisodeStore((s) => s.publishEpisode)
+  const unpublishEpisode = useEpisodeStore((s) => s.unpublishEpisode)
+  const published = Boolean(episode.published_at)
+
   return (
     <div className={`bg-slate-800/50 border border-slate-700 p-4 rounded-xl shadow-lg shadow-black/20 ${highlighted ? 'ring-2 ring-purple-500' : ''}`}>
       <div className="flex justify-between items-start">
@@ -24,9 +28,16 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
           <h3 className="font-bold text-lg tracking-tight text-slate-100">{episode.title}</h3>
           <p className="text-sm text-slate-400">{episode.type} • {episode.voice_id}</p>
         </div>
-        <span className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[episode.status] || 'bg-slate-700 text-slate-300'}`}>
-          {episode.status}
-        </span>
+        <div className="flex gap-2">
+          {published && (
+            <span className="px-2 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 border border-emerald-500/40 text-emerald-300">
+              Publicado · {new Date(episode.published_at!).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+            </span>
+          )}
+          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[episode.status] || 'bg-slate-700 text-slate-300'}`}>
+            {episode.status}
+          </span>
+        </div>
       </div>
 
       {episode.error_message && (
@@ -46,6 +57,24 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
             className="text-blue-400 text-sm hover:text-blue-300 hover:underline transition-colors"
           >
             Reintentar
+          </button>
+        )}
+        {episode.status === 'completed' && !published && (
+          <button
+            type="button"
+            onClick={() => publishEpisode(episode.id)}
+            className="text-emerald-400 text-sm hover:text-emerald-300 hover:underline transition-colors"
+          >
+            Marcar publicado
+          </button>
+        )}
+        {published && (
+          <button
+            type="button"
+            onClick={() => unpublishEpisode(episode.id)}
+            className="text-slate-400 text-sm hover:text-slate-300 hover:underline transition-colors"
+          >
+            Desmarcar publicado
           </button>
         )}
         <button
