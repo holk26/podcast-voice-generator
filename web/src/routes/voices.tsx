@@ -29,6 +29,7 @@ function VoicesPage() {
   const handlePreview = async () => {
     setPreviewLoading(true)
     setPreviewError(null)
+    setAudioUrl(null) // evita que el audio anterior siga sonando mientras carga el nuevo
     try {
       const result = await api.previewTts(text, selectedVoice)
       setAudioUrl(result.audio_url)
@@ -50,12 +51,17 @@ function VoicesPage() {
         <select
           id="voice-select"
           value={selectedVoice}
-          onChange={(e) => setSelectedVoice(e.target.value)}
+          onChange={(e) => {
+            setSelectedVoice(e.target.value)
+            setAudioUrl(null) // limpia el audio anterior al cambiar de voz
+          }}
           className="w-full p-2 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg mb-4 focus:outline-none focus:ring-2 focus:ring-purple-500"
         >
           {voices.map((voice) => (
             <option key={voice.id} value={voice.id}>
-              {voice.type === 'cloned' ? '🎙️ ' : ''}{voice.name} ({voice.engine}){voice.type === 'cloned' ? ' — clonada' : ''}
+              {voice.type === 'cloned' ? '🎙️ ' : ''}
+              {voice.type === 'cloned' ? voice.name : `${voice.name} (${voice.engine})`}
+              {voice.type === 'cloned' ? ' — clonada' : ''}
             </option>
           ))}
         </select>
