@@ -119,3 +119,13 @@ def test_generate_script_survives_voice_director_collapse():
         mock_crew.side_effect = lambda **kw: FakeCrew(**kw)
         result = generate_script(channel, entry)
         assert len(result.split()) >= 100
+
+
+def test_clean_prompt_lists_emotion_tokens_and_keeps_them():
+    from web_api.services.crew_service import CLEAN_PROMPT, _strip_markup
+    # El prompt del director de voz incluye la lista cerrada de emociones
+    assert "<|emotion:" in CLEAN_PROMPT
+    assert "enthusiasm" in CLEAN_PROMPT
+    # _strip_markup no destruye los tokens (ni hoy ni en el futuro)
+    text = "**Negrita** <|emotion:awe|> Texto limpio"
+    assert "<|emotion:awe|>" in _strip_markup(text)

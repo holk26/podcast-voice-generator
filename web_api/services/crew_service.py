@@ -72,6 +72,14 @@ Elimina TODO lo que no deba leerse en voz alta: notas de producción, indicacion
 ("Intro Musical", "Narrador:", "Pausa", efectos de sonido), formato markdown
 (**, ##, *), títulos de sección y cualquier comentario técnico.
 NO ACORTES ni resumas: conserva TODO el contenido y la longitud.
+
+EXPRESIVIDAD (motor Higgs): inserta UN token de emoción al inicio de cada
+sección o cambio de tono claro, usando SOLO esta lista cerrada:
+{emotions}
+Formato exacto: <|emotion:nombre_en_inglés|> — ejemplo: "<|emotion:enthusiasm|> Hoy vamos a…"
+No traduzcas los tokens, no inventes otros, no uses más de uno por párrafo.
+Conserva intactos los tokens <|…|> ya presentes.
+
 Devuelve SOLO el texto hablable, tal cual debe pronunciarse."""
 
 CHANNEL_SUGGEST_PROMPT = """Eres un estratega de canales de podcast. Propón UN canal de audio atractivo.
@@ -442,7 +450,9 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     polished = "\n\n".join(parts)
 
     # 5. Limpieza para TTS
-    prompt = CLEAN_PROMPT + f"\n\nGuion:\n{polished}"
+    from core.emotion_tags import HIGGS_EMOTION_NAMES  # lista cerrada para el prompt
+    emotions = ", ".join(HIGGS_EMOTION_NAMES)
+    prompt = CLEAN_PROMPT.format(emotions=emotions) + f"\n\nGuion:\n{polished}"
     emit("voice_director", "El director de voz lo deja listo para TTS…", prompt)
     cleaned = _run_single_task(
         voice_director, prompt,
