@@ -19,6 +19,7 @@ export interface Episode {
   status: EpisodeStatus
   audio_url?: string
   error_message?: string
+  published_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -61,6 +62,7 @@ export interface ContentPlanEntry {
   status: PlanEntryStatus
   episode_id?: number
   audio_url?: string
+  episode_published_at?: string | null
   created_at: string
   updated_at: string
 }

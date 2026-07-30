@@ -11,6 +11,8 @@ interface EpisodeState {
   createEpisode: (data: CreateEpisodeRequest) => Promise<Episode>
   deleteEpisode: (id: number) => Promise<void>
   retryEpisode: (id: number) => Promise<Episode>
+  publishEpisode: (id: number) => Promise<void>
+  unpublishEpisode: (id: number) => Promise<void>
   applyEpisodeUpdate: (id: number, data: Partial<Episode>) => void
 }
 
@@ -60,6 +62,30 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
         ),
       }))
       return episode
+    } catch (error) {
+      set({ error: formatError(error) })
+      throw error
+    }
+  },
+  publishEpisode: async (id) => {
+    set({ error: null })
+    try {
+      const episode = await api.publishEpisode(id)
+      set((state) => ({
+        episodes: state.episodes.map((e) => (e.id === id ? episode : e)),
+      }))
+    } catch (error) {
+      set({ error: formatError(error) })
+      throw error
+    }
+  },
+  unpublishEpisode: async (id) => {
+    set({ error: null })
+    try {
+      const episode = await api.unpublishEpisode(id)
+      set((state) => ({
+        episodes: state.episodes.map((e) => (e.id === id ? episode : e)),
+      }))
     } catch (error) {
       set({ error: formatError(error) })
       throw error

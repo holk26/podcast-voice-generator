@@ -72,6 +72,10 @@ export const api = {
   deleteEpisode: (id: number) => fetchVoid(`/episodes/${id}`, { method: 'DELETE' }),
   retryEpisode: (id: number) =>
     fetchJson<Episode>(`/episodes/${id}/retry`, { method: 'POST' }),
+  publishEpisode: (id: number) =>
+    fetchJson<Episode>(`/episodes/${id}/publish`, { method: 'POST' }),
+  unpublishEpisode: (id: number) =>
+    fetchJson<Episode>(`/episodes/${id}/unpublish`, { method: 'POST' }),
 
   getChannels: () => fetchJson<Channel[]>('/channels'),
   createChannel: (data: CreateChannelRequest) =>
