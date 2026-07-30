@@ -24,3 +24,5 @@ test_*.mp3
 models/
 data/
 *.tsbuildinfo
+Qwen3-TTS-12Hz-1.7B-Base/
+logs/
