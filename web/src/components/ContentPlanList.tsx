@@ -11,10 +11,20 @@ interface Props {
 
 export default function ContentPlanList({ entries, onApprove, onReject, onDelete }: Props) {
   const [showArchive, setShowArchive] = useState(false)
+  const [recentOnly, setRecentOnly] = useState(true)
   if (entries.length === 0) return <p className="text-slate-400">No hay entradas en el plan.</p>
 
-  const drafts = entries.filter((e) => e.status === 'draft')
-  const archive = entries.filter((e) => e.status !== 'draft')
+  const cutoff = new Date()
+  cutoff.setDate(cutoff.getDate() - 30)
+
+  const sorted = [...entries].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+
+  const drafts = sorted
+    .filter((e) => e.status === 'draft')
+    .filter((e) => !recentOnly || !e.created_at || new Date(e.created_at) >= cutoff)
+  const archive = sorted.filter((e) => e.status !== 'draft')
 
   const seasons = new Map<number, ContentPlanEntry[]>()
   drafts.forEach((entry) => {
@@ -26,6 +36,17 @@ export default function ContentPlanList({ entries, onApprove, onReject, onDelete
 
   return (
     <div className="space-y-6">
+      <div className="flex justify-end">
+        <label className="flex items-center gap-2 text-sm text-slate-400">
+          <input
+            type="checkbox"
+            checked={recentOnly}
+            onChange={(e) => setRecentOnly(e.target.checked)}
+            className="w-4 h-4 accent-purple-500"
+          />
+          Solo últimos 30 días
+        </label>
+      </div>
       {drafts.length === 0 && (
         <p className="text-slate-400">Sin borradores pendientes. Genera un plan o una temporada.</p>
       )}

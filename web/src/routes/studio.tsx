@@ -4,12 +4,14 @@ import { useChannelStore } from '../stores/channelStore'
 import { useVoiceStore } from '../stores/voiceStore'
 import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
-import CongressTable from '../components/CongressTable'
 import ContentPlanList from '../components/ContentPlanList'
+import PlanEntryCard from '../components/PlanEntryCard'
 
 export const Route = createFileRoute('/studio')({
   component: StudioPage,
 })
+
+type StudioTab = 'overview' | 'plan' | 'config'
 
 interface LlmStatus {
   available: boolean
@@ -41,6 +43,7 @@ function StudioPage() {
   const [currentModel, setCurrentModel] = useState<string>('')
   const [selectedId, setSelectedId] = useState<number | ''>('')
   const [count, setCount] = useState(5)
+  const [tab, setTab] = useState<StudioTab>('overview')
 
   useEffect(() => {
     fetchChannels()
@@ -67,6 +70,9 @@ function StudioPage() {
   const channel = channels.find((c) => c.id === selectedId)
   const channelEntries = selectedId === '' ? [] : entries[selectedId] || []
   const llmOk = llm?.available && llm.default_ready
+  const latestEntries = [...channelEntries]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .slice(0, 3)
 
   return (
     <div>
@@ -104,8 +110,6 @@ function StudioPage() {
         )}
       </div>
 
-      <CongressTable />
-
       {error && (
         <div className="bg-red-500/10 border border-red-500/40 text-red-300 p-3 rounded-lg mb-4">Error: {error}</div>
       )}
@@ -117,7 +121,7 @@ function StudioPage() {
               <h3 className="text-lg font-bold tracking-tight text-slate-100">{channel.name}</h3>
               <p className="text-sm text-slate-400 mt-1">{channel.description || 'Sin descripción'}</p>
               <p className="text-xs text-slate-500 mt-2">
-                {channel.format} · nicho: {channel.niche || 'general'}
+                {channel.format} · nicho: {channel.niche || 'general'} · {channel.target_minutes} min · {channel.episodes_per_week} episodios/semana
               </p>
             </div>
             <Link
@@ -131,40 +135,67 @@ function StudioPage() {
         </div>
       )}
 
-      <StudioPanel
-        channels={channels}
-        selectedId={selectedId}
-        onSelectChannel={setSelectedId}
-        voices={voices}
-        voiceId={channel?.default_voice_id ?? 'jorge'}
-        onVoiceChange={(voiceId) => {
-          if (channel) updateChannel(channel.id, { default_voice_id: voiceId })
-        }}
-        count={count}
-        onCountChange={setCount}
-        minutes={channel?.target_minutes ?? targetMinutes}
-        onMinutesChange={(m) => {
-          setTargetMinutes(m)
-          if (channel) updateChannel(channel.id, { target_minutes: m })
-        }}
-        onGenerate={() => {
-          if (channel) generatePlan(channel.id, count)
-        }}
-        onGenerateSeason={() => {
-          if (channel) generateSeason(channel.id, 4)
-        }}
-        autopilot={channel?.autopilot ?? false}
-        onAutopilotChange={(v) => {
-          if (channel) updateChannel(channel.id, { autopilot: v })
-        }}
-        episodesPerWeek={channel?.episodes_per_week ?? 2}
-        onEpisodesPerWeekChange={(v) => {
-          if (channel) updateChannel(channel.id, { episodes_per_week: v })
-        }}
-        loading={loading}
-      />
-
       {channel && (
+        <div className="flex gap-2 mb-4">
+          {(['overview', 'plan', 'config'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-3 py-1 rounded-lg text-sm border ${
+                tab === t
+                  ? 'bg-purple-600 border-purple-500 text-white'
+                  : 'bg-slate-800 border-slate-600 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {t === 'overview' ? 'Resumen' : t === 'plan' ? 'Plan editorial' : 'Configuración'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {tab === 'overview' && channel && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => generatePlan(channel.id, count)}
+              className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Generar {count} ideas
+            </button>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => generateSeason(channel.id, 4)}
+              className="bg-violet-600 text-white px-4 py-2 rounded-lg hover:bg-violet-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              📅 Planificar temporada
+            </button>
+          </div>
+
+          <div>
+            <h4 className="text-md font-bold tracking-tight text-slate-200 mb-2">Últimas entradas</h4>
+            {latestEntries.length === 0 ? (
+              <p className="text-slate-400">Aún no hay entradas. Genera un plan para empezar.</p>
+            ) : (
+              <div className="space-y-3">
+                {latestEntries.map((entry) => (
+                  <PlanEntryCard
+                    key={entry.id}
+                    entry={entry}
+                    onApprove={approveEntry}
+                    onReject={rejectEntry}
+                    onDelete={deleteEntry}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'plan' && channel && (
         <div>
           <h3 className="text-lg font-bold tracking-tight mb-2">Plan editorial de {channel.name}</h3>
           <ContentPlanList
@@ -174,6 +205,41 @@ function StudioPage() {
             onDelete={deleteEntry}
           />
         </div>
+      )}
+
+      {tab === 'config' && (
+        <StudioPanel
+          channels={channels}
+          selectedId={selectedId}
+          onSelectChannel={setSelectedId}
+          voices={voices}
+          voiceId={channel?.default_voice_id ?? 'jorge'}
+          onVoiceChange={(voiceId) => {
+            if (channel) updateChannel(channel.id, { default_voice_id: voiceId })
+          }}
+          count={count}
+          onCountChange={setCount}
+          minutes={channel?.target_minutes ?? targetMinutes}
+          onMinutesChange={(m) => {
+            setTargetMinutes(m)
+            if (channel) updateChannel(channel.id, { target_minutes: m })
+          }}
+          onGenerate={() => {
+            if (channel) generatePlan(channel.id, count)
+          }}
+          onGenerateSeason={() => {
+            if (channel) generateSeason(channel.id, 4)
+          }}
+          autopilot={channel?.autopilot ?? false}
+          onAutopilotChange={(v) => {
+            if (channel) updateChannel(channel.id, { autopilot: v })
+          }}
+          episodesPerWeek={channel?.episodes_per_week ?? 2}
+          onEpisodesPerWeekChange={(v) => {
+            if (channel) updateChannel(channel.id, { episodes_per_week: v })
+          }}
+          loading={loading}
+        />
       )}
     </div>
   )

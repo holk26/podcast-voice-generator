@@ -32,7 +32,7 @@ describe('EpisodeCard', () => {
   it('renders episode title and status', () => {
     render(<EpisodeCard episode={makeEpisode()} onDelete={vi.fn()} onRetry={vi.fn()} />)
     expect(screen.getByText('Test Episode')).toBeInTheDocument()
-    expect(screen.getByText('pending')).toBeInTheDocument()
+    expect(screen.getByText('Pendiente')).toBeInTheDocument()
   })
 
   it('renders error message when present', () => {
