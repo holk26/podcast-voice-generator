@@ -95,6 +95,10 @@ export const api = {
     fetchJson<Channel>(`/channels/${id}/activate`, { method: 'POST' }),
   deactivateChannel: (id: number) =>
     fetchJson<Channel>(`/channels/${id}/deactivate`, { method: 'POST' }),
+  publishChannel: (id: number) =>
+    fetchJson<Channel>(`/channels/${id}/publish`, { method: 'POST' }),
+  unpublishChannel: (id: number) =>
+    fetchJson<Channel>(`/channels/${id}/unpublish`, { method: 'POST' }),
 
   getPlanEntries: (channelId: number) =>
     fetchJson<ContentPlanEntry[]>(`/channels/${channelId}/plan`),

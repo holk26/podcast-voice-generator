@@ -1,5 +1,6 @@
 import { Link } from '@tanstack/react-router'
 import { Channel } from '../types'
+import { useChannelStore } from '../stores/channelStore'
 
 interface Props {
   channel: Channel
@@ -7,6 +8,8 @@ interface Props {
 }
 
 export default function ChannelCard({ channel, onDelete }: Props) {
+  const publishChannel = useChannelStore((s) => s.publishChannel)
+  const unpublishChannel = useChannelStore((s) => s.unpublishChannel)
   const total = channel.entries_total ?? 0
   const generated = channel.entries_generated ?? 0
   const pct = total > 0 ? Math.round((generated / total) * 100) : 0
@@ -22,9 +25,16 @@ export default function ChannelCard({ channel, onDelete }: Props) {
           <p className="text-sm text-slate-400">{channel.niche || 'Sin nicho'} • {channel.format}</p>
           <p className="text-sm text-slate-500 mt-1">{channel.description}</p>
         </div>
-        <span className={`text-xs px-2 py-1 rounded-lg border ${channel.is_active ? 'bg-green-500/15 border-green-500/40 text-green-300' : 'bg-slate-700/50 border-slate-600 text-slate-400'}`}>
-          {channel.is_active ? 'Activo' : 'Inactivo'}
-        </span>
+        <div className="flex gap-2">
+          {channel.published_at && (
+            <span className="text-xs px-2 py-1 rounded-lg border bg-emerald-500/15 border-emerald-500/40 text-emerald-300">
+              Publicado
+            </span>
+          )}
+          <span className={`text-xs px-2 py-1 rounded-lg border ${channel.is_active ? 'bg-green-500/15 border-green-500/40 text-green-300' : 'bg-slate-700/50 border-slate-600 text-slate-400'}`}>
+            {channel.is_active ? 'Activo' : 'Inactivo'}
+          </span>
+        </div>
       </div>
       {total > 0 && (
         <div className="mt-3">
@@ -42,7 +52,7 @@ export default function ChannelCard({ channel, onDelete }: Props) {
           </div>
         </div>
       )}
-      <div className="mt-4 space-x-2">
+      <div className="mt-4 flex flex-wrap gap-4">
         <Link
           to="/channels/$id/plan"
           params={{ id: String(channel.id) }}
@@ -57,6 +67,23 @@ export default function ChannelCard({ channel, onDelete }: Props) {
         >
           Editar
         </Link>
+        {channel.published_at ? (
+          <button
+            type="button"
+            onClick={() => unpublishChannel(channel.id)}
+            className="text-slate-400 hover:text-slate-300 text-sm hover:underline transition-colors"
+          >
+            Desmarcar publicado
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => publishChannel(channel.id)}
+            className="text-emerald-400 hover:text-emerald-300 text-sm hover:underline transition-colors"
+          >
+            Marcar publicado
+          </button>
+        )}
         <button
           type="button"
           onClick={() => onDelete(channel.id)}

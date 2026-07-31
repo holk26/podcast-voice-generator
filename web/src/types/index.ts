@@ -48,6 +48,7 @@ export interface Channel {
   brief?: string
   entries_total?: number
   entries_generated?: number
+  published_at?: string | null
   created_at: string
   updated_at: string
 }

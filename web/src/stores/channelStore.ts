@@ -22,6 +22,8 @@ interface ChannelState {
   createChannel: (data: CreateChannelRequest) => Promise<Channel>
   updateChannel: (id: number, data: Partial<CreateChannelRequest>) => Promise<Channel>
   deleteChannel: (id: number) => Promise<void>
+  publishChannel: (id: number) => Promise<void>
+  unpublishChannel: (id: number) => Promise<void>
   fetchPlanEntries: (channelId: number) => Promise<void>
   generatePlan: (channelId: number, count?: number) => Promise<void>
   generateSeason: (channelId: number, weeks?: number) => Promise<void>
@@ -153,6 +155,22 @@ export const useChannelStore = create<ChannelState>((set, get) => {
           entries: remaining,
         }
       })
+    },
+
+    publishChannel: async (id) => {
+      set({ error: null })
+      const channel = await api.publishChannel(id)
+      set((state) => ({
+        channels: state.channels.map((c) => (c.id === id ? channel : c)),
+      }))
+    },
+
+    unpublishChannel: async (id) => {
+      set({ error: null })
+      const channel = await api.unpublishChannel(id)
+      set((state) => ({
+        channels: state.channels.map((c) => (c.id === id ? channel : c)),
+      }))
     },
 
     fetchPlanEntries: async (channelId) => {

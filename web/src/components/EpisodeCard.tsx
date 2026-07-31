@@ -9,6 +9,13 @@ interface Props {
   highlighted?: boolean
 }
 
+const statusLabels: Record<Episode['status'], string> = {
+  pending: 'Pendiente',
+  running: 'En progreso',
+  completed: 'Completado',
+  failed: 'Fallido',
+}
+
 const statusColors: Record<Episode['status'], string> = {
   pending: 'bg-amber-500/15 border border-amber-500/40 text-amber-300',
   running: 'bg-purple-500/15 border border-purple-500/40 text-purple-300 animate-pulse',
@@ -35,7 +42,7 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
             </span>
           )}
           <span className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[episode.status] || 'bg-slate-700 text-slate-300'}`}>
-            {episode.status}
+            {statusLabels[episode.status]}
           </span>
         </div>
       </div>
