@@ -52,6 +52,63 @@ def _patch_check_model_inputs() -> None:
     _generic.check_model_inputs = _patched
 
 
+def _patch_qwen_configs() -> None:
+    """qwen-tts configs do not expose ``pad_token_id`` but transformers>=5
+    expects it on config objects. Add a fallback property that returns the
+    codec-level / TTS-level pad id."""
+    try:
+        from qwen_tts.core.models.configuration_qwen3_tts import (
+            Qwen3TTSConfig,
+            Qwen3TTSTalkerConfig,
+        )
+    except Exception:
+        return
+
+    if not hasattr(Qwen3TTSTalkerConfig, "pad_token_id"):
+        Qwen3TTSTalkerConfig.pad_token_id = property(
+            lambda self: getattr(self, "codec_pad_id", None)
+        )
+    if not hasattr(Qwen3TTSConfig, "pad_token_id"):
+        Qwen3TTSConfig.pad_token_id = property(
+            lambda self: getattr(self, "tts_pad_token_id", None)
+        )
+
+
+def _compute_default_rope_parameters(config, device=None, seq_len=None, layer_type=None):
+    """RoPE estándar sin escalado (factor = 1). Compatible con configs qwen-tts
+    que usan ``rope_scaling.type == 'default'`` sin campo ``factor``."""
+    config.standardize_rope_params()
+    rope_parameters_dict = (
+        config.rope_parameters[layer_type]
+        if layer_type is not None
+        else config.rope_parameters
+    )
+    base = rope_parameters_dict.get("rope_theta", getattr(config, "rope_theta", 10000.0))
+    partial_rotary_factor = rope_parameters_dict.get("partial_rotary_factor", 1.0)
+    head_dim = getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
+    dim = int(head_dim * partial_rotary_factor)
+    inv_freq = 1.0 / (
+        base
+        ** (
+            torch.arange(0, dim, 2, dtype=torch.int64).to(device=device, dtype=torch.float)
+            / dim
+        )
+    )
+    return inv_freq, 1.0
+
+
+def _patch_rope_functions() -> None:
+    """qwen-tts usa ``rope_scaling.type == 'default'`` pero transformers>=5
+    no registra esa clave."""
+    try:
+        from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
+
+        if "default" not in ROPE_INIT_FUNCTIONS:
+            ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
+    except Exception:
+        pass
+
+
 def _free_ollama_vram() -> None:
     """Descarga los modelos de Ollama de la GPU antes de cargar Qwen3-TTS."""
     import json
@@ -104,6 +161,8 @@ class Qwen3TTSEngine(TTSBase):
 
         _free_ollama_vram()
         _patch_check_model_inputs()
+        _patch_qwen_configs()
+        _patch_rope_functions()
 
         try:
             from qwen_tts import Qwen3TTSModel
