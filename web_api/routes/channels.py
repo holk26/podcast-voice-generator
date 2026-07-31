@@ -1,4 +1,5 @@
 from typing import List
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -126,6 +127,28 @@ def deactivate_channel(channel_id: int, db: Session = Depends(get_db)):
     if not channel:
         raise HTTPException(status_code=404, detail="Channel not found")
     channel.is_active = False
+    db.commit()
+    db.refresh(channel)
+    return channel
+
+
+@router.post("/{channel_id}/publish", response_model=ChannelResponse)
+def publish_channel(channel_id: int, db: Session = Depends(get_db)):
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    channel.published_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(channel)
+    return channel
+
+
+@router.post("/{channel_id}/unpublish", response_model=ChannelResponse)
+def unpublish_channel(channel_id: int, db: Session = Depends(get_db)):
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+    channel.published_at = None
     db.commit()
     db.refresh(channel)
     return channel

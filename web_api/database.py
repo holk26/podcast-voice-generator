@@ -27,6 +27,7 @@ def _migrate() -> None:
             ("autopilot", "BOOLEAN DEFAULT 0 NOT NULL"),
             ("episodes_per_week", "INTEGER DEFAULT 2 NOT NULL"),
             ("target_minutes", "INTEGER DEFAULT 10 NOT NULL"),
+            ("published_at", "DATETIME"),
         ],
         "content_plan_entries": [
             ("season", "INTEGER DEFAULT 1 NOT NULL"),

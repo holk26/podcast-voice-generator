@@ -83,12 +83,14 @@ class ChannelUpdate(BaseModel):
     autopilot: Optional[bool] = None
     episodes_per_week: Optional[int] = None
     target_minutes: Optional[int] = None
+    published_at: Optional[datetime] = None
 
 
 class ChannelResponse(ChannelBase):
     id: int
     created_at: datetime
     updated_at: datetime
+    published_at: Optional[datetime] = None
     entries_total: int = 0
     entries_generated: int = 0
 

@@ -35,6 +35,7 @@ class Channel(Base):
     autopilot = Column(Boolean, default=False, nullable=False)
     episodes_per_week = Column(Integer, default=2, nullable=False)
     target_minutes = Column(Integer, default=10, nullable=False)
+    published_at = Column(DateTime, nullable=True)  # marca manual de publicación
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
