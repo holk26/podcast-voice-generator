@@ -8,7 +8,8 @@ import numpy as np
 import soundfile as sf
 
 from processors.dialogue_parser import DialogueSegment
-from web_api.routes.voices import _find_voice, VoiceResponse
+from web_api.routes.tts import _find_voice
+from web_api.routes.voices import VoiceResponse
 
 API_BASE = f"http://localhost:{os.getenv('API_PORT', '8000')}"
 
