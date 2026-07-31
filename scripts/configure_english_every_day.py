@@ -25,7 +25,7 @@ def main() -> None:
             description = ?,
             niche = 'educación / idiomas',
             format = 'podcast',
-            default_voice_id = 'clone:homero_referencia',
+            default_voice_id = 'clone:homero_referencia:qwen3',
             is_active = 1,
             target_minutes = 10,
             brief = ?
