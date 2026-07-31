@@ -26,6 +26,32 @@ SAMPLE_RATE = 24_000
 DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
 
 
+def _patch_check_model_inputs() -> None:
+    """Make qwen-tts 0.1.1 compatible with transformers>=5.
+
+    qwen-tts decorates methods with ``@check_model_inputs()``, but
+    transformers>=5 exposes ``check_model_inputs`` as a plain decorator
+    (no parentheses). This patch makes the symbol callable both ways.
+    """
+    try:
+        import transformers.utils.generic as _generic
+    except Exception:
+        return
+    _orig = getattr(_generic, "check_model_inputs", None)
+    if _orig is None:
+        return
+    if getattr(_orig, "_qwen_patched", False):
+        return
+
+    def _patched(*args, **kwargs):
+        if args and callable(args[0]):
+            return _orig(args[0])
+        return _orig
+
+    _patched._qwen_patched = True
+    _generic.check_model_inputs = _patched
+
+
 def _free_ollama_vram() -> None:
     """Descarga los modelos de Ollama de la GPU antes de cargar Qwen3-TTS."""
     import json
@@ -77,6 +103,7 @@ class Qwen3TTSEngine(TTSBase):
             return
 
         _free_ollama_vram()
+        _patch_check_model_inputs()
 
         try:
             from qwen_tts import Qwen3TTSModel

@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import edge_tts
+import soundfile as sf
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -114,6 +115,8 @@ def _split_text(text: str, max_chars: int = 400) -> list[str]:
 
 
 def _concat_wavs(paths: list[Path], output_path: Path) -> Path:
+    if not paths:
+        raise ValueError("No audio parts to concatenate")
     import numpy as np
     import soundfile as sf
     samples = []
@@ -178,6 +181,24 @@ async def preview(request: PreviewRequest):
     voice = _find_voice(request.voice_id)
 
     if voice is not None and voice.type == "cloned" and voice.reference_path:
+        ref = Path(voice.reference_path)
+        if not ref.exists():
+            raise HTTPException(status_code=400, detail=f"Reference audio missing: {ref}")
+        try:
+            info = sf.info(ref)
+            if info.samplerate != 24000 or info.channels != 1:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(
+                        f"Reference audio must be 24000 Hz mono; "
+                        f"got {info.samplerate} Hz {info.channels}ch"
+                    ),
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid reference audio: {e}")
+
         try:
             wav_path = output_path.with_suffix(".wav")
             text = sanitize_emotion_tags(
@@ -186,7 +207,8 @@ async def preview(request: PreviewRequest):
             )
             # La síntesis es bloqueante (~1-4 s tras la carga inicial del motor)
             await run_in_threadpool(_synthesize_clone, text, voice, wav_path)
-            return PreviewResponse(audio_url=f"/outputs/previews/{wav_path.name}")
+            bust = uuid.uuid4().hex[:8]
+            return PreviewResponse(audio_url=f"/outputs/previews/{wav_path.name}?v={bust}")
         except Exception as e:
             import traceback
             tb = traceback.format_exc()
