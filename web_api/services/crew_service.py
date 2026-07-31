@@ -528,6 +528,43 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     return _ensure_valid_script(_strip_markup(final))
 
 
+def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
+    """Genera un guion en formato diálogo bilingüe Alejandra-Homero.
+
+    on_progress(step, message, content=None) se invoca al empezar y terminar.
+    """
+    def emit(step: str, message: str, content: str | None = None) -> None:
+        if on_progress:
+            on_progress(step, message, content)
+
+    writer = Agent(
+        role="Bilingual Dialogue Writer",
+        goal="Escribir diálogos didácticos inglés-español entre profesora y alumno",
+        backstory="Guionista especializado en podcasts educativos bilingües con dos voces.",
+        llm=get_script_llm(),
+        verbose=False,
+    )
+
+    specs = _specs(channel)
+    prompt = DIALOGUE_PROMPT.format(
+        minutes=target_minutes,
+        title=entry.title,
+        description=entry.description or "",
+        specs=specs,
+    )
+    emit("dialogue", f"Escribiendo diálogo bilingüe para «{entry.title}»…", prompt)
+    raw = _run_single_task(
+        writer, prompt,
+        "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
+    )
+    emit("dialogue_done", "Diálogo bilingüe listo", raw)
+
+    cleaned = _strip_markup(raw)
+    # La limpieza puede quitar los prefijos si interpreta los dos puntos como markdown;
+    # reforzamos el formato exacto esperado por el parser.
+    return _ensure_valid_script(cleaned)
+
+
 VALID_FORMATS = {"podcast", "news", "meditation", "motivation"}
 
 
@@ -693,6 +730,30 @@ Mantén la misma estructura, secciones y longitud aproximada. Conserva nombres p
 Devuelve SOLO el texto en español, nada más — sin comentarios ni encabezados."""
 
 
+DIALOGUE_PROMPT = """Eres un guionista de podcasts educativos bilingües. Escribe un episodio didáctico
+en formato diálogo entre dos personajes:
+- Alejandra: profesora de inglés, voz femenina, paciente y clara.
+- Homero: alumno, voz masculina, curioso y algo informal.
+
+REGLAS OBLIGATORIAS:
+- Cada línea debe empezar EXACTAMENTE con "Alejandra:" o "Homero:".
+- Alejandra presenta una frase, vocabulario o expresión en inglés, la pronuncia y luego explica el significado y uso en español.
+- Homero pregunta, repite o pide ejemplos; usa español para dudas y puede intentar decir la frase en inglés con acento marcado para practicar.
+- Mezcla aproximadamente 50% inglés / 50% español.
+- Incluye 5-8 expresiones útiles, ejemplos de situaciones reales y un mini repaso al final.
+- Tono cercano, motivador y didáctico.
+- No uses markdown, encabezados ni notas de producción.
+
+Duración objetivo: unos {minutes} minutos (~150 palabras/minuto).
+
+Título del episodio: {title}
+Descripción: {description}
+{specs}
+
+Devuelve SOLO el diálogo, línea por línea."""
+
+
+_DUAL_SPEAKER_HINT_RE = re.compile(r"Alejandra.*Homero|Homero.*Alejandra|diálogo|dialogue", re.IGNORECASE)
 _ENGLISH_HINT_RE = re.compile(r"ingl[eé]s|english", re.IGNORECASE)
 _ES_STOPWORDS = re.compile(
     r"\b(el|la|los|las|de|del|que|en|por|para|con|una|este|esta|hoy|vamos|nuestro|también)\b",
@@ -706,6 +767,11 @@ _EN_STOPWORDS = re.compile(
 
 def _needs_english(specs: str) -> bool:
     return bool(_ENGLISH_HINT_RE.search(specs))
+
+
+def _is_dialogue_mode(channel) -> bool:
+    text = f"{channel.name} {channel.brief or ''}"
+    return bool(_DUAL_SPEAKER_HINT_RE.search(text))
 
 
 def _spanish_ratio(text: str) -> float:

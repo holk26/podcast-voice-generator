@@ -12,7 +12,16 @@ from datetime import datetime, timedelta, timezone
 
 from web_api.database import SessionLocal
 from web_api.models import Channel, ContentPlanEntry, Episode
-from web_api.services.crew_service import generate_plan, generate_script, generate_season
+from processors.dialogue_parser import parse_dialogue
+from core.multi_voice_mixer import mix_dialogue
+from web_api.config import OUTPUT_DIR
+from web_api.services.crew_service import (
+    generate_plan,
+    generate_script,
+    generate_dialogue_script,
+    generate_season,
+    _is_dialogue_mode,
+)
 from web_api.services.job_service import registry
 
 # Claves en curso para no lanzar dos jobs sobre el mismo recurso
@@ -100,6 +109,53 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
             ContentPlanEntry.id == entry_id
         ).first()
         channel = session.query(Channel).filter(Channel.id == entry.channel_id).first()
+
+        if _is_dialogue_mode(channel):
+            script = generate_dialogue_script(
+                channel,
+                entry,
+                target_minutes=minutes,
+                on_progress=_progress(job_id),
+            )
+            segments = parse_dialogue(script)
+            if len(segments) >= 2:
+                episode = Episode(
+                    title=entry.title,
+                    type=channel.format,
+                    source_text=script,
+                    voice_id="multi:alejandra_homero",
+                    status="pending",
+                    target_duration_minutes=float(minutes),
+                )
+                session.add(episode)
+                session.commit()
+                session.refresh(episode)
+
+                output_dir = OUTPUT_DIR / str(episode.id)
+                output_dir.mkdir(parents=True, exist_ok=True)
+                final_path = output_dir / "final.wav"
+                mix_dialogue(
+                    segments,
+                    final_path,
+                    voice_map={
+                        "Alejandra": "clone:alejandra",
+                        "Homero": "clone:homero_referencia",
+                    },
+                )
+                episode.audio_url = f"/outputs/{episode.id}/final.wav"
+                episode.status = "completed"
+                session.commit()
+
+                entry.status = "generated"
+                entry.episode_id = episode.id
+                session.commit()
+                registry.emit(job_id, "done", f"Diálogo listo, episodio #{episode.id}")
+                registry.finish(
+                    job_id,
+                    {"entry_id": entry_id, "episode_id": episode.id, "channel_id": entry.channel_id},
+                )
+                return
+
         script = generate_script(
             channel,
             entry,
