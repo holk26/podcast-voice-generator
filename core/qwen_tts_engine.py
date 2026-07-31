@@ -109,6 +109,66 @@ def _patch_rope_functions() -> None:
         pass
 
 
+def _patch_talker_model_forward() -> None:
+    """Alinea attention_mask/position_ids con inputs_embeds en generación autoregresiva.
+
+    qwen-tts 0.1.1 fue escrito para transformers~4.57. En transformers>=5, durante
+    la generación con caché, ``inputs_embeds`` tiene forma ``[batch, 1]`` pero
+    ``attention_mask`` y ``position_ids`` conservan la longitud de la secuencia
+    completa. Esto provoca que ``key_states`` y ``value_states`` tengan longitudes
+    inconsistentes en ``DynamicCache.update``.
+
+    Este parche recorta ``attention_mask`` y ``position_ids`` a la longitud de
+    ``inputs_embeds`` cuando difieren, permitiendo que la generación continúe sin
+    error de dimensiones.
+    """
+    try:
+        import qwen_tts.core.models.modeling_qwen3_tts as _qm
+    except Exception:
+        return
+
+    _orig_forward = _qm.Qwen3TTSTalkerModel.forward
+    if getattr(_orig_forward, "_qwen_patched", False):
+        return
+
+    def _forward_fixed(
+        self,
+        input_ids=None,
+        attention_mask=None,
+        position_ids=None,
+        past_key_values=None,
+        inputs_embeds=None,
+        **kwargs,
+    ):
+        # En transformers>=5, durante la generación autoregresiva con caché,
+        # ``position_ids`` puede llegar con la longitud de la secuencia completa
+        # (tokens en caché + nuevo token) mientras ``inputs_embeds`` solo contiene
+        # el nuevo token. La RoPE embarra las posiciones y genera key_states con
+        # una longitud distinta a value_states, rompiendo ``DynamicCache.update``.
+        # Recortamos ``position_ids`` a la longitud de ``inputs_embeds``;
+        # ``attention_mask`` se deja intacto porque la máscara causal usa la
+        # longitud total de KV (caché + query).
+        if (
+            inputs_embeds is not None
+            and position_ids is not None
+            and inputs_embeds.shape[1] != position_ids.shape[-1]
+        ):
+            q_len = inputs_embeds.shape[1]
+            position_ids = position_ids[..., -q_len:]
+        return _orig_forward(
+            self,
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            inputs_embeds=inputs_embeds,
+            **kwargs,
+        )
+
+    _forward_fixed._qwen_patched = True
+    _qm.Qwen3TTSTalkerModel.forward = _forward_fixed
+
+
 def _free_ollama_vram() -> None:
     """Descarga los modelos de Ollama de la GPU antes de cargar Qwen3-TTS."""
     import json
@@ -163,6 +223,7 @@ class Qwen3TTSEngine(TTSBase):
         _patch_check_model_inputs()
         _patch_qwen_configs()
         _patch_rope_functions()
+        _patch_talker_model_forward()
 
         try:
             from qwen_tts import Qwen3TTSModel
@@ -231,11 +292,22 @@ class Qwen3TTSEngine(TTSBase):
         # Qwen3-TTS espera nombres de idioma capitalizados: "Spanish", "English"…
         language_qwen = _normalize_language(language)
 
+        # Estimación de tokens de audio necesarios: ~2 tokens por carácter de
+        # texto da margen para ritmos de habla variados. Cap en 16384 para
+        # evitar OOM en episodios largos (≈21 min de audio a 12.5 token/s).
+        estimated_tokens = max(256, min(16384, len(text) * 2 + 256))
+
         wavs, sr = self._model.generate_voice_clone(
             text=text,
             language=language_qwen,
             ref_audio=ref_audio,
             ref_text=ref_text,
+            x_vector_only_mode=not ref_text,
+            # En transformers>=5 el modo no-streaming no detiene la generación en
+            # EOS y produce audio muy largo; el modo streaming (simulado) sí
+            # alcanza el token de fin de habla.
+            non_streaming_mode=False,
+            max_new_tokens=estimated_tokens,
         )
 
         # wavs es una lista (generación individual) → tomar el primer elemento

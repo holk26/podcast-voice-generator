@@ -138,8 +138,8 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
                     segments,
                     final_path,
                     voice_map={
-                        "Alejandra": "clone:alejandra:qwen3",
-                        "Homero": "clone:homero_referencia:qwen3",
+                        "Alejandra": "clone:alejandra",
+                        "Homero": "clone:homero_referencia",
                     },
                 )
                 episode.audio_url = f"/outputs/{episode.id}/final.wav"

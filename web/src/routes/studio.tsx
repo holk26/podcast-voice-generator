@@ -155,6 +155,57 @@ function StudioPage() {
 
       {tab === 'overview' && channel && (
         <div className="space-y-4">
+          <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20">
+            <h4 className="text-md font-bold tracking-tight text-slate-200 mb-3">Configuración rápida</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <label className="block">
+                <span className="text-sm text-slate-400">Voz del canal</span>
+                <select
+                  className="mt-1 w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={channel.default_voice_id}
+                  onChange={(e) => updateChannel(channel.id, { default_voice_id: e.target.value })}
+                >
+                  {voices.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.type === 'cloned' ? '🎙️ ' : ''}{v.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block">
+                <span className="text-sm text-slate-400">Duración objetivo (min)</span>
+                <input
+                  type="number"
+                  min={2}
+                  max={30}
+                  className="mt-1 w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={channel.target_minutes}
+                  onChange={(e) => updateChannel(channel.id, { target_minutes: Number(e.target.value) })}
+                />
+              </label>
+              <label className="block">
+                <span className="text-sm text-slate-400">Episodios por semana</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={7}
+                  className="mt-1 w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={channel.episodes_per_week}
+                  onChange={(e) => updateChannel(channel.id, { episodes_per_week: Number(e.target.value) })}
+                />
+              </label>
+              <label className="flex items-end gap-2 pb-2">
+                <input
+                  type="checkbox"
+                  className="rounded border-slate-600 bg-slate-800 text-purple-600 focus:ring-purple-500"
+                  checked={channel.autopilot}
+                  onChange={(e) => updateChannel(channel.id, { autopilot: e.target.checked })}
+                />
+                <span className="text-sm text-slate-300">Piloto automático</span>
+              </label>
+            </div>
+          </div>
+
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
@@ -174,11 +225,9 @@ function StudioPage() {
             </button>
           </div>
 
-          <div>
-            <h4 className="text-md font-bold tracking-tight text-slate-200 mb-2">Últimas entradas</h4>
-            {latestEntries.length === 0 ? (
-              <p className="text-slate-400">Aún no hay entradas. Genera un plan para empezar.</p>
-            ) : (
+          {latestEntries.length > 0 && (
+            <div>
+              <h4 className="text-md font-bold tracking-tight text-slate-200 mb-2">Últimas entradas</h4>
               <div className="space-y-3">
                 {latestEntries.map((entry) => (
                   <PlanEntryCard
@@ -190,8 +239,8 @@ function StudioPage() {
                   />
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 

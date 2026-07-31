@@ -305,8 +305,16 @@ class HiggsAudioEngine(TTSBase):
                 num_ref_tokens=int(ref_codes_delayed.shape[0]),
                 reference_text=ref_text,
             )
+            # vLLM prefix caching hashes prompt_token_ids; como los placeholders
+            # de audio son siempre -100, sin un salt único reutilizaría el KV
+            # de la primera referencia cargada y todas las voces sonarían igual.
+            import hashlib
+            cache_salt = hashlib.sha256(
+                f"{ref_audio_path}|{text}".encode("utf-8")
+            ).hexdigest()[:32]
             prompt = {
                 "prompt_token_ids": prompt_ids,
+                "cache_salt": cache_salt,
                 "additional_information": {
                     "audio_input_ids": ref_codes_delayed.to(torch.long),
                     "audio_input_ids_mask": torch.ones(

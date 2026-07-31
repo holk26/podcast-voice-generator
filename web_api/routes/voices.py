@@ -59,7 +59,7 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
             cloned.append(
                 VoiceResponse(
                     id=f"clone:{stem}{suffix}",
-                    name=f"{stem} ({engine})" if engine != "higgs" else stem,
+                    name=f"{stem} ({engine})",
                     engine=engine,
                     language="es",
                     gender="unknown",
