@@ -66,6 +66,8 @@ class ChannelBase(BaseModel):
     autopilot: bool = False
     episodes_per_week: int = 2
     target_minutes: int = 10
+    num_speakers: int = 1
+    speaker_voices: Optional[dict[str, str]] = None
 
 
 class ChannelCreate(ChannelBase):
@@ -83,6 +85,8 @@ class ChannelUpdate(BaseModel):
     autopilot: Optional[bool] = None
     episodes_per_week: Optional[int] = None
     target_minutes: Optional[int] = None
+    num_speakers: Optional[int] = None
+    speaker_voices: Optional[dict[str, str]] = None
     published_at: Optional[datetime] = None
 
 

@@ -45,6 +45,8 @@ export interface Channel {
   autopilot: boolean
   episodes_per_week: number
   target_minutes: number
+  num_speakers: number
+  speaker_voices?: Record<string, string> | null
   brief?: string
   entries_total?: number
   entries_generated?: number
@@ -79,6 +81,8 @@ export interface CreateChannelRequest {
   autopilot?: boolean
   episodes_per_week?: number
   target_minutes?: number
+  num_speakers?: number
+  speaker_voices?: Record<string, string> | null
 }
 
 export interface CreatePlanEntryRequest {

@@ -770,6 +770,8 @@ def _needs_english(specs: str) -> bool:
 
 
 def _is_dialogue_mode(channel) -> bool:
+    if getattr(channel, "num_speakers", 1) >= 2:
+        return True
     text = f"{channel.name} {channel.brief or ''}"
     return bool(_DUAL_SPEAKER_HINT_RE.search(text))
 

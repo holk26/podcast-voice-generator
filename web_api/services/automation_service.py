@@ -123,7 +123,7 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
                     title=entry.title,
                     type=channel.format,
                     source_text=script,
-                    voice_id="multi:alejandra_homero",
+                    voice_id="multi:dialogue",
                     status="pending",
                     target_duration_minutes=float(minutes),
                 )
@@ -134,14 +134,11 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
                 output_dir = OUTPUT_DIR / str(episode.id)
                 output_dir.mkdir(parents=True, exist_ok=True)
                 final_path = output_dir / "final.wav"
-                mix_dialogue(
-                    segments,
-                    final_path,
-                    voice_map={
-                        "Alejandra": "clone:alejandra",
-                        "Homero": "clone:homero_referencia",
-                    },
-                )
+                voice_map = channel.speaker_voices or {
+                    "Alejandra": "clone:alejandra",
+                    "Homero": "clone:homero_referencia",
+                }
+                mix_dialogue(segments, final_path, voice_map=voice_map)
                 episode.audio_url = f"/outputs/{episode.id}/final.wav"
                 episode.status = "completed"
                 session.commit()

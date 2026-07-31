@@ -6,6 +6,7 @@ import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
 import ContentPlanList from '../components/ContentPlanList'
 import PlanEntryCard from '../components/PlanEntryCard'
+import { CreateChannelRequest } from '../types'
 
 export const Route = createFileRoute('/studio')({
   component: StudioPage,
@@ -116,21 +117,32 @@ function StudioPage() {
 
       {channel && (
         <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20 mb-4">
-          <div className="flex justify-between items-start">
-            <div>
+          <div className="flex justify-between items-start gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2">
+                <select
+                  className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={selectedId}
+                  onChange={(e) => setSelectedId(Number(e.target.value))}
+                >
+                  {channels.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <Link
+                  to="/channels/$id/edit"
+                  params={{ id: String(channel.id) }}
+                  className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors whitespace-nowrap"
+                >
+                  Editar canal
+                </Link>
+              </div>
               <h3 className="text-lg font-bold tracking-tight text-slate-100">{channel.name}</h3>
               <p className="text-sm text-slate-400 mt-1">{channel.description || 'Sin descripción'}</p>
               <p className="text-xs text-slate-500 mt-2">
-                {channel.format} · nicho: {channel.niche || 'general'} · {channel.target_minutes} min · {channel.episodes_per_week} episodios/semana
+                {channel.format} · nicho: {channel.niche || 'general'} · {channel.target_minutes} min · {channel.episodes_per_week} episodios/semana · {channel.num_speakers} voz{channel.num_speakers > 1 ? 'es' : ''}
               </p>
             </div>
-            <Link
-              to="/channels/$id/edit"
-              params={{ id: String(channel.id) }}
-              className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
-            >
-              Editar canal
-            </Link>
           </div>
         </div>
       )}
@@ -159,19 +171,80 @@ function StudioPage() {
             <h4 className="text-md font-bold tracking-tight text-slate-200 mb-3">Configuración rápida</h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <label className="block">
-                <span className="text-sm text-slate-400">Voz del canal</span>
+                <span className="text-sm text-slate-400">Número de voces</span>
                 <select
                   className="mt-1 w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                  value={channel.default_voice_id}
-                  onChange={(e) => updateChannel(channel.id, { default_voice_id: e.target.value })}
+                  value={channel.num_speakers}
+                  onChange={(e) => {
+                    const n = Number(e.target.value)
+                    const updates: Partial<CreateChannelRequest> = { num_speakers: n }
+                    if (n === 1) {
+                      updates.speaker_voices = null
+                    } else if (!channel.speaker_voices || Object.keys(channel.speaker_voices).length === 0) {
+                      updates.speaker_voices = {
+                        'Narrador': channel.default_voice_id,
+                        'Invitado': channel.default_voice_id,
+                      }
+                    }
+                    updateChannel(channel.id, updates)
+                  }}
                 >
-                  {voices.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.type === 'cloned' ? '🎙️ ' : ''}{v.name}
-                    </option>
-                  ))}
+                  <option value={1}>1 voz (monólogo)</option>
+                  <option value={2}>2 voces (diálogo)</option>
                 </select>
               </label>
+
+              {channel.num_speakers === 1 ? (
+                <label className="block">
+                  <span className="text-sm text-slate-400">Voz del canal</span>
+                  <select
+                    className="mt-1 w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    value={channel.default_voice_id}
+                    onChange={(e) => updateChannel(channel.id, { default_voice_id: e.target.value })}
+                  >
+                    {voices.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.type === 'cloned' ? '🎙️ ' : ''}{v.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="block md:col-span-2">
+                  <span className="text-sm text-slate-400">Voces del diálogo</span>
+                  <div className="mt-2 space-y-2">
+                    {Object.entries(channel.speaker_voices || {}).map(([speaker, voiceId]) => (
+                      <div key={speaker} className="flex gap-2 items-center">
+                        <input
+                          className="w-32 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          value={speaker}
+                          onChange={(e) => {
+                            const newVoices = { ...(channel.speaker_voices || {}) }
+                            delete newVoices[speaker]
+                            newVoices[e.target.value] = voiceId
+                            updateChannel(channel.id, { speaker_voices: newVoices })
+                          }}
+                        />
+                        <select
+                          className="flex-1 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          value={voiceId}
+                          onChange={(e) => {
+                            updateChannel(channel.id, {
+                              speaker_voices: { ...(channel.speaker_voices || {}), [speaker]: e.target.value },
+                            })
+                          }}
+                        >
+                          {voices.map((v) => (
+                            <option key={v.id} value={v.id}>
+                              {v.type === 'cloned' ? '🎙️ ' : ''}{v.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
               <label className="block">
                 <span className="text-sm text-slate-400">Duración objetivo (min)</span>
                 <input
