@@ -690,11 +690,12 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
                 "NO cierres el episodio; continúa el hilo directamente."
             )
 
-        # ~150 palabras/minuto repartidas entre secciones; el modelo rinde
-        # mejor con objetivos por sección algo mayores que con un total único.
-        words_per_section = max(200, (target_minutes * 150) // total)
-        min_words = int(words_per_section * 0.9)
-        max_words = int(words_per_section * 1.5)
+        # ~180 palabras/minuto en diálogo bilingüe (pausas, traducciones);
+        # el modelo rinde mejor con objetivos ambiciosos por sección.
+        words_per_section = max(250, (target_minutes * 180) // total)
+        min_words = int(words_per_section * 0.85)
+        # Sin techo explícito: pedimos "al menos" min_words y damos margen amplio
+        max_words = int(words_per_section * 2.0)
 
         section_prompt = DIALOGUE_SECTION_PROMPT.format(
             section_number=i + 1,
@@ -715,17 +716,35 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
         )
         section_text = _strip_markup(raw)
         section_words = len(section_text.split())
-        if section_words < min_words * 0.6:
-            emit("dialogue", f"Sección {i + 1}/{total} muy corta ({section_words} palabras), reintentando…")
+        if section_words < min_words * 0.75:
+            emit("dialogue", f"Sección {i + 1}/{total} corta ({section_words} palabras, mínimo {min_words}), reintentando…")
             stronger = section_prompt + (
-                f"\n\nIMPORTANTE: Escribe al menos {min_words} palabras. "
-                "Cada línea de diálogo cuenta. No resumes, desarrolla el contenido."
+                f"\n\nIMPORTANTE: Tu sección anterior tuvo solo {section_words} palabras. "
+                f"Escribe AL MENOS {min_words} palabras. Desarrolla más ejemplos, "
+                "más práctica de conversación, más repeticiones. No resumas."
             )
             raw = _run_single_task(
                 writer, stronger,
                 "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
             )
             section_text = _strip_markup(raw)
+            section_words = len(section_text.split())
+            if section_words < min_words * 0.6:
+                # Tercer intento con énfasis extremo
+                emit("dialogue", f"Sección {i + 1}/{total} aún corta ({section_words} palabras), tercer intento…")
+                ultra_strong = section_prompt + (
+                    f"\n\nCRÍTICO: Necesitas escribir {min_words} palabras mínimo. "
+                    f"Tu intento anterior tuvo {section_words}. "
+                    "Cada vez que expliques una expresión: ponla en inglés, pronúnciala, "
+                    "da 2-3 ejemplos de uso, pide a Homero que la repita y comente "
+                    "en español, y luego da un mini diálogo de práctica. "
+                    "No escatimes en palabras."
+                )
+                raw = _run_single_task(
+                    writer, ultra_strong,
+                    "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
+                )
+                section_text = _strip_markup(raw)
         parts.append(section_text)
         emit("dialogue_part", f"Sección {i + 1}/{total} lista", raw)
 
@@ -734,7 +753,7 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
     cleaned = _clean_dialogue_lines(cleaned)
     # La limpieza puede quitar los prefijos si interpreta los dos puntos como markdown;
     # reforzamos el formato exacto esperado por el parser.
-    min_total_words = max(100, int(target_minutes * 120))
+    min_total_words = max(100, int(target_minutes * 150))
     return _ensure_valid_script(cleaned, min_words=min_total_words)
 
 
@@ -932,10 +951,13 @@ REGLAS OBLIGATORIAS:
 Título del episodio: {title}
 Esquema completo: {outline}
 Sección actual: "{section_title}" — {section_points}
-Escribe entre {min_words} y {max_words} palabras para esta sección.
+Escribe AL MENOS {min_words} palabras para esta sección. Esto es OBLIGATORIO.
+Desarrolla cada expresión con múltiples ejemplos, repeticiones de práctica y conversación natural.
+No resumas, no abrevies: cada línea de diálogo cuenta como palabra.
+Si terminas antes de {min_words} palabras, añade más ejemplos y práctica de conversación.
 {specs}
 
-Devuelve SOLO el diálogo de esta sección, línea por línea."""
+Devuelve SOLO el diálogo de esta sección, línea por línea. Empieza directamente con "Alejandra: " o "Homero: "."""
 
 
 _DUAL_SPEAKER_HINT_RE = re.compile(r"Alejandra.*Homero|Homero.*Alejandra|diálogo|dialogue", re.IGNORECASE)
