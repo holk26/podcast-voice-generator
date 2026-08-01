@@ -528,8 +528,36 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     return _ensure_valid_script(_strip_markup(final))
 
 
+def _clean_dialogue_lines(text: str) -> str:
+    """Deja solo líneas de diálogo válidas y sus continuaciones.
+
+    - Normaliza "Alejandra:Texto" a "Alejandra: Texto".
+    - Elimina encabezados, bullets, paréntesis de producción y líneas meta.
+    - Colapsa líneas vacías múltiples.
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            out.append("")
+            continue
+        # Quita marcadores markdown y notas de producción
+        if stripped.startswith(("* ", "- ", "# ", "## ", "(", "[")):
+            continue
+        if stripped.lower().startswith(("mini repaso", "repaso", "review", "notes", "espera")):
+            continue
+        # Normaliza el espacio tras el nombre del speaker
+        stripped = re.sub(r"^(Alejandra|Homero):\s*", r"\1: ", stripped, flags=re.IGNORECASE)
+        out.append(stripped)
+    # Colapsa múltiples líneas vacías
+    cleaned = "\n".join(out)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    return cleaned
+
+
 def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
-    """Genera un guion en formato diálogo bilingüe Alejandra-Homero.
+    """Genera un guion en formato diálogo bilingüe Alejandra-Homero por secciones.
 
     on_progress(step, message, content=None) se invoca al empezar y terminar.
     """
@@ -537,6 +565,13 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
         if on_progress:
             on_progress(step, message, content)
 
+    planner = Agent(
+        role="Dialogue Planner",
+        goal="Diseñar la estructura didáctica de un episodio bilingüe",
+        backstory="Productor experto en cursos de idiomas por audio.",
+        llm=get_script_llm(),
+        verbose=False,
+    )
     writer = Agent(
         role="Bilingual Dialogue Writer",
         goal="Escribir diálogos didácticos inglés-español entre profesora y alumno",
@@ -546,23 +581,161 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
     )
 
     specs = _specs(channel)
-    prompt = DIALOGUE_PROMPT.format(
-        minutes=target_minutes,
+    niche = channel.niche or "general"
+    desc = entry.description or ""
+
+    # 1. Planificar secciones
+    n_sections = max(3, min(10, target_minutes))
+    outline_prompt = DIALOGUE_OUTLINE_PROMPT.format(
         title=entry.title,
-        description=entry.description or "",
+        niche=niche,
+        description=desc,
+        minutes=target_minutes,
+        sections=n_sections,
         specs=specs,
     )
-    emit("dialogue", f"Escribiendo diálogo bilingüe para «{entry.title}»…", prompt)
-    raw = _run_single_task(
-        writer, prompt,
-        "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
-    )
-    emit("dialogue_done", "Diálogo bilingüe listo", raw)
+    emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…", outline_prompt)
+    outline_raw = _run_single_task(planner, outline_prompt, "Un array JSON de secciones")
+    emit("outline_done", "Esquema del episodio", outline_raw)
 
-    cleaned = _strip_markup(raw)
+    sections = None
+
+    def _extract_sections_from_parsed(parsed) -> list[dict] | None:
+        """Extrae lista de secciones desde el JSON parseado, manejando
+        dicts envueltos como {'sections': [...]} u otras claves comunes."""
+        if isinstance(parsed, dict) and not isinstance(parsed, list):
+            for key in ("sections", "items", "data", "outline", "episodes"):
+                if isinstance(parsed.get(key), list):
+                    parsed = parsed[key]
+                    break
+        if not isinstance(parsed, list) or len(parsed) == 0:
+            return None
+        result = []
+        for i, s in enumerate(parsed):
+            if isinstance(s, dict):
+                result.append({
+                    "title": str(s.get("title", f"Sección {i + 1}")),
+                    "points": str(s.get("points", s.get("description", ""))),
+                })
+            else:
+                result.append({
+                    "title": str(s),
+                    "points": "",
+                })
+        return result
+
+    min_acceptable = max(2, n_sections // 2)
+    for attempt in range(2):
+        try:
+            parsed = _parse_json_flexible(outline_raw)
+            extracted = _extract_sections_from_parsed(parsed)
+            if extracted and len(extracted) >= min_acceptable:
+                sections = extracted
+                break
+            elif extracted and len(extracted) >= 2 and attempt == 1:
+                # Segundo intento: aceptar al menos 2 secciones
+                sections = extracted
+                break
+            elif attempt == 0:
+                emit("outline", f"Esquema incompleto ({len(extracted) if extracted else 0} secciones), reintentando…")
+                stronger_prompt = outline_prompt + (
+                    f"\n\nIMPORTANTE: Debes devolver EXACTAMENTE {n_sections} elementos en el array JSON. "
+                    f"No menos de {n_sections}. Cada sección es un objeto con 'title' y 'points'."
+                )
+                outline_raw = _run_single_task(planner, stronger_prompt, "Un array JSON de secciones")
+                emit("outline_done", "Esquema reintentado", outline_raw)
+        except Exception:
+            if attempt == 0:
+                emit("outline", "Error parseando esquema, reintentando…")
+                outline_raw = _run_single_task(planner, outline_prompt, "Un array JSON de secciones")
+
+    if sections is None or len(sections) < 2:
+        # Esquema por defecto si todo lo anterior falló
+        n_default = max(3, min(8, target_minutes))
+        default_sections = [
+            {"title": "Introducción y bienvenida",
+             "points": "Saludo, presentación del tema y gancho del episodio"},
+        ]
+        n_mid = max(1, n_default - 2)
+        for j in range(1, n_mid + 1):
+            default_sections.append({
+                "title": f"Expresión {j}",
+                "points": f"Vocabulario y expresiones útiles en inglés con ejemplos prácticos (parte {j})"
+            })
+        default_sections.append({
+            "title": "Repaso y despedida",
+            "points": "Mini repaso de lo aprendido y cierre del episodio"
+        })
+        sections = default_sections
+        emit("outline", f"Usando esquema por defecto ({len(sections)} secciones)")
+
+    # 2. Escribir diálogo por secciones
+    parts: list[str] = []
+    total = len(sections)
+    outline_text = json.dumps(sections, ensure_ascii=False)
+    for i, section in enumerate(sections):
+        if i == 0:
+            position_rules = (
+                "Esta es la PRIMERA sección: abre con el saludo y el gancho del episodio. "
+                "NO te despidas ni cierres."
+            )
+        elif i == total - 1:
+            position_rules = (
+                "Esta es la ÚLTIMA sección: incluye el mini repaso y la despedida. "
+                "NO abras con una nueva introducción."
+            )
+        else:
+            position_rules = (
+                "Esta es una sección INTERMEDIA: NO saludes, NO te despidas, "
+                "NO cierres el episodio; continúa el hilo directamente."
+            )
+
+        # ~150 palabras/minuto repartidas entre secciones; el modelo rinde
+        # mejor con objetivos por sección algo mayores que con un total único.
+        words_per_section = max(200, (target_minutes * 150) // total)
+        min_words = int(words_per_section * 0.9)
+        max_words = int(words_per_section * 1.5)
+
+        section_prompt = DIALOGUE_SECTION_PROMPT.format(
+            section_number=i + 1,
+            total_sections=total,
+            title=entry.title,
+            outline=outline_text,
+            section_title=section["title"],
+            section_points=section["points"],
+            min_words=min_words,
+            max_words=max_words,
+            position_rules=position_rules,
+            specs=specs,
+        )
+        emit("dialogue", f"Escribiendo sección {i + 1}/{total}: {section['title']}…", section_prompt)
+        raw = _run_single_task(
+            writer, section_prompt,
+            "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
+        )
+        section_text = _strip_markup(raw)
+        section_words = len(section_text.split())
+        if section_words < min_words * 0.6:
+            emit("dialogue", f"Sección {i + 1}/{total} muy corta ({section_words} palabras), reintentando…")
+            stronger = section_prompt + (
+                f"\n\nIMPORTANTE: Escribe al menos {min_words} palabras. "
+                "Cada línea de diálogo cuenta. No resumes, desarrolla el contenido."
+            )
+            raw = _run_single_task(
+                writer, stronger,
+                "Diálogo bilingüe con cada línea prefijada por Alejandra: o Homero:",
+            )
+            section_text = _strip_markup(raw)
+        parts.append(section_text)
+        emit("dialogue_part", f"Sección {i + 1}/{total} lista", raw)
+
+    # Separa secciones con línea en blanco para que el parser no las una
+    cleaned = "\n\n".join(parts)
+    cleaned = _clean_dialogue_lines(cleaned)
     # La limpieza puede quitar los prefijos si interpreta los dos puntos como markdown;
     # reforzamos el formato exacto esperado por el parser.
-    return _ensure_valid_script(cleaned)
+    min_total_words = max(100, int(target_minutes * 120))
+    return _ensure_valid_script(cleaned, min_words=min_total_words)
 
 
 VALID_FORMATS = {"podcast", "news", "meditation", "motivation"}
@@ -730,27 +903,39 @@ Mantén la misma estructura, secciones y longitud aproximada. Conserva nombres p
 Devuelve SOLO el texto en español, nada más — sin comentarios ni encabezados."""
 
 
-DIALOGUE_PROMPT = """Eres un guionista de podcasts educativos bilingües. Escribe un episodio didáctico
-en formato diálogo entre dos personajes:
+DIALOGUE_OUTLINE_PROMPT = """Eres el planificador de un episodio educativo bilingüe titulado "{title}"
+(nicho: {niche}; descripción: {description}) de unos {minutes} minutos.
+Diseña un esquema con {sections} secciones didácticas. Cada sección debe enseñar
+1-2 expresiones o vocabulario de inglés con ejemplos prácticos.
+{specs}
+Devuelve EXACTAMENTE este JSON:
+[
+  {{"title": "Nombre de la sección", "points": "expresiones y ejemplos a cubrir"}},
+  ...
+]
+Solo JSON, sin explicaciones."""
+
+DIALOGUE_SECTION_PROMPT = """Eres un guionista de podcasts educativos bilingües. Escribe la sección {section_number} de {total_sections} de un episodio en formato diálogo entre:
 - Alejandra: profesora de inglés, voz femenina, paciente y clara.
 - Homero: alumno, voz masculina, curioso y algo informal.
 
 REGLAS OBLIGATORIAS:
-- Cada línea debe empezar EXACTAMENTE con "Alejandra:" o "Homero:".
+- Cada línea debe empezar EXACTAMENTE con "Alejandra: " o "Homero: " (nombre, dos puntos, espacio).
+- NO uses comillas, paréntesis de producción, notas de escena ni acotaciones.
 - Alejandra presenta una frase, vocabulario o expresión en inglés, la pronuncia y luego explica el significado y uso en español.
 - Homero pregunta, repite o pide ejemplos; usa español para dudas y puede intentar decir la frase en inglés con acento marcado para practicar.
 - Mezcla aproximadamente 50% inglés / 50% español.
-- Incluye 5-8 expresiones útiles, ejemplos de situaciones reales y un mini repaso al final.
 - Tono cercano, motivador y didáctico.
 - No uses markdown, encabezados ni notas de producción.
-
-Duración objetivo: unos {minutes} minutos (~150 palabras/minuto).
+- {position_rules}
 
 Título del episodio: {title}
-Descripción: {description}
+Esquema completo: {outline}
+Sección actual: "{section_title}" — {section_points}
+Escribe entre {min_words} y {max_words} palabras para esta sección.
 {specs}
 
-Devuelve SOLO el diálogo, línea por línea."""
+Devuelve SOLO el diálogo de esta sección, línea por línea."""
 
 
 _DUAL_SPEAKER_HINT_RE = re.compile(r"Alejandra.*Homero|Homero.*Alejandra|diálogo|dialogue", re.IGNORECASE)
