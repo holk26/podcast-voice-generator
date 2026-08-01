@@ -585,7 +585,10 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
     desc = entry.description or ""
 
     # 1. Planificar secciones
-    n_sections = max(3, min(10, target_minutes))
+    # El LLM produce ~300-350 palabras por sección en diálogo bilingüe.
+    # A ~130 wpm en diálogo (pausas, traducciones), eso son ~2.5 min por sección.
+    # Para que target_minutes coincida: n_sections = target_minutes // 2.5
+    n_sections = max(3, min(8, round(target_minutes / 2.5)))
     outline_prompt = DIALOGUE_OUTLINE_PROMPT.format(
         title=entry.title,
         niche=niche,
@@ -690,12 +693,12 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
                 "NO cierres el episodio; continúa el hilo directamente."
             )
 
-        # ~180 palabras/minuto en diálogo bilingüe (pausas, traducciones);
-        # el modelo rinde mejor con objetivos ambiciosos por sección.
-        words_per_section = max(250, (target_minutes * 180) // total)
+        # ~130 wpm en diálogo bilingüe (pausas, traducciones, repeticiones).
+        # Cada sección rinde ~2.5 min de audio.
+        words_per_section = max(180, (target_minutes * 130) // total)
         min_words = int(words_per_section * 0.85)
-        # Sin techo explícito: pedimos "al menos" min_words y damos margen amplio
-        max_words = int(words_per_section * 2.0)
+        # Techo amplio para no frenar al LLM
+        max_words = int(words_per_section * 1.8)
 
         section_prompt = DIALOGUE_SECTION_PROMPT.format(
             section_number=i + 1,
@@ -753,7 +756,7 @@ def generate_dialogue_script(channel, entry, target_minutes: int = 10, on_progre
     cleaned = _clean_dialogue_lines(cleaned)
     # La limpieza puede quitar los prefijos si interpreta los dos puntos como markdown;
     # reforzamos el formato exacto esperado por el parser.
-    min_total_words = max(100, int(target_minutes * 150))
+    min_total_words = max(100, int(target_minutes * 100))
     return _ensure_valid_script(cleaned, min_words=min_total_words)
 
 
