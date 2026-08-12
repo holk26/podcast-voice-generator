@@ -519,6 +519,10 @@ class PipelineOrchestrator:
             attack = getattr(duck_cfg, "ducking_attack_ms", 20)
             release = getattr(duck_cfg, "ducking_release_ms", 250)
             ratio = getattr(duck_cfg, "ducking_ratio", 5)
+            # ducking_reduction_db influences the sidechain threshold:
+            # more reduction -> lower threshold -> deeper ducking.
+            reduction_db = getattr(duck_cfg, "ducking_reduction_db", 8.0)
+            threshold_db = -20.0 - (reduction_db / 2.0)
 
             cmd = [
                 "ffmpeg",
@@ -530,7 +534,7 @@ class PipelineOrchestrator:
                 "-filter_complex",
                 (
                     f"[0:a][1:a]sidechaincompress="
-                    f"threshold=-20dB:ratio={ratio}:attack={attack}:release={release}:"
+                    f"threshold={threshold_db}dB:ratio={ratio}:attack={attack}:release={release}:"
                     f"level_sc=1:mix=1[ducked];[1:a][ducked]amix=inputs=2:duration=first"
                 ),
                 "-ar",

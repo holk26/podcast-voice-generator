@@ -60,6 +60,7 @@ class TestPipelineOrchestrator:
         assert orch.config.background_music == "test_music"
         assert orch.config.podcast_mastering.ducking_attack_ms == 20
         assert orch.config.podcast_mastering.ducking_release_ms == 250
+        assert orch.config.podcast_mastering.ducking_reduction_db == 8.0
 
     def test_pipeline_result_repr(self):
         r = PipelineResult(success=True)
