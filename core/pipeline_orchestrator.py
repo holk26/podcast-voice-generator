@@ -424,12 +424,15 @@ class PipelineOrchestrator:
             enhance_per_line = False
             enhance_final = False
 
+        mastering_cfg = self.config.podcast_mastering or MasteringConfig()
         mixer = DramaMixer(
             voice_cast=self.voice_cast,
             sample_rate=24000,
             enhancer=enhancer,
             enhance_per_line=enhance_per_line,
-            enhance_final=enhance_final
+            enhance_final=enhance_final,
+            crossfade_ms=mastering_cfg.crossfade_ms,
+            trim_silence_threshold_db=mastering_cfg.trim_silence_threshold_db,
         )
         output_path = str(package.assets_path / "main_mix.mp3")
         mixer.mix_package(package, output_path)
