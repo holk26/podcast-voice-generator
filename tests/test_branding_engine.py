@@ -50,6 +50,34 @@ class TestBrandingEngine(unittest.TestCase):
         self.assertTrue(Path(result).exists())
         self.assertGreater(Path(result).stat().st_size, 1000)
 
+    def test_apply_to_package_with_target_lufs(self):
+        """Apply intro/outro and normalize segments to a target LUFS."""
+        from pydub import AudioSegment
+
+        pkg = MediaPackage(package_id="test_branding_002")
+        pkg.set_manifest(Manifest(title="Branded LUFS Test", episode_number=2))
+
+        main_path = Path(self.temp_dir) / "main_lufs.wav"
+        main = AudioSegment.silent(duration=3000, frame_rate=24000)
+        main.export(str(main_path), format="wav")
+
+        output_path = Path(self.temp_dir) / "branded_lufs.wav"
+        result = self.engine.apply_to_package(
+            pkg,
+            str(main_path),
+            str(output_path),
+            target_lufs=-16.0,
+        )
+
+        self.assertTrue(Path(result).exists())
+        self.assertGreater(Path(result).stat().st_size, 1000)
+
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_branding_engine_accepts_crossfade_ms():
+    engine = BrandingEngine()
+    assert hasattr(engine, "branding_crossfade_ms")
+    assert engine.branding_crossfade_ms == 300

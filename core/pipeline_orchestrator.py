@@ -443,18 +443,26 @@ class PipelineOrchestrator:
 
         from audio.branding_engine import BrandingEngine
 
+        mastering_cfg = self.config.podcast_mastering or MasteringConfig()
         branding = BrandingEngine(
             voice_cast=self.voice_cast,
-            sample_rate=24000
+            sample_rate=24000,
+            branding_crossfade_ms=mastering_cfg.branding_crossfade_ms,
         )
         final_path = str(package.assets_path / "final_with_branding.mp3")
+
+        target_lufs = None
+        if self.config.podcast_mastering and self.config.podcast_mastering.enabled:
+            target_lufs = self.config.podcast_mastering.target_lufs
+
         branding.apply_to_package(
             package=package,
             main_audio_path=main_audio_path,
             output_path=final_path,
             intro_music=self.config.intro_music,
             outro_music=self.config.outro_music,
-            host_voice_id=self.config.host_voice_id
+            host_voice_id=self.config.host_voice_id,
+            target_lufs=target_lufs,
         )
         branding.close()
         return final_path

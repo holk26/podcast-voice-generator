@@ -49,13 +49,15 @@ Hasta la próxima.
         templates_dir: str = "templates/branding",
         sfx_library_dir: str = "sfx_library",
         voice_cast: Optional[VoiceCastManager] = None,
-        sample_rate: int = 24000
+        sample_rate: int = 24000,
+        branding_crossfade_ms: int = 300,
     ):
         self.templates_dir = Path(templates_dir)
         self.templates_dir.mkdir(parents=True, exist_ok=True)
         self.sfx_library_dir = Path(sfx_library_dir)
         self.voice_cast = voice_cast or VoiceCastManager()
         self.sample_rate = sample_rate
+        self.branding_crossfade_ms = max(0, min(int(branding_crossfade_ms), 1000))
         self._mixer = DramaMixer(voice_cast=self.voice_cast, sample_rate=sample_rate)
 
         # Jinja2 environment
@@ -226,11 +228,16 @@ Hasta la próxima.
         output_path: str,
         intro_music: str = "intro_jingle",
         outro_music: str = "outro_theme",
-        host_voice_id: str = "homer"
+        host_voice_id: str = "homer",
+        target_lufs: Optional[float] = None,
     ) -> str:
         """
         Add intro and outro to an existing main audio file.
         Saves the final branded mix to output_path.
+
+        When target_lufs is provided, each segment (intro, main, outro) is
+        normalized to that target before concatenation, and crossfade is applied
+        between segments.
         """
         main = AudioSegment.from_file(main_audio_path)
         main = main.set_frame_rate(self.sample_rate).set_channels(1)
@@ -246,12 +253,37 @@ Hasta la próxima.
             host_voice_id=host_voice_id
         )
 
+        # Normalize intro/outro/main to target LUFS if provided
+        if target_lufs is not None:
+            import tempfile
+            from audio.podcast_mastering import normalize_loudness
+
+            with tempfile.TemporaryDirectory() as tmp:
+                for seg_name, seg in [("intro", intro), ("main", main), ("outro", outro)]:
+                    if seg is None:
+                        continue
+                    src = os.path.join(tmp, f"{seg_name}_src.wav")
+                    dst = os.path.join(tmp, f"{seg_name}_norm.wav")
+                    seg.export(src, format="wav")
+                    try:
+                        normalize_loudness(src, dst, target_lufs=target_lufs, true_peak_db=-1.0)
+                        normalized = AudioSegment.from_wav(dst)
+                        if seg_name == "intro":
+                            intro = normalized
+                        elif seg_name == "main":
+                            main = normalized
+                        else:
+                            outro = normalized
+                    except Exception as exc:
+                        print(f"[BrandingEngine] Loudness normalization failed for {seg_name}: {exc}")
+
+        cf = self.branding_crossfade_ms
         final = AudioSegment.silent(duration=0, frame_rate=self.sample_rate)
         if intro:
-            final = final + intro
-        final = final + main
+            final = final.append(intro, crossfade=0)
+        final = final.append(main, crossfade=cf if intro else 0)
         if outro:
-            final = final + outro
+            final = final.append(outro, crossfade=cf)
 
         # Normalize
         final = final.normalize(headroom=1.0)
