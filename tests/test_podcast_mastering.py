@@ -83,3 +83,68 @@ def test_process_voice_mix_outputs_valid_audio():
         seg = AudioSegment.from_wav(result)
         assert seg.frame_rate == 24000
         assert seg.channels == 1
+        assert len(seg) > 0
+        assert seg.dBFS != float("-inf")
+
+
+def test_process_voice_mix_eq_disabled_outputs_valid_audio():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src)
+        cfg = MasteringConfig(enabled=True, apply_eq=False)
+        result = process_voice_mix(src, dst, cfg)
+        assert result == dst
+        seg = AudioSegment.from_wav(result)
+        assert seg.frame_rate == 24000
+        assert seg.channels == 1
+        assert len(seg) > 0
+        assert seg.dBFS != float("-inf")
+
+
+def test_process_voice_mix_compressor_limiter_disabled_outputs_valid_audio():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src)
+        cfg = MasteringConfig(enabled=True, apply_compressor_limiter=False)
+        result = process_voice_mix(src, dst, cfg)
+        assert result == dst
+        seg = AudioSegment.from_wav(result)
+        assert seg.frame_rate == 24000
+        assert seg.channels == 1
+        assert len(seg) > 0
+        assert seg.dBFS != float("-inf")
+
+
+def test_process_voice_mix_noise_gate_disabled_outputs_valid_audio():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src)
+        cfg = MasteringConfig(enabled=True, apply_noise_gate=False)
+        result = process_voice_mix(src, dst, cfg)
+        assert result == dst
+        seg = AudioSegment.from_wav(result)
+        assert seg.frame_rate == 24000
+        assert seg.channels == 1
+        assert len(seg) > 0
+        assert seg.dBFS != float("-inf")
+
+
+def test_process_voice_mix_all_filters_disabled_copies_input():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src)
+        cfg = MasteringConfig(
+            enabled=True,
+            apply_eq=False,
+            apply_compressor_limiter=False,
+            apply_noise_gate=False,
+        )
+        result = process_voice_mix(src, dst, cfg)
+        assert result == dst
+        assert os.path.exists(dst)
+        with open(src, "rb") as fsrc, open(dst, "rb") as fdst:
+            assert fsrc.read() == fdst.read()

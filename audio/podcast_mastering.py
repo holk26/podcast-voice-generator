@@ -6,8 +6,6 @@ import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
-import numpy as np
-
 
 @dataclass
 class MasteringConfig:
@@ -59,6 +57,7 @@ def process_voice_mix(
     """
     Apply EQ, compression, limiting and noise gate to a voice mix.
     Uses ffmpeg. If config.enabled is False, copies input to output.
+    The output is forced to 24 kHz mono.
     """
     config = config or MasteringConfig()
     if not config.enabled:
@@ -107,5 +106,9 @@ def process_voice_mix(
         "1",
         output_path,
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as exc:
+        stderr_msg = exc.stderr.decode(errors="ignore") if exc.stderr else ""
+        raise RuntimeError(f"ffmpeg mastering failed: {stderr_msg}") from exc
     return output_path
