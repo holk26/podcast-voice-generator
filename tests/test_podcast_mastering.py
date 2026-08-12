@@ -9,6 +9,7 @@ from audio.podcast_mastering import (
     _db_to_linear,
     _ffmpeg_available,
     _linear_to_db,
+    normalize_loudness,
 )
 from pydub import AudioSegment
 
@@ -148,3 +149,14 @@ def test_process_voice_mix_all_filters_disabled_copies_input():
         assert os.path.exists(dst)
         with open(src, "rb") as fsrc, open(dst, "rb") as fdst:
             assert fsrc.read() == fdst.read()
+
+
+def test_normalize_loudness_changes_level():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src, duration_ms=2000, freq=440)
+        normalize_loudness(src, dst, target_lufs=-16.0, true_peak_db=-1.0)
+        assert os.path.exists(dst)
+        seg = AudioSegment.from_wav(dst)
+        assert seg.duration_seconds == pytest.approx(2.0, abs=0.1)

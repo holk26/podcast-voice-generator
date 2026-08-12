@@ -1,10 +1,14 @@
 """Configuration dataclass and conversion helpers for the podcast mastering chain."""
 
+import json
 import math
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
+
+import numpy as np
 
 
 @dataclass
@@ -111,4 +115,76 @@ def process_voice_mix(
     except subprocess.CalledProcessError as exc:
         stderr_msg = exc.stderr.decode(errors="ignore") if exc.stderr else ""
         raise RuntimeError(f"ffmpeg mastering failed: {stderr_msg}") from exc
+    return output_path
+
+
+def normalize_loudness(
+    input_path: str,
+    output_path: str,
+    target_lufs: float = -16.0,
+    true_peak_db: float = -1.0,
+) -> str:
+    """
+    Normalize audio to target LUFS using ffmpeg loudnorm two-pass.
+    Falls back to copying the input if ffmpeg analysis cannot be parsed.
+    """
+    if not _ffmpeg_available():
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    target_lufs = float(np.clip(target_lufs, -23.0, -14.0))
+
+    # First pass: analyze
+    analyze_cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-af",
+        f"loudnorm=I={target_lufs}:TP={true_peak_db}:LRA=11:print_format=json",
+        "-f",
+        "null",
+        "-",
+    ]
+    result = subprocess.run(
+        analyze_cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+
+    match = re.search(r"\{.*\}", result.stderr, re.DOTALL)
+    if not match:
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    stats = json.loads(match.group())
+
+    # Second pass: apply
+    apply_cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-af",
+        (
+            f"loudnorm=I={target_lufs}:TP={true_peak_db}:LRA=11"
+            f":measured_I={stats['input_i']}"
+            f":measured_TP={stats['input_tp']}"
+            f":measured_LRA={stats['input_lra']}"
+            f":measured_thresh={stats['input_thresh']}"
+            f":offset={stats['target_offset']}"
+            f":linear=true"
+        ),
+        "-ar",
+        "24000",
+        "-ac",
+        "1",
+        output_path,
+    ]
+    try:
+        subprocess.run(apply_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as exc:
+        stderr_msg = exc.stderr.decode(errors="ignore") if exc.stderr else ""
+        raise RuntimeError(f"ffmpeg loudnorm failed: {stderr_msg}") from exc
     return output_path
