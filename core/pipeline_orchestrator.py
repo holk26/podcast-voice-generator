@@ -513,55 +513,56 @@ class PipelineOrchestrator:
         music_path = audio_path + ".music.wav"
         output_path = audio_path + ".ducked.wav"
 
-        main.export(voice_path, format="wav")
-        music_seg.export(music_path, format="wav")
+        try:
+            main.export(voice_path, format="wav")
+            music_seg.export(music_path, format="wav")
 
-        if _ffmpeg_available():
-            duck_cfg = self.config.podcast_mastering
-            attack = getattr(duck_cfg, "ducking_attack_ms", 20)
-            release = getattr(duck_cfg, "ducking_release_ms", 250)
-            ratio = getattr(duck_cfg, "ducking_ratio", 5)
-            # ducking_reduction_db influences the sidechain threshold:
-            # more reduction -> lower threshold -> deeper ducking.
-            reduction_db = getattr(duck_cfg, "ducking_reduction_db", 8.0)
-            threshold_db = -20.0 - (reduction_db / 2.0)
+            if _ffmpeg_available():
+                duck_cfg = self.config.podcast_mastering
+                attack = getattr(duck_cfg, "ducking_attack_ms", 20)
+                release = getattr(duck_cfg, "ducking_release_ms", 250)
+                ratio = getattr(duck_cfg, "ducking_ratio", 5)
+                # ducking_reduction_db influences the sidechain threshold:
+                # more reduction -> lower threshold -> deeper ducking.
+                reduction_db = getattr(duck_cfg, "ducking_reduction_db", 8.0)
+                threshold_db = -20.0 - (reduction_db / 2.0)
 
-            cmd = [
-                "ffmpeg",
-                "-y",
-                "-i",
-                music_path,
-                "-i",
-                voice_path,
-                "-filter_complex",
-                (
-                    f"[0:a][1:a]sidechaincompress="
-                    f"threshold={threshold_db}dB:ratio={ratio}:attack={attack}:release={release}:"
-                    f"level_sc=1:mix=1[ducked];[1:a][ducked]amix=inputs=2:duration=first"
-                ),
-                "-ar",
-                str(sr),
-                "-ac",
-                str(ch),
-                output_path,
-            ]
-            try:
-                subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                mixed = AudioSegment.from_file(output_path)
-            except Exception as exc:
-                print(f"[PipelineOrchestrator] Sidechain ducking failed: {exc}, falling back to RMS ducking")
+                cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    music_path,
+                    "-i",
+                    voice_path,
+                    "-filter_complex",
+                    (
+                        f"[0:a][1:a]sidechaincompress="
+                        f"threshold={threshold_db}dB:ratio={ratio}:attack={attack}:release={release}:"
+                        f"level_sc=1:mix=1[ducked];[1:a][ducked]amix=inputs=2:duration=first"
+                    ),
+                    "-ar",
+                    str(sr),
+                    "-ac",
+                    str(ch),
+                    output_path,
+                ]
+                try:
+                    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    mixed = AudioSegment.from_file(output_path)
+                except Exception as exc:
+                    print(f"[PipelineOrchestrator] Sidechain ducking failed: {exc}, falling back to RMS ducking")
+                    mixed = self._rms_ducking_mix(main, music_seg)
+            else:
                 mixed = self._rms_ducking_mix(main, music_seg)
-        else:
-            mixed = self._rms_ducking_mix(main, music_seg)
 
-        ext = Path(audio_path).suffix.lower().lstrip(".")
-        fmt = "mp3" if ext == "mp3" else ("flac" if ext == "flac" else "wav")
-        mixed.export(audio_path, format=fmt)
-
-        # Cleanup temp files
-        for p in (voice_path, music_path, output_path):
-            if os.path.exists(p):
-                os.remove(p)
+            ext = Path(audio_path).suffix.lower().lstrip(".")
+            fmt = "mp3" if ext == "mp3" else ("flac" if ext == "flac" else "wav")
+            mixed.export(audio_path, format=fmt)
+        finally:
+            # Cleanup temp files
+            for p in (voice_path, music_path, output_path):
+                if os.path.exists(p):
+                    os.remove(p)
 
     def _rms_ducking_mix(self, main: AudioSegment, music_seg: AudioSegment) -> AudioSegment:
         """Fallback numpy-based ducking with improved envelope.
