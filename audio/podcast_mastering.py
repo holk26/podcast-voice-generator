@@ -126,13 +126,26 @@ def normalize_loudness(
 ) -> str:
     """
     Normalize audio to target LUFS using ffmpeg loudnorm two-pass.
-    Falls back to copying the input if ffmpeg analysis cannot be parsed.
-    """
-    if not _ffmpeg_available():
-        shutil.copy2(input_path, output_path)
-        return output_path
 
-    target_lufs = float(np.clip(target_lufs, -23.0, -14.0))
+    Raises:
+        ValueError: If input/output paths are equal or parameters are out of range.
+        RuntimeError: If ffmpeg is unavailable, analysis fails, or loudnorm stats cannot be parsed.
+    """
+    if input_path == output_path:
+        raise ValueError("input_path and output_path must be different")
+
+    if not -23.0 <= target_lufs <= -14.0:
+        raise ValueError(
+            f"target_lufs must be between -23.0 and -14.0, got {target_lufs}"
+        )
+
+    if not -9.0 <= true_peak_db <= 0.0:
+        raise ValueError(
+            f"true_peak_db must be between -9.0 and 0.0, got {true_peak_db}"
+        )
+
+    if not _ffmpeg_available():
+        raise RuntimeError("ffmpeg is required for loudness normalization")
 
     # First pass: analyze
     analyze_cmd = [
@@ -146,19 +159,41 @@ def normalize_loudness(
         "null",
         "-",
     ]
-    result = subprocess.run(
-        analyze_cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
+    try:
+        result = subprocess.run(
+            analyze_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        stderr_msg = exc.stderr if exc.stderr else ""
+        raise RuntimeError(f"ffmpeg loudnorm analysis failed: {stderr_msg}") from exc
+
+    match = re.search(
+        r"\[Parsed_loudnorm_\d+ @ [^\]]+\]\s*(\{.*?\})",
+        result.stderr,
+        re.DOTALL,
     )
-
-    match = re.search(r"\{.*\}", result.stderr, re.DOTALL)
     if not match:
-        shutil.copy2(input_path, output_path)
-        return output_path
+        raise RuntimeError("could not parse loudnorm analysis output")
 
-    stats = json.loads(match.group())
+    try:
+        stats = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"loudnorm analysis output is not valid JSON: {exc}") from exc
+
+    required_keys = [
+        "input_i",
+        "input_tp",
+        "input_lra",
+        "input_thresh",
+        "target_offset",
+    ]
+    missing_keys = [key for key in required_keys if key not in stats]
+    if missing_keys:
+        raise RuntimeError(f"loudnorm analysis missing keys: {missing_keys}")
 
     # Second pass: apply
     apply_cmd = [

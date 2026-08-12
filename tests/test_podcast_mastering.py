@@ -156,7 +156,12 @@ def test_normalize_loudness_changes_level():
         src = os.path.join(tmp, "input.wav")
         dst = os.path.join(tmp, "output.wav")
         _make_test_wav(src, duration_ms=2000, freq=440)
+        input_seg = AudioSegment.from_wav(src)
+        input_dbfs = input_seg.dBFS
         normalize_loudness(src, dst, target_lufs=-16.0, true_peak_db=-1.0)
         assert os.path.exists(dst)
         seg = AudioSegment.from_wav(dst)
         assert seg.duration_seconds == pytest.approx(2.0, abs=0.1)
+        assert seg.dBFS != float("-inf")
+        # Loudness should move closer to the target than the original level.
+        assert abs(seg.dBFS - (-16.0)) < abs(input_dbfs - (-16.0))
