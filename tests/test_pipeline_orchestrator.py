@@ -352,3 +352,44 @@ class TestPipelineOrchestrator:
             mock_finalize.assert_called_once()
             assert mock_master.call_args_list[0][0][1] == fake_rendered
             assert call_order == ["master", "finalize"]
+
+    def test_pipeline_mastering_end_to_end_smoke(self, temp_output):
+        from unittest.mock import patch
+        import os
+        from pathlib import Path
+        from core.pipeline_orchestrator import EpisodeConfig, PipelineOrchestrator
+        from core.media_package import MediaPackage, Manifest, ScriptLine
+        from audio.podcast_mastering import MasteringConfig
+
+        output_dir = str(Path(temp_output) / "packages")
+        cfg = EpisodeConfig(
+            episode_type="raw",
+            sources=[{"content": "Hola mundo. Esto es una prueba.", "title": "Test"}],
+            output_dir=output_dir,
+            branding_enabled=False,
+            podcast_mastering=MasteringConfig(enabled=True),
+        )
+        orch = PipelineOrchestrator(cfg)
+
+        package = MediaPackage(package_id="test_e2e")
+        package.script = [
+            ScriptLine(character="Narrador", text="Hola mundo.", voice_id="homer"),
+            ScriptLine(character="Narrador", text="Esto es una prueba.", voice_id="homer"),
+        ]
+        package.manifest = Manifest(title="Test E2E")
+        package._base_path = Path(output_dir) / "test_e2e"
+        package._base_path.mkdir(parents=True, exist_ok=True)
+        (package._base_path / "assets").mkdir(exist_ok=True)
+
+        def _fake_render(pkg):
+            main_path = str(pkg.assets_path / "main_mix.mp3")
+            AudioSegment.silent(duration=1000, frame_rate=24000).export(main_path, format="mp3")
+            return main_path
+
+        with patch.object(orch, "_acquire_content", return_value=("content", {"title": "Test"})):
+            with patch.object(orch, "_process_content", return_value=package):
+                with patch.object(orch, "_render_audio", side_effect=_fake_render):
+                    result = orch.run()
+                    assert result.success
+                    assert result.final_audio_path is not None
+                    assert os.path.exists(result.final_audio_path)

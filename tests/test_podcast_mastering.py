@@ -1,4 +1,6 @@
 import os
+import re
+import subprocess
 import tempfile
 
 import numpy as np
@@ -12,6 +14,24 @@ from audio.podcast_mastering import (
     normalize_loudness,
 )
 from pydub import AudioSegment
+
+
+def _measure_lufs(path: str) -> float:
+    cmd = [
+        "ffmpeg",
+        "-i",
+        path,
+        "-af",
+        "loudnorm=I=-16:TP=-1:LRA=11:print_format=json",
+        "-f",
+        "null",
+        "-",
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    match = re.search(r'"input_i"\s*:\s*"?([-\d.]+)"?', result.stderr)
+    if match:
+        return float(match.group(1))
+    raise RuntimeError("Could not measure LUFS")
 
 
 def test_db_to_linear():
@@ -165,3 +185,13 @@ def test_normalize_loudness_changes_level():
         assert seg.dBFS != float("-inf")
         # Loudness should move closer to the target than the original level.
         assert abs(seg.dBFS - (-16.0)) < abs(input_dbfs - (-16.0))
+
+
+def test_normalize_loudness_hits_target():
+    with tempfile.TemporaryDirectory() as tmp:
+        src = os.path.join(tmp, "input.wav")
+        dst = os.path.join(tmp, "output.wav")
+        _make_test_wav(src, duration_ms=3000, freq=440)
+        normalize_loudness(src, dst, target_lufs=-16.0, true_peak_db=-1.0)
+        measured = _measure_lufs(dst)
+        assert measured == pytest.approx(-16.0, abs=1.5)
