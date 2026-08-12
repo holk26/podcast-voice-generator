@@ -281,9 +281,14 @@ Hasta la próxima.
         final = AudioSegment.silent(duration=0, frame_rate=self.sample_rate)
         if intro:
             final = final.append(intro, crossfade=0)
-        final = final.append(main, crossfade=cf if intro else 0)
+        if intro:
+            cf_main = min(cf, len(final), len(main))
+        else:
+            cf_main = 0
+        final = final.append(main, crossfade=cf_main)
         if outro:
-            final = final.append(outro, crossfade=cf)
+            cf_outro = min(cf, len(final), len(outro))
+            final = final.append(outro, crossfade=cf_outro)
 
         # Normalize
         final = final.normalize(headroom=1.0)

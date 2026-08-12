@@ -72,12 +72,20 @@ class TestBrandingEngine(unittest.TestCase):
         self.assertTrue(Path(result).exists())
         self.assertGreater(Path(result).stat().st_size, 1000)
 
+    def test_branding_engine_crossfade_ms_clamping(self):
+        """BrandingEngine clamps branding_crossfade_ms and accepts custom values."""
+        engine = BrandingEngine()
+        self.assertEqual(engine.branding_crossfade_ms, 300)
+
+        engine_custom = BrandingEngine(branding_crossfade_ms=500)
+        self.assertEqual(engine_custom.branding_crossfade_ms, 500)
+
+        engine_negative = BrandingEngine(branding_crossfade_ms=-100)
+        self.assertEqual(engine_negative.branding_crossfade_ms, 0)
+
+        engine_large = BrandingEngine(branding_crossfade_ms=2000)
+        self.assertEqual(engine_large.branding_crossfade_ms, 1000)
+
 
 if __name__ == "__main__":
     unittest.main()
-
-
-def test_branding_engine_accepts_crossfade_ms():
-    engine = BrandingEngine()
-    assert hasattr(engine, "branding_crossfade_ms")
-    assert engine.branding_crossfade_ms == 300

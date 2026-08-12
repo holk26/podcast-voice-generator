@@ -431,7 +431,7 @@ class PipelineOrchestrator:
         return output_path
 
     # ------------------------------------------------------------------
-    # Step 4: Branding
+    # Step 7: Branding
     # ------------------------------------------------------------------
 
     def _apply_branding(self, package: MediaPackage, main_audio_path: str) -> str:
@@ -468,7 +468,7 @@ class PipelineOrchestrator:
         return final_path
 
     # ------------------------------------------------------------------
-    # Step 4b: Background music
+    # Step 6: Background music
     # ------------------------------------------------------------------
 
     def _apply_background_music(self, audio_path: str) -> None:
