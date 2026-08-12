@@ -15,6 +15,7 @@ from typing import List, Optional, Dict
 from pathlib import Path
 
 from pydub import AudioSegment
+from pydub.silence import detect_nonsilent
 
 from core.media_package import MediaPackage, ScriptLine
 from cast.voice_cast_manager import VoiceCastManager
@@ -38,7 +39,9 @@ class DramaMixer:
         default_engine_device: str = "auto",
         enhancer=None,
         enhance_per_line: bool = True,
-        enhance_final: bool = True
+        enhance_final: bool = True,
+        crossfade_ms: int = 80,
+        trim_silence_threshold_db: float = -50.0,
     ):
         self.voice_cast = voice_cast or VoiceCastManager()
         self.sample_rate = sample_rate
@@ -49,7 +52,32 @@ class DramaMixer:
         self.enhancer = enhancer
         self.enhance_per_line = enhance_per_line
         self.enhance_final = enhance_final
+        self.crossfade_ms = max(0, min(int(crossfade_ms), 500))
+        self.trim_silence_threshold_db = trim_silence_threshold_db
         self._engine_cache: Dict[str, TTSBase] = {}
+
+    def _trim_segment(self, segment: AudioSegment) -> AudioSegment:
+        """Trim leading/trailing silence while keeping a small padding."""
+        ranges = detect_nonsilent(
+            segment,
+            min_silence_len=100,
+            silence_thresh=self.trim_silence_threshold_db,
+        )
+        if not ranges:
+            return segment
+        start = max(0, ranges[0][0] - 50)
+        end = min(len(segment), ranges[-1][1] + 50)
+        return segment[start:end]
+
+    def _crossfade_segments(self, segments: List[AudioSegment]) -> AudioSegment:
+        """Concatenate segments with crossfade."""
+        if not segments:
+            raise ValueError("No segments to concatenate.")
+        final = segments[0]
+        for segment in segments[1:]:
+            cf = min(self.crossfade_ms, len(final) // 2, len(segment) // 2)
+            final = final.append(segment, crossfade=cf)
+        return final
 
     def _get_engine(self, engine_name: str) -> TTSBase:
         """Get or instantiate a TTS engine by name."""
@@ -109,6 +137,9 @@ class DramaMixer:
         # Ensure correct sample rate and mono
         segment = segment.set_frame_rate(self.sample_rate).set_channels(1)
 
+        # Trim leading/trailing silence
+        segment = self._trim_segment(segment)
+
         # Add silence before and after
         if line.pause_before_ms > 0:
             pre_silence = AudioSegment.silent(duration=line.pause_before_ms, frame_rate=self.sample_rate)
@@ -151,10 +182,8 @@ class DramaMixer:
                 # Will delete after mixing
                 pass
 
-        # Concatenate all segments
-        final = segments[0]
-        for segment in segments[1:]:
-            final = final + segment
+        # Concatenate all segments with crossfade
+        final = self._crossfade_segments(segments)
 
         # Apply fade in/out
         final = final.fade_in(self.fade_in_ms).fade_out(self.fade_out_ms)

@@ -60,5 +60,11 @@ class TestDramaMixer(unittest.TestCase):
         self.assertTrue(os.path.exists(result))
 
 
+def test_drama_mixer_accepts_crossfade_config():
+    mixer = DramaMixer(crossfade_ms=80, trim_silence_threshold_db=-50)
+    assert mixer.crossfade_ms == 80
+    assert mixer.trim_silence_threshold_db == -50
+
+
 if __name__ == "__main__":
     unittest.main()
