@@ -111,6 +111,10 @@ class PipelineOrchestrator:
             main_audio_path = self._render_audio(package)
             self._log("render", True, path=main_audio_path)
 
+            # 4a. Apply voice mastering (EQ, compression, gate)
+            main_audio_path = self._master_voice_mix(package, main_audio_path)
+            self._log("voice_mastering", True, path=main_audio_path)
+
             # 4b. Apply background music (continuous bed under voice)
             if self.config.background_music:
                 self._apply_background_music(main_audio_path)
@@ -119,6 +123,10 @@ class PipelineOrchestrator:
             # 5. Apply branding (intro/outro)
             final_audio_path = self._apply_branding(package, main_audio_path)
             self._log("brand", True, path=final_audio_path)
+
+            # 5a. Final loudness normalization
+            final_audio_path = self._finalize_loudness(final_audio_path)
+            self._log("loudness", True, path=final_audio_path)
 
             # 6. Update manifest with duration
             self._update_manifest(package, final_audio_path)
@@ -546,6 +554,45 @@ class PipelineOrchestrator:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _master_voice_mix(self, package: MediaPackage, audio_path: str) -> str:
+        """Apply voice processing (EQ, compression, gate) to the rendered voice mix."""
+        config = self.config.podcast_mastering
+        if not config or not config.enabled:
+            return audio_path
+
+        from audio.podcast_mastering import process_voice_mix
+
+        ext = Path(audio_path).suffix.lower()
+        processed_path = str(Path(audio_path).with_suffix(".mastered_voice" + ext))
+        try:
+            process_voice_mix(audio_path, processed_path, config)
+            return processed_path
+        except Exception as exc:
+            self._log("voice_mastering", False, error=str(exc))
+            return audio_path
+
+    def _finalize_loudness(self, audio_path: str) -> str:
+        """Apply final LUFS normalization to the complete episode."""
+        config = self.config.podcast_mastering
+        if not config or not config.enabled:
+            return audio_path
+
+        from audio.podcast_mastering import normalize_loudness
+
+        ext = Path(audio_path).suffix.lower()
+        final_path = str(Path(audio_path).with_suffix(".final" + ext))
+        try:
+            normalize_loudness(
+                audio_path,
+                final_path,
+                target_lufs=config.target_lufs,
+                true_peak_db=config.true_peak_db,
+            )
+            return final_path
+        except Exception as exc:
+            self._log("loudness", False, error=str(exc))
+            return audio_path
 
     def _update_manifest(self, package: MediaPackage, final_audio_path: str) -> None:
         """Update manifest with file metadata."""
