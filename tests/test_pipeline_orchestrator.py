@@ -248,10 +248,15 @@ class TestPipelineOrchestrator:
         assert result.success is False
         assert any(log["step"] == "pipeline" for log in result.logs)
 
-    def test_pipeline_applies_voice_processing_after_render(self):
+    # ------------------------------------------------------------------
+    # Voice mastering / loudness
+    # ------------------------------------------------------------------
+
+    def test_pipeline_applies_voice_processing_after_render(self, temp_output):
         cfg = EpisodeConfig(
             episode_type="raw",
             sources=[{"content": "Hola mundo", "title": "Test"}],
+            output_dir=str(temp_output),
             podcast_mastering=MasteringConfig(enabled=True),
             branding_enabled=False,
         )
@@ -262,15 +267,45 @@ class TestPipelineOrchestrator:
             ScriptLine(character="Narrador", text="Hola mundo.", voice_id="homer")
         ]
         package.manifest = Manifest(title="Test")
-        package._base_path = Path("/tmp/test_mastering")  # type: ignore
+        package._base_path = Path(temp_output) / "test_mastering"
+        package._base_path.mkdir(parents=True, exist_ok=True)
+        (package._base_path / "assets").mkdir(exist_ok=True)
 
-        with patch.object(orch, "_acquire_content", return_value=("Hola mundo.", {"title": "Test"})):
-            with patch.object(orch, "_process_content", return_value=package):
-                with patch.object(orch, "_master_voice_mix", side_effect=lambda pkg, path: (path, True)) as mock_master:
-                    with patch.object(orch, "_finalize_loudness", side_effect=lambda path: (path, True)) as mock_finalize:
-                        with patch.object(orch, "_update_manifest"):
-                            package.save = MagicMock()
-                            result = orch.run()
-                            assert result.success is True
-                            mock_master.assert_called_once()
-                            mock_finalize.assert_called_once()
+        fake_rendered = str(package._base_path / "assets" / "main_mix.mp3")
+
+        call_order = []
+
+        def master_side_effect(pkg, path):
+            call_order.append("master")
+            return fake_rendered, True
+
+        def finalize_side_effect(path):
+            call_order.append("finalize")
+            return fake_rendered, True
+
+        with (
+            patch.object(orch, "_acquire_content", return_value=("Hola mundo.", {"title": "Test"})),
+            patch.object(orch, "_process_content", return_value=package),
+            patch.object(orch, "_master_voice_mix", side_effect=master_side_effect) as mock_master,
+            patch.object(orch, "_finalize_loudness", side_effect=finalize_side_effect) as mock_finalize,
+            patch.object(orch, "_update_manifest"),
+            patch("audio.drama_mixer.DramaMixer") as MockMixer,
+        ):
+            instance = MockMixer.return_value
+            instance.close = MagicMock()
+
+            def mix_side_effect(pkg, path):
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                Path(path).write_text("fake audio")
+                return path
+
+            instance.mix_package.side_effect = mix_side_effect
+
+            package.save = MagicMock()
+            result = orch.run()
+
+            assert result.success is True
+            mock_master.assert_called_once()
+            mock_finalize.assert_called_once()
+            assert mock_master.call_args_list[0][0][1] == fake_rendered
+            assert call_order == ["master", "finalize"]

@@ -78,7 +78,7 @@ class PipelineResult:
 
 class PipelineOrchestrator:
     """
-    End-to-end pipeline: config → content → agents → audio → branding → package.
+    End-to-end pipeline: config → content → agents → audio → voice mastering → background music → branding → loudness normalization → package.
     """
 
     def __init__(
@@ -142,7 +142,7 @@ class PipelineOrchestrator:
                 error=None if loudness_ok else "Loudness normalization failed; using unnormalized audio",
             )
 
-            # 6. Update manifest with duration
+            # 9. Update manifest with duration
             self._update_manifest(package, final_audio_path)
             package.save(self.config.output_dir)
 
