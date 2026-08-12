@@ -91,8 +91,9 @@ Hasta la próxima.
 
     def _synthesize_text(self, text: str, voice_id: str) -> Optional[AudioSegment]:
         """Synthesize a piece of text and return as AudioSegment."""
-        from tempfile import mkdtemp
-        temp_dir = mkdtemp()
+        import tempfile
+        import shutil
+        temp_dir = tempfile.mkdtemp()
         output_path = os.path.join(temp_dir, "branding_line.wav")
 
         line = ScriptLine(character=voice_id, text=text.strip(), voice_id=voice_id)
@@ -102,6 +103,8 @@ Hasta la próxima.
         except Exception as e:
             print(f"[BrandingEngine] Failed to synthesize branding line: {e}")
             return None
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
     def generate_intro(
         self,
@@ -281,7 +284,6 @@ Hasta la próxima.
         final = AudioSegment.silent(duration=0, frame_rate=self.sample_rate)
         if intro:
             final = final.append(intro, crossfade=0)
-        if intro:
             cf_main = min(cf, len(final), len(main))
         else:
             cf_main = 0
