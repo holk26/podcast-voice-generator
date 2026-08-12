@@ -1,8 +1,12 @@
 """Configuration dataclass and conversion helpers for the podcast mastering chain."""
 
 import math
+import shutil
 import subprocess
 from dataclasses import dataclass
+from typing import Optional
+
+import numpy as np
 
 
 @dataclass
@@ -45,3 +49,63 @@ def _ffmpeg_available() -> bool:
         return True
     except (FileNotFoundError, subprocess.CalledProcessError, PermissionError):
         return False
+
+
+def process_voice_mix(
+    input_path: str,
+    output_path: str,
+    config: Optional[MasteringConfig] = None,
+) -> str:
+    """
+    Apply EQ, compression, limiting and noise gate to a voice mix.
+    Uses ffmpeg. If config.enabled is False, copies input to output.
+    """
+    config = config or MasteringConfig()
+    if not config.enabled:
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    if not _ffmpeg_available():
+        raise RuntimeError("ffmpeg is required for podcast mastering")
+
+    filters = []
+    if config.apply_eq:
+        filters.append(f"highpass=f={config.eq_highpass_hz}")
+        filters.append(
+            f"equalizer=f={config.eq_presence_hz}:t=q:w=1:g={config.eq_presence_gain_db}"
+        )
+    if config.apply_compressor_limiter:
+        filters.append(
+            f"acompressor=threshold={config.compressor_threshold_db}dB"
+            f":ratio={config.compressor_ratio}"
+            f":attack={config.compressor_attack_ms}"
+            f":release={config.compressor_release_ms}"
+        )
+        filters.append(
+            f"alimiter=limit={config.true_peak_db}dB:attack=5:release=50"
+        )
+    if config.apply_noise_gate:
+        filters.append(
+            f"agate=threshold={config.gate_threshold_db}dB:attack=10:release=250"
+        )
+
+    if not filters:
+        shutil.copy2(input_path, output_path)
+        return output_path
+
+    filter_str = ",".join(filters)
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        input_path,
+        "-af",
+        filter_str,
+        "-ar",
+        "24000",
+        "-ac",
+        "1",
+        output_path,
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return output_path
