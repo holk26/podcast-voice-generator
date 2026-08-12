@@ -29,7 +29,7 @@ def parse_dialogue(script: str) -> List[DialogueSegment]:
         if m:
             if current_speaker and current_lines:
                 segments.append(DialogueSegment(current_speaker, " ".join(current_lines)))
-            current_speaker = m.group(1).strip().capitalize()
+            current_speaker = m.group(1).strip().title()
             current_lines = [m.group(2).strip()]
         elif current_speaker:
             current_lines.append(line)
@@ -47,7 +47,7 @@ class DialogueParser:
         """Parse BBCode-style [speaker]text[/speaker] tags."""
         lines: List[ScriptLine] = []
         for match in TAG_RE.finditer(text):
-            character = match.group(1).strip().capitalize()
+            character = match.group(1).strip().title()
             content = match.group(2).strip()
             if not content:
                 continue

@@ -56,7 +56,7 @@ class EpisodeConfig:
     audio_enhancer: str = "none"  # "none", "voicefixer", "voicefixer_line", "voicefixer_final", "voicefixer_both"
     audio_enhancer_mode: int = 0  # VoiceFixer mode: 0=original, 1=preprocess, 2=train
     # Podcast mastering
-    podcast_mastering: Optional[MasteringConfig] = field(default_factory=MasteringConfig)
+    podcast_mastering: MasteringConfig = field(default_factory=MasteringConfig)
     # Extra passthrough for processors
     processor_options: Dict[str, Any] = field(default_factory=dict)
 
