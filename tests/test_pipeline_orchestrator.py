@@ -49,6 +49,18 @@ class TestPipelineOrchestrator:
         assert cfg.podcast_mastering.enabled is True
         assert cfg.podcast_mastering.target_lufs == -16.0
 
+    def test_background_music_ducking_uses_sidechain_config(self):
+        cfg = EpisodeConfig(
+            episode_type="raw",
+            sources=[{"content": "Hola", "title": "Test"}],
+            background_music="test_music",
+            podcast_mastering=MasteringConfig(enabled=True),
+        )
+        orch = PipelineOrchestrator(cfg)
+        assert orch.config.background_music == "test_music"
+        assert orch.config.podcast_mastering.ducking_attack_ms == 20
+        assert orch.config.podcast_mastering.ducking_release_ms == 250
+
     def test_pipeline_result_repr(self):
         r = PipelineResult(success=True)
         assert r.success is True

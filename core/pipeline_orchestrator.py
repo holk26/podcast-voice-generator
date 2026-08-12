@@ -27,10 +27,13 @@ Usage:
 
 import os
 import shutil
+import subprocess  # NEW
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+from pydub import AudioSegment
 
 from audio.podcast_mastering import MasteringConfig
 from core.media_package import MediaPackage, Manifest
@@ -460,8 +463,7 @@ class PipelineOrchestrator:
     # ------------------------------------------------------------------
 
     def _apply_background_music(self, audio_path: str) -> None:
-        """Mix continuous background music under the voice track with ducking."""
-        import numpy as np
+        """Mix continuous background music under the voice track with sidechain ducking."""
         from pydub import AudioSegment
 
         music_base = Path("sfx_library") / "music"
@@ -485,9 +487,10 @@ class PipelineOrchestrator:
         music_seg = music_seg.set_frame_rate(sr).set_channels(ch)
 
         # Loop music to cover voice
-        while len(music_seg) < len(main):
-            music_seg = music_seg + music_seg
-        music_seg = music_seg[:len(main)]
+        loops = [music_seg]
+        while sum(len(m) for m in loops) < len(main):
+            loops.append(music_seg)
+        music_seg = sum(loops[1:], loops[0])[: len(main)]
 
         # Fade in/out
         fade_in_ms = min(3000, int(len(main) * 0.1))
@@ -497,9 +500,71 @@ class PipelineOrchestrator:
         if fade_out_ms > 0:
             music_seg = music_seg.fade_out(fade_out_ms)
 
-        vol_db = self.config.bg_music_volume
+        # Apply base volume
+        music_seg = music_seg + self.config.bg_music_volume
 
-        # numpy conversion
+        # Use ffmpeg sidechaincompress for smooth ducking
+        import tempfile
+        from audio.podcast_mastering import _ffmpeg_available
+
+        voice_path = audio_path + ".voice.wav"
+        music_path = audio_path + ".music.wav"
+        output_path = audio_path + ".ducked.wav"
+
+        main.export(voice_path, format="wav")
+        music_seg.export(music_path, format="wav")
+
+        if _ffmpeg_available():
+            duck_cfg = self.config.podcast_mastering
+            attack = getattr(duck_cfg, "ducking_attack_ms", 20)
+            release = getattr(duck_cfg, "ducking_release_ms", 250)
+            ratio = getattr(duck_cfg, "ducking_ratio", 5)
+
+            cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                music_path,
+                "-i",
+                voice_path,
+                "-filter_complex",
+                (
+                    f"[0:a][1:a]sidechaincompress="
+                    f"threshold=-20dB:ratio={ratio}:attack={attack}:release={release}:"
+                    f"level_sc=1:mix=1[ducked];[1:a][ducked]amix=inputs=2:duration=first"
+                ),
+                "-ar",
+                str(sr),
+                "-ac",
+                str(ch),
+                output_path,
+            ]
+            try:
+                subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                mixed = AudioSegment.from_file(output_path)
+            except Exception as exc:
+                print(f"[PipelineOrchestrator] Sidechain ducking failed: {exc}, falling back to RMS ducking")
+                mixed = self._rms_ducking_mix(main, music_seg)
+        else:
+            mixed = self._rms_ducking_mix(main, music_seg)
+
+        ext = Path(audio_path).suffix.lower().lstrip(".")
+        fmt = "mp3" if ext == "mp3" else ("flac" if ext == "flac" else "wav")
+        mixed.export(audio_path, format=fmt)
+
+        # Cleanup temp files
+        for p in (voice_path, music_path, output_path):
+            if os.path.exists(p):
+                os.remove(p)
+
+    def _rms_ducking_mix(self, main: AudioSegment, music_seg: AudioSegment) -> AudioSegment:
+        """Fallback numpy-based ducking with improved envelope."""
+        import numpy as np
+
+        sr = main.frame_rate
+        sw = main.sample_width
+        ch = main.channels
+
         dtype_map = {1: np.int8, 2: np.int16, 4: np.int32}
         np_dtype = dtype_map.get(sw, np.int16)
         max_val = float(2 ** (8 * sw - 1))
@@ -515,14 +580,12 @@ class PipelineOrchestrator:
             main_mono = main_arr
 
         n = len(main_mono)
-
-        win = max(1, int(0.2 * sr))
-        hop = max(1, int(0.05 * sr))
+        win = max(1, int(0.05 * sr))  # 50 ms windows
+        hop = max(1, int(0.025 * sr))  # 25 ms hop
         n_win = max(1, (n - win) // hop + 1)
 
         if n_win < 3:
-            gain = 10 ** (vol_db / 20)
-            music_arr *= gain
+            mixed = main_arr + music_arr
         else:
             rms = np.empty(n_win, dtype=np.float32)
             for w in range(n_win):
@@ -530,14 +593,14 @@ class PipelineOrchestrator:
                 e = min(s + win, n)
                 rms[w] = np.sqrt(np.mean(main_mono[s:e] ** 2))
 
-            kernel = max(1, n_win // 15)
+            kernel = max(1, n_win // 20)
             rms = np.convolve(rms, np.ones(kernel) / kernel, mode="same")
 
             max_rms = float(np.max(rms)) if np.max(rms) > 0 else 1.0
             level = np.clip(rms / max_rms, 0.0, 1.0)
 
-            silence_gain = 10 ** ((vol_db + 3) / 20)
-            ducked_gain = 10 ** ((vol_db - 4) / 20)
+            silence_gain = 10 ** ((self.config.bg_music_volume + 3) / 20)
+            ducked_gain = 10 ** ((self.config.bg_music_volume - 8) / 20)
             gain_curve = silence_gain + (ducked_gain - silence_gain) * level
 
             positions = np.arange(n_win) * hop + win // 2
@@ -554,16 +617,12 @@ class PipelineOrchestrator:
         mixed = np.clip(mixed, -1.0, 1.0)
 
         mixed_int = (mixed * max_val).clip(-max_val, max_val - 1).astype(np_dtype)
-        mixed_seg = AudioSegment(
+        return AudioSegment(
             mixed_int.tobytes(),
             frame_rate=sr,
             sample_width=sw,
             channels=ch,
         )
-
-        ext = Path(audio_path).suffix.lower().lstrip(".")
-        fmt = "mp3" if ext == "mp3" else ("flac" if ext == "flac" else "wav")
-        mixed_seg.export(audio_path, format=fmt)
 
     # ------------------------------------------------------------------
     # Helpers

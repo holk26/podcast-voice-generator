@@ -30,6 +30,10 @@ class MasteringConfig:
     compressor_attack_ms: float = 5.0
     compressor_release_ms: float = 50.0
     gate_threshold_db: float = -45.0
+    ducking_attack_ms: int = 20
+    ducking_release_ms: int = 250
+    ducking_reduction_db: float = 8.0
+    ducking_ratio: float = 5.0
 
 
 def _db_to_linear(db: float) -> float:
