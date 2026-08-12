@@ -4,9 +4,13 @@ Pipeline Orchestrator — unifies the entire Media Automation Platform workflow.
 A single EpisodeConfig drives the full pipeline:
   1. Content acquisition (RSS, Gutenberg, or template generation)
   2. Content processing (NewsProcessor, BookProcessor, or direct agent pipeline)
-  3. Audio rendering (DramaMixer)
-  4. Branding (BrandingEngine intro/outro + music)
-  5. Package export (MediaPackage saved to disk)
+  3. Package save (MediaPackage skeleton saved to disk)
+  4. Audio rendering (DramaMixer)
+  5. Voice mastering (EQ, compression, gate)
+  6. Background music (continuous bed under voice)
+  7. Branding (BrandingEngine intro/outro + music)
+  8. Final loudness normalization (LUFS)
+  9. Manifest update and final save
 
 Usage:
     config = EpisodeConfig(
@@ -111,22 +115,32 @@ class PipelineOrchestrator:
             main_audio_path = self._render_audio(package)
             self._log("render", True, path=main_audio_path)
 
-            # 4a. Apply voice mastering (EQ, compression, gate)
-            main_audio_path = self._master_voice_mix(package, main_audio_path)
-            self._log("voice_mastering", True, path=main_audio_path)
+            # 5. Apply voice mastering (EQ, compression, gate)
+            main_audio_path, mastering_ok = self._master_voice_mix(package, main_audio_path)
+            self._log(
+                "voice_mastering",
+                mastering_ok,
+                path=main_audio_path,
+                error=None if mastering_ok else "Mastering failed; using unprocessed audio",
+            )
 
-            # 4b. Apply background music (continuous bed under voice)
+            # 6. Apply background music (continuous bed under voice)
             if self.config.background_music:
                 self._apply_background_music(main_audio_path)
                 self._log("bg_music", True, track=self.config.background_music)
 
-            # 5. Apply branding (intro/outro)
+            # 7. Apply branding (intro/outro)
             final_audio_path = self._apply_branding(package, main_audio_path)
             self._log("brand", True, path=final_audio_path)
 
-            # 5a. Final loudness normalization
-            final_audio_path = self._finalize_loudness(final_audio_path)
-            self._log("loudness", True, path=final_audio_path)
+            # 8. Final loudness normalization
+            final_audio_path, loudness_ok = self._finalize_loudness(final_audio_path)
+            self._log(
+                "loudness",
+                loudness_ok,
+                path=final_audio_path,
+                error=None if loudness_ok else "Loudness normalization failed; using unnormalized audio",
+            )
 
             # 6. Update manifest with duration
             self._update_manifest(package, final_audio_path)
@@ -555,11 +569,15 @@ class PipelineOrchestrator:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _master_voice_mix(self, package: MediaPackage, audio_path: str) -> str:
-        """Apply voice processing (EQ, compression, gate) to the rendered voice mix."""
+    def _master_voice_mix(self, package: MediaPackage, audio_path: str) -> tuple[str, bool]:
+        """Apply voice processing (EQ, compression, gate) to the rendered voice mix.
+
+        Returns a tuple of (output_path, succeeded). On failure the original path is
+        returned so the pipeline can continue with graceful degradation.
+        """
         config = self.config.podcast_mastering
         if not config or not config.enabled:
-            return audio_path
+            return audio_path, True
 
         from audio.podcast_mastering import process_voice_mix
 
@@ -567,16 +585,19 @@ class PipelineOrchestrator:
         processed_path = str(Path(audio_path).with_suffix(".mastered_voice" + ext))
         try:
             process_voice_mix(audio_path, processed_path, config)
-            return processed_path
-        except Exception as exc:
-            self._log("voice_mastering", False, error=str(exc))
-            return audio_path
+            return processed_path, True
+        except Exception:
+            return audio_path, False
 
-    def _finalize_loudness(self, audio_path: str) -> str:
-        """Apply final LUFS normalization to the complete episode."""
+    def _finalize_loudness(self, audio_path: str) -> tuple[str, bool]:
+        """Apply final LUFS normalization to the complete episode.
+
+        Returns a tuple of (output_path, succeeded). On failure the original path is
+        returned so the pipeline can continue with graceful degradation.
+        """
         config = self.config.podcast_mastering
         if not config or not config.enabled:
-            return audio_path
+            return audio_path, True
 
         from audio.podcast_mastering import normalize_loudness
 
@@ -589,10 +610,9 @@ class PipelineOrchestrator:
                 target_lufs=config.target_lufs,
                 true_peak_db=config.true_peak_db,
             )
-            return final_path
-        except Exception as exc:
-            self._log("loudness", False, error=str(exc))
-            return audio_path
+            return final_path, True
+        except Exception:
+            return audio_path, False
 
     def _update_manifest(self, package: MediaPackage, final_audio_path: str) -> None:
         """Update manifest with file metadata."""

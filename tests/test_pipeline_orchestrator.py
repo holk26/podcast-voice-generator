@@ -248,30 +248,29 @@ class TestPipelineOrchestrator:
         assert result.success is False
         assert any(log["step"] == "pipeline" for log in result.logs)
 
+    def test_pipeline_applies_voice_processing_after_render(self):
+        cfg = EpisodeConfig(
+            episode_type="raw",
+            sources=[{"content": "Hola mundo", "title": "Test"}],
+            podcast_mastering=MasteringConfig(enabled=True),
+            branding_enabled=False,
+        )
+        orch = PipelineOrchestrator(cfg)
 
+        package = MediaPackage(package_id="test_mastering")
+        package.script = [
+            ScriptLine(character="Narrador", text="Hola mundo.", voice_id="homer")
+        ]
+        package.manifest = Manifest(title="Test")
+        package._base_path = Path("/tmp/test_mastering")  # type: ignore
 
-def test_pipeline_applies_voice_processing_after_render():
-    cfg = EpisodeConfig(
-        episode_type="raw",
-        sources=[{"content": "Hola mundo", "title": "Test"}],
-        podcast_mastering=MasteringConfig(enabled=True),
-        branding_enabled=False,
-    )
-    orch = PipelineOrchestrator(cfg)
-
-    package = MediaPackage(package_id="test_mastering")
-    package.script = [
-        ScriptLine(character="Narrador", text="Hola mundo.", voice_id="homer")
-    ]
-    package.manifest = Manifest(title="Test")
-    package._base_path = Path("/tmp/test_mastering")  # type: ignore
-
-    with patch.object(orch, "_acquire_content", return_value=("Hola mundo.", {"title": "Test"})):
-        with patch.object(orch, "_process_content", return_value=package):
-            with patch.object(orch, "_master_voice_mix", side_effect=lambda pkg, path: path) as mock_master:
-                with patch.object(orch, "_finalize_loudness", side_effect=lambda path: path) as mock_finalize:
-                    with patch.object(orch, "_update_manifest"):
-                        package.save = MagicMock()
-                        orch.run()
-                        mock_master.assert_called_once()
-                        mock_finalize.assert_called_once()
+        with patch.object(orch, "_acquire_content", return_value=("Hola mundo.", {"title": "Test"})):
+            with patch.object(orch, "_process_content", return_value=package):
+                with patch.object(orch, "_master_voice_mix", side_effect=lambda pkg, path: (path, True)) as mock_master:
+                    with patch.object(orch, "_finalize_loudness", side_effect=lambda path: (path, True)) as mock_finalize:
+                        with patch.object(orch, "_update_manifest"):
+                            package.save = MagicMock()
+                            result = orch.run()
+                            assert result.success is True
+                            mock_master.assert_called_once()
+                            mock_finalize.assert_called_once()
