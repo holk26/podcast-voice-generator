@@ -75,16 +75,28 @@ class TestBrandingEngine(unittest.TestCase):
     def test_branding_engine_crossfade_ms_clamping(self):
         """BrandingEngine clamps branding_crossfade_ms and accepts custom values."""
         engine = BrandingEngine()
-        self.assertEqual(engine.branding_crossfade_ms, 300)
+        try:
+            self.assertEqual(engine.branding_crossfade_ms, 300)
+        finally:
+            engine.close()
 
         engine_custom = BrandingEngine(branding_crossfade_ms=500)
-        self.assertEqual(engine_custom.branding_crossfade_ms, 500)
+        try:
+            self.assertEqual(engine_custom.branding_crossfade_ms, 500)
+        finally:
+            engine_custom.close()
 
         engine_negative = BrandingEngine(branding_crossfade_ms=-100)
-        self.assertEqual(engine_negative.branding_crossfade_ms, 0)
+        try:
+            self.assertEqual(engine_negative.branding_crossfade_ms, 0)
+        finally:
+            engine_negative.close()
 
         engine_large = BrandingEngine(branding_crossfade_ms=2000)
-        self.assertEqual(engine_large.branding_crossfade_ms, 1000)
+        try:
+            self.assertEqual(engine_large.branding_crossfade_ms, 1000)
+        finally:
+            engine_large.close()
 
 
 if __name__ == "__main__":

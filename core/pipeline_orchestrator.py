@@ -392,7 +392,13 @@ class PipelineOrchestrator:
         return package
 
     # ------------------------------------------------------------------
-    # Step 3: Audio rendering
+    # Step 3: Package save
+    # ------------------------------------------------------------------
+    # package.save(self.config.output_dir) is invoked inline inside run()
+    # after content processing so that downstream assets have a home.
+
+    # ------------------------------------------------------------------
+    # Step 4: Audio rendering
     # ------------------------------------------------------------------
 
     def _render_audio(self, package: MediaPackage) -> str:
@@ -431,41 +437,28 @@ class PipelineOrchestrator:
         return output_path
 
     # ------------------------------------------------------------------
-    # Step 7: Branding
+    # Step 5: Voice mastering
     # ------------------------------------------------------------------
 
-    def _apply_branding(self, package: MediaPackage, main_audio_path: str) -> str:
-        if not self.config.branding_enabled:
-            # Just copy main audio as final
-            final_path = str(package.assets_path / "final.mp3")
-            shutil.copy2(main_audio_path, final_path)
-            return final_path
+    def _master_voice_mix(self, package: MediaPackage, audio_path: str) -> tuple[str, bool]:
+        """Apply voice processing (EQ, compression, gate) to the rendered voice mix.
 
-        from audio.branding_engine import BrandingEngine
+        Returns a tuple of (output_path, succeeded). On failure the original path is
+        returned so the pipeline can continue with graceful degradation.
+        """
+        config = self.config.podcast_mastering
+        if not config or not config.enabled:
+            return audio_path, True
 
-        mastering_cfg = self.config.podcast_mastering or MasteringConfig()
-        branding = BrandingEngine(
-            voice_cast=self.voice_cast,
-            sample_rate=24000,
-            branding_crossfade_ms=mastering_cfg.branding_crossfade_ms,
-        )
-        final_path = str(package.assets_path / "final_with_branding.mp3")
+        from audio.podcast_mastering import process_voice_mix
 
-        target_lufs = None
-        if self.config.podcast_mastering and self.config.podcast_mastering.enabled:
-            target_lufs = self.config.podcast_mastering.target_lufs
-
-        branding.apply_to_package(
-            package=package,
-            main_audio_path=main_audio_path,
-            output_path=final_path,
-            intro_music=self.config.intro_music,
-            outro_music=self.config.outro_music,
-            host_voice_id=self.config.host_voice_id,
-            target_lufs=target_lufs,
-        )
-        branding.close()
-        return final_path
+        ext = Path(audio_path).suffix.lower()
+        processed_path = str(Path(audio_path).with_suffix(".mastered_voice" + ext))
+        try:
+            process_voice_mix(audio_path, processed_path, config)
+            return processed_path, True
+        except Exception:
+            return audio_path, False
 
     # ------------------------------------------------------------------
     # Step 6: Background music
@@ -641,28 +634,45 @@ class PipelineOrchestrator:
         )
 
     # ------------------------------------------------------------------
-    # Helpers
+    # Step 7: Branding
     # ------------------------------------------------------------------
 
-    def _master_voice_mix(self, package: MediaPackage, audio_path: str) -> tuple[str, bool]:
-        """Apply voice processing (EQ, compression, gate) to the rendered voice mix.
+    def _apply_branding(self, package: MediaPackage, main_audio_path: str) -> str:
+        if not self.config.branding_enabled:
+            # Just copy main audio as final
+            final_path = str(package.assets_path / "final.mp3")
+            shutil.copy2(main_audio_path, final_path)
+            return final_path
 
-        Returns a tuple of (output_path, succeeded). On failure the original path is
-        returned so the pipeline can continue with graceful degradation.
-        """
-        config = self.config.podcast_mastering
-        if not config or not config.enabled:
-            return audio_path, True
+        from audio.branding_engine import BrandingEngine
 
-        from audio.podcast_mastering import process_voice_mix
+        mastering_cfg = self.config.podcast_mastering or MasteringConfig()
+        branding = BrandingEngine(
+            voice_cast=self.voice_cast,
+            sample_rate=24000,
+            branding_crossfade_ms=mastering_cfg.branding_crossfade_ms,
+        )
+        final_path = str(package.assets_path / "final_with_branding.mp3")
 
-        ext = Path(audio_path).suffix.lower()
-        processed_path = str(Path(audio_path).with_suffix(".mastered_voice" + ext))
-        try:
-            process_voice_mix(audio_path, processed_path, config)
-            return processed_path, True
-        except Exception:
-            return audio_path, False
+        target_lufs = None
+        if self.config.podcast_mastering and self.config.podcast_mastering.enabled:
+            target_lufs = self.config.podcast_mastering.target_lufs
+
+        branding.apply_to_package(
+            package=package,
+            main_audio_path=main_audio_path,
+            output_path=final_path,
+            intro_music=self.config.intro_music,
+            outro_music=self.config.outro_music,
+            host_voice_id=self.config.host_voice_id,
+            target_lufs=target_lufs,
+        )
+        branding.close()
+        return final_path
+
+    # ------------------------------------------------------------------
+    # Step 8: Final loudness normalization
+    # ------------------------------------------------------------------
 
     def _finalize_loudness(self, audio_path: str) -> tuple[str, bool]:
         """Apply final LUFS normalization to the complete episode.
@@ -689,6 +699,10 @@ class PipelineOrchestrator:
         except Exception:
             return audio_path, False
 
+    # ------------------------------------------------------------------
+    # Step 9: Manifest update
+    # ------------------------------------------------------------------
+
     def _update_manifest(self, package: MediaPackage, final_audio_path: str) -> None:
         """Update manifest with file metadata."""
         from pydub import AudioSegment
@@ -702,6 +716,10 @@ class PipelineOrchestrator:
         package.manifest.episode_number = self.config.episode_number
         package.manifest.season_number = self.config.season_number
         package.manifest.publish_date = datetime.now().isoformat()
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
 
     def _log(self, step: str, success: bool, **kwargs) -> None:
         self._logs.append({
