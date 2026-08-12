@@ -43,6 +43,15 @@ class DramaMixer:
         crossfade_ms: int = 80,
         trim_silence_threshold_db: float = -50.0,
     ):
+        """
+        Initialize the DramaMixer.
+
+        Args:
+            crossfade_ms: Crossfade duration between consecutive lines in ms.
+                Will be clamped to the range [0, 500].
+            trim_silence_threshold_db: Threshold used by `_trim_segment` to
+                detect silence (see pydub.silence.detect_nonsilent).
+        """
         self.voice_cast = voice_cast or VoiceCastManager()
         self.sample_rate = sample_rate
         self.normalize = normalize
@@ -57,7 +66,13 @@ class DramaMixer:
         self._engine_cache: Dict[str, TTSBase] = {}
 
     def _trim_segment(self, segment: AudioSegment) -> AudioSegment:
-        """Trim leading/trailing silence while keeping a small padding."""
+        """
+        Trim leading/trailing silence while keeping a small padding.
+
+        Uses pydub's detect_nonsilent with min_silence_len=100 ms and the
+        configured silence_thresh. Keeps ~50 ms of padding before the first
+        non-silent region and after the last non-silent region.
+        """
         ranges = detect_nonsilent(
             segment,
             min_silence_len=100,
@@ -70,7 +85,13 @@ class DramaMixer:
         return segment[start:end]
 
     def _crossfade_segments(self, segments: List[AudioSegment]) -> AudioSegment:
-        """Concatenate segments with crossfade."""
+        """
+        Concatenate segments with crossfade.
+
+        The crossfade overlaps the end of one line with the start of the next.
+        If lines have pause_before/pause_after silence, the crossfade is applied
+        within that silence region, smoothing transitions without cutting voice.
+        """
         if not segments:
             raise ValueError("No segments to concatenate.")
         final = segments[0]
@@ -178,9 +199,6 @@ class DramaMixer:
             print(f"[DramaMixer] [{i+1}/{len(package.script)}] {line.character}: {line.text[:50]}...")
             segment = self.render_line(line, str(line_path))
             segments.append(segment)
-            if not keep_line_files:
-                # Will delete after mixing
-                pass
 
         # Concatenate all segments with crossfade
         final = self._crossfade_segments(segments)
