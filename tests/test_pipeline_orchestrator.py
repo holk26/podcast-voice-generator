@@ -49,18 +49,48 @@ class TestPipelineOrchestrator:
         assert cfg.podcast_mastering.enabled is True
         assert cfg.podcast_mastering.target_lufs == -16.0
 
-    def test_background_music_ducking_uses_sidechain_config(self):
+    def test_background_music_ducking_uses_sidechain_config(self, temp_output):
+        tmp_path = Path(temp_output)
         cfg = EpisodeConfig(
             episode_type="raw",
             sources=[{"content": "Hola", "title": "Test"}],
             background_music="test_music",
+            bg_music_volume=-18.0,
             podcast_mastering=MasteringConfig(enabled=True),
+            output_dir=str(temp_output),
         )
         orch = PipelineOrchestrator(cfg)
-        assert orch.config.background_music == "test_music"
-        assert orch.config.podcast_mastering.ducking_attack_ms == 20
-        assert orch.config.podcast_mastering.ducking_release_ms == 250
-        assert orch.config.podcast_mastering.ducking_reduction_db == 8.0
+
+        # Create dummy voice audio
+        voice_path = str(tmp_path / "voice.mp3")
+        AudioSegment.silent(duration=500, frame_rate=24000).export(voice_path, format="mp3")
+
+        # Create dummy music file
+        music_dir = Path("sfx_library") / "music"
+        music_dir.mkdir(parents=True, exist_ok=True)
+        music_path = music_dir / "test_music.wav"
+        AudioSegment.silent(duration=1000, frame_rate=24000).export(str(music_path), format="wav")
+
+        try:
+            with patch("core.pipeline_orchestrator._ffmpeg_available", return_value=True):
+                with patch("core.pipeline_orchestrator.subprocess.run") as mock_run:
+                    mock_run.return_value = MagicMock(returncode=0)
+                    # Make AudioSegment.from_file on the ffmpeg output return a silent segment
+                    with patch.object(AudioSegment, "from_file", return_value=AudioSegment.silent(duration=500, frame_rate=24000)):
+                        orch._apply_background_music(voice_path)
+
+            mock_run.assert_called_once()
+            cmd = mock_run.call_args[0][0]
+            filter_str = cmd[cmd.index("-filter_complex") + 1]
+            assert "sidechaincompress" in filter_str
+            assert "attack=20" in filter_str
+            assert "release=250" in filter_str
+            assert "ratio=5" in filter_str
+            assert "threshold=-24.0dB" in filter_str  # -20 - 8/2
+            assert orch.config.podcast_mastering.ducking_ratio == 5.0
+        finally:
+            if music_path.exists():
+                music_path.unlink()
 
     def test_pipeline_result_repr(self):
         r = PipelineResult(success=True)

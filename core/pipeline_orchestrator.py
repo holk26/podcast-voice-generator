@@ -28,6 +28,7 @@ Usage:
 import os
 import shutil
 import subprocess  # NEW
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -35,7 +36,7 @@ from typing import Any, Dict, List, Optional
 
 from pydub import AudioSegment
 
-from audio.podcast_mastering import MasteringConfig
+from audio.podcast_mastering import MasteringConfig, _ffmpeg_available
 from core.media_package import MediaPackage, Manifest
 
 
@@ -504,9 +505,6 @@ class PipelineOrchestrator:
         music_seg = music_seg + self.config.bg_music_volume
 
         # Use ffmpeg sidechaincompress for smooth ducking
-        import tempfile
-        from audio.podcast_mastering import _ffmpeg_available
-
         voice_path = audio_path + ".voice.wav"
         music_path = audio_path + ".music.wav"
         output_path = audio_path + ".ducked.wav"
@@ -562,7 +560,13 @@ class PipelineOrchestrator:
                 os.remove(p)
 
     def _rms_ducking_mix(self, main: AudioSegment, music_seg: AudioSegment) -> AudioSegment:
-        """Fallback numpy-based ducking with improved envelope."""
+        """Fallback numpy-based ducking with improved envelope.
+
+        Note: this fallback uses fixed gain curves (silence +3 dB and speech -8 dB
+        relative to bg_music_volume) and does not honor the sidechain config fields
+        (ducking_attack_ms, ducking_release_ms, ducking_ratio, ducking_reduction_db).
+        Those parameters are only applied by the ffmpeg sidechaincompress path above.
+        """
         import numpy as np
 
         sr = main.frame_rate
