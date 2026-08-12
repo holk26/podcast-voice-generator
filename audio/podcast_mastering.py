@@ -1,18 +1,8 @@
-"""Podcast mastering chain using ffmpeg.
+"""Configuration dataclass and conversion helpers for the podcast mastering chain."""
 
-Provides voice processing (EQ, compression, limiting, noise gate) and
-true LUFS loudness normalization for the MediaPackage pipeline.
-"""
-
-import json
 import math
-import os
-import re
-import shutil
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Optional
 
 
 @dataclass
@@ -53,5 +43,5 @@ def _ffmpeg_available() -> bool:
             check=True,
         )
         return True
-    except Exception:
+    except (FileNotFoundError, subprocess.CalledProcessError, PermissionError):
         return False
