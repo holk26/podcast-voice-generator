@@ -28,6 +28,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from audio.podcast_mastering import MasteringConfig
 from core.media_package import MediaPackage, Manifest
 
 
@@ -45,6 +46,8 @@ class EpisodeConfig:
     outro_music: str = "outro_theme"
     branding_enabled: bool = True
     sfx_enabled: bool = True
+    background_music: Optional[str] = None  # nombre del archivo en sfx_library/music/ sin extensión
+    bg_music_volume: float = -18.0  # volumen en dB
     output_dir: str = "media_packages"
     episode_number: Optional[int] = None
     season_number: Optional[int] = None
@@ -52,6 +55,8 @@ class EpisodeConfig:
     # Audio enhancement
     audio_enhancer: str = "none"  # "none", "voicefixer", "voicefixer_line", "voicefixer_final", "voicefixer_both"
     audio_enhancer_mode: int = 0  # VoiceFixer mode: 0=original, 1=preprocess, 2=train
+    # Podcast mastering
+    podcast_mastering: Optional[MasteringConfig] = field(default_factory=MasteringConfig)
     # Extra passthrough for processors
     processor_options: Dict[str, Any] = field(default_factory=dict)
 
@@ -105,6 +110,11 @@ class PipelineOrchestrator:
             # 4. Render main audio with DramaMixer
             main_audio_path = self._render_audio(package)
             self._log("render", True, path=main_audio_path)
+
+            # 4b. Apply background music (continuous bed under voice)
+            if self.config.background_music:
+                self._apply_background_music(main_audio_path)
+                self._log("bg_music", True, track=self.config.background_music)
 
             # 5. Apply branding (intro/outro)
             final_audio_path = self._apply_branding(package, main_audio_path)
@@ -422,6 +432,116 @@ class PipelineOrchestrator:
         )
         branding.close()
         return final_path
+
+    # ------------------------------------------------------------------
+    # Step 4b: Background music
+    # ------------------------------------------------------------------
+
+    def _apply_background_music(self, audio_path: str) -> None:
+        """Mix continuous background music under the voice track with ducking."""
+        import numpy as np
+        from pydub import AudioSegment
+
+        music_base = Path("sfx_library") / "music"
+        music_file = None
+        for ext in (".mp3", ".wav", ".flac", ".ogg"):
+            candidate = music_base / f"{self.config.background_music}{ext}"
+            if candidate.exists():
+                music_file = candidate
+                break
+        if music_file is None:
+            print(f"[PipelineOrchestrator] Background music '{self.config.background_music}' not found")
+            return
+
+        main = AudioSegment.from_file(audio_path)
+        music_seg = AudioSegment.from_file(str(music_file))
+
+        sr = main.frame_rate
+        sw = main.sample_width
+        ch = main.channels
+
+        music_seg = music_seg.set_frame_rate(sr).set_channels(ch)
+
+        # Loop music to cover voice
+        while len(music_seg) < len(main):
+            music_seg = music_seg + music_seg
+        music_seg = music_seg[:len(main)]
+
+        # Fade in/out
+        fade_in_ms = min(3000, int(len(main) * 0.1))
+        fade_out_ms = min(4000, int(len(main) * 0.1))
+        if fade_in_ms > 0:
+            music_seg = music_seg.fade_in(fade_in_ms)
+        if fade_out_ms > 0:
+            music_seg = music_seg.fade_out(fade_out_ms)
+
+        vol_db = self.config.bg_music_volume
+
+        # numpy conversion
+        dtype_map = {1: np.int8, 2: np.int16, 4: np.int32}
+        np_dtype = dtype_map.get(sw, np.int16)
+        max_val = float(2 ** (8 * sw - 1))
+
+        main_arr = np.array(main.get_array_of_samples(), dtype=np_dtype).astype(np.float32) / max_val
+        music_arr = np.array(music_seg.get_array_of_samples(), dtype=np_dtype).astype(np.float32) / max_val
+
+        if ch == 2:
+            main_arr = main_arr.reshape(-1, 2)
+            music_arr = music_arr.reshape(-1, 2)
+            main_mono = main_arr.mean(axis=1)
+        else:
+            main_mono = main_arr
+
+        n = len(main_mono)
+
+        win = max(1, int(0.2 * sr))
+        hop = max(1, int(0.05 * sr))
+        n_win = max(1, (n - win) // hop + 1)
+
+        if n_win < 3:
+            gain = 10 ** (vol_db / 20)
+            music_arr *= gain
+        else:
+            rms = np.empty(n_win, dtype=np.float32)
+            for w in range(n_win):
+                s = w * hop
+                e = min(s + win, n)
+                rms[w] = np.sqrt(np.mean(main_mono[s:e] ** 2))
+
+            kernel = max(1, n_win // 15)
+            rms = np.convolve(rms, np.ones(kernel) / kernel, mode="same")
+
+            max_rms = float(np.max(rms)) if np.max(rms) > 0 else 1.0
+            level = np.clip(rms / max_rms, 0.0, 1.0)
+
+            silence_gain = 10 ** ((vol_db + 3) / 20)
+            ducked_gain = 10 ** ((vol_db - 4) / 20)
+            gain_curve = silence_gain + (ducked_gain - silence_gain) * level
+
+            positions = np.arange(n_win) * hop + win // 2
+            positions = np.clip(positions, 0, n - 1)
+            full_gain = np.interp(np.arange(n), positions, gain_curve)
+
+            if ch == 2:
+                music_arr[:, 0] *= full_gain
+                music_arr[:, 1] *= full_gain
+            else:
+                music_arr *= full_gain
+
+        mixed = main_arr + music_arr
+        mixed = np.clip(mixed, -1.0, 1.0)
+
+        mixed_int = (mixed * max_val).clip(-max_val, max_val - 1).astype(np_dtype)
+        mixed_seg = AudioSegment(
+            mixed_int.tobytes(),
+            frame_rate=sr,
+            sample_width=sw,
+            channels=ch,
+        )
+
+        ext = Path(audio_path).suffix.lower().lstrip(".")
+        fmt = "mp3" if ext == "mp3" else ("flac" if ext == "flac" else "wav")
+        mixed_seg.export(audio_path, format=fmt)
 
     # ------------------------------------------------------------------
     # Helpers

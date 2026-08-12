@@ -15,6 +15,7 @@ from pydub import AudioSegment
 
 from core.pipeline_orchestrator import PipelineOrchestrator, EpisodeConfig, PipelineResult
 from agents.llm_provider import MockProvider
+from audio.podcast_mastering import MasteringConfig
 from core.media_package import MediaPackage, ScriptLine, Manifest
 
 
@@ -41,6 +42,12 @@ class TestPipelineOrchestrator:
         assert cfg.branding_enabled is True
         assert cfg.host_voice_id == "homer"
         assert cfg.output_dir == "media_packages"
+
+    def test_episode_config_has_mastering_defaults(self):
+        cfg = EpisodeConfig(episode_type="raw")
+        assert cfg.podcast_mastering is not None
+        assert cfg.podcast_mastering.enabled is True
+        assert cfg.podcast_mastering.target_lufs == -16.0
 
     def test_pipeline_result_repr(self):
         r = PipelineResult(success=True)
