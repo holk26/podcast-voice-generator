@@ -41,7 +41,7 @@ python starter.py
 
 ### Variables de entorno
 
-Todos los puertos son configurables. `starter.py` y `web/vite.config.ts` leen las mismas variables, así que el proxy del frontend siempre apunta a la API correcta:
+Todos los puertos son configurables. `starter.py` y `frontend/vite.config.ts` leen las mismas variables, así que el proxy del frontend siempre apunta a la API correcta:
 
 ```bash
 API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
