@@ -129,3 +129,18 @@ class PlanEntryResponse(PlanEntryBase):
 
 class ChannelWithPlanResponse(ChannelResponse):
     entries: List[PlanEntryResponse] = []
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
+
+class UserResponse(BaseModel):
+    username: str
+    is_admin: bool
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
