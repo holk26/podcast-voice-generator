@@ -1,46 +1,58 @@
-from unittest.mock import patch, AsyncMock
 from pathlib import Path
-from backend.app.database import SessionLocal, init_db
-from backend.app.models import Episode
-from worker.runner import process_pending_jobs
+from unittest.mock import patch, MagicMock
 
-init_db()
+from shared.schemas import WorkerJob
+from worker import runner
 
 
-def test_worker_processes_pending_episode():
-    db = SessionLocal()
-    db.query(Episode).filter(Episode.status == "pending").delete()
-    db.commit()
-
-    episode = Episode(
-        title="Worker test",
+def test_process_single_job_completes_successfully(tmp_path):
+    job = WorkerJob(
+        episode_id=42,
+        title="Test episode",
         type="podcast",
         source_text="Hola mundo",
         voice_id="jorge",
-        status="pending"
     )
-    db.add(episode)
-    db.commit()
-    db.refresh(episode)
-    episode_id = episode.id
-    db.close()
+    output_path = tmp_path / "final.mp3"
+    output_path.touch()
 
-    async def fake_save(path: str) -> None:
-        Path(path).touch()
+    with patch("worker.client.get_next_job", return_value=job) as mock_get, \
+         patch("worker.runner.handle_podcast_episode", return_value=output_path) as mock_handle, \
+         patch("worker.client.complete_job") as mock_complete, \
+         patch("worker.client.fail_job") as mock_fail:
 
-    with patch("worker.handlers.edge_tts.Communicate") as mock_communicate:
-        mock_instance = mock_communicate.return_value
-        mock_instance.save = AsyncMock(side_effect=fake_save)
-        process_pending_jobs()
+        result = runner._process_single_job()
 
-        mock_communicate.assert_called_once()
-        _, kwargs = mock_communicate.call_args
-        assert kwargs["voice"] == "es-ES-AlvaroNeural"
+        assert result is True
+        mock_get.assert_called_once()
+        mock_handle.assert_called_once_with(job)
+        mock_complete.assert_called_once_with(42, "/outputs/42/final.mp3")
+        mock_fail.assert_not_called()
 
-    db = SessionLocal()
-    updated = db.query(Episode).filter(Episode.id == episode_id).first()
-    assert updated.status == "completed"
-    assert updated.audio_url == f"/outputs/{episode_id}/final.mp3"
-    from backend.app.config import OUTPUT_DIR
-    assert (OUTPUT_DIR / str(episode_id) / "final.mp3").exists()
-    db.close()
+
+def test_process_single_job_reports_failure():
+    job = WorkerJob(
+        episode_id=43,
+        title="Failing episode",
+        type="podcast",
+        source_text="Hola",
+        voice_id="jorge",
+    )
+
+    with patch("worker.client.get_next_job", return_value=job), \
+         patch("worker.runner.handle_podcast_episode", side_effect=RuntimeError("boom")), \
+         patch("worker.client.complete_job") as mock_complete, \
+         patch("worker.client.fail_job") as mock_fail:
+
+        result = runner._process_single_job()
+
+        assert result is True
+        mock_complete.assert_not_called()
+        mock_fail.assert_called_once()
+        assert "boom" in mock_fail.call_args[0][1]
+
+
+def test_process_single_job_no_pending():
+    with patch("worker.client.get_next_job", return_value=None):
+        result = runner._process_single_job()
+        assert result is False

@@ -22,4 +22,4 @@ if __name__ == "__main__":
     worker_thread.start()
 
     port = int(os.getenv("WORKER_PORT", WORKER_PORT))
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)

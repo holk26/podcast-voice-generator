@@ -13,7 +13,7 @@ from shared.schemas import (
     PlanEntryResponse,
 )
 from backend.app.services.crew_service import suggest_channel, improve_channel_prompt
-from backend.app.services.automation_service import start_plan_job, start_script_job, start_season_job
+from backend.app.services.automation_service import start_plan_job, start_script_job, start_season_job, autopilot_tick
 
 
 class ChannelSuggestRequest(BaseModel):
@@ -273,3 +273,14 @@ def delete_plan_entry(entry_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Entry not found")
     db.delete(entry)
     db.commit()
+
+
+@router.post("/autopilot/tick")
+def autopilot_tick_endpoint():
+    """Ejecuta un tick del piloto automático en el backend.
+
+    El worker puede llamar a este endpoint periódicamente para que el backend
+    genere nuevas entradas de contenido sin necesidad de acceder a la BD.
+    """
+    launched = autopilot_tick()
+    return {"launched": launched}

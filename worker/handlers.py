@@ -5,9 +5,9 @@ import os
 import subprocess
 import urllib.request
 from pathlib import Path
-from sqlalchemy.orm import Session
-from backend.app.models import Episode
+
 from backend.app.config import OUTPUT_DIR, BASE_DIR
+from shared.schemas import WorkerJob
 
 VOICE_MAP = {
     "jorge": "es-ES-AlvaroNeural",
@@ -22,16 +22,16 @@ MUSIC_INTRO = BASE_DIR / "sfx_library" / "music" / "intro_jingle.wav"
 MUSIC_OUTRO = BASE_DIR / "sfx_library" / "music" / "outro_theme.wav"
 
 
-def _handle_cloned_episode(episode: Episode, output_dir: Path) -> Path:
+def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
     """Voces clonadas: delega en la API, que mantiene el motor Higgs cargado
     en GPU (el worker no tiene VRAM para una segunda instancia)."""
     output_path = output_dir / "final.wav"
     req = urllib.request.Request(
         f"{API_BASE}/api/tts/synthesize",
         data=json.dumps({
-            "voice_id": episode.voice_id,
-            "text": episode.source_text or "",
-            "label": f"Episodio #{episode.id}: {episode.title}",
+            "voice_id": job.voice_id,
+            "text": job.source_text or "",
+            "label": f"Episodio #{job.episode_id}: {job.title}",
         }).encode(),
         headers={"Content-Type": "application/json"},
     )
@@ -110,20 +110,20 @@ def postprocess_episode_audio(path: Path) -> None:
         pass
 
 
-def handle_podcast_episode(episode: Episode, db: Session) -> Path:
-    output_dir = OUTPUT_DIR / str(episode.id)
+def handle_podcast_episode(job: WorkerJob) -> Path:
+    output_dir = OUTPUT_DIR / str(job.episode_id)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    if (episode.voice_id or "").startswith("clone:"):
-        output_path = _handle_cloned_episode(episode, output_dir)
+    if (job.voice_id or "").startswith("clone:"):
+        output_path = _handle_cloned_episode(job, output_dir)
     else:
         output_path = output_dir / "final.mp3"
-        voice = VOICE_MAP.get(episode.voice_id, DEFAULT_VOICE)
+        voice = VOICE_MAP.get(job.voice_id, DEFAULT_VOICE)
 
         async def _run():
             from core.emotion_tags import sanitize_emotion_tags
             communicate = edge_tts.Communicate(
-                sanitize_emotion_tags(episode.source_text or "", "edge"),
+                sanitize_emotion_tags(job.source_text or "", "edge"),
                 voice=voice
             )
             await communicate.save(str(output_path))
@@ -131,8 +131,4 @@ def handle_podcast_episode(episode: Episode, db: Session) -> Path:
         asyncio.run(_run())
 
     postprocess_episode_audio(output_path)
-
-    episode.audio_url = f"/outputs/{episode.id}/{output_path.name}"
-    episode.status = "completed"
-    db.commit()
     return output_path

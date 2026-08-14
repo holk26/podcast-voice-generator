@@ -2,11 +2,9 @@ import os
 import time
 import logging
 from datetime import datetime
-from sqlalchemy.orm import Session
-from backend.app.database import SessionLocal
-from backend.app.models import Episode
+
+import worker.client as client
 from worker.handlers import handle_podcast_episode
-from backend.app.services.automation_service import autopilot_tick
 
 logger = logging.getLogger(__name__)
 
@@ -14,48 +12,37 @@ logger = logging.getLogger(__name__)
 # piloto automático (temporadas + guiones del día). Configurable por env.
 AUTOPILOT_HOUR = int(os.getenv("AUTOPILOT_HOUR", "7"))
 
+# SSE como disparador principal; si falla, se hace polling cada N segundos.
+SSE_RETRY_SECONDS = int(os.getenv("SSE_RETRY_SECONDS", "5"))
+POLL_BACKUP_SECONDS = int(os.getenv("POLL_BACKUP_SECONDS", "30"))
 
-def process_pending_jobs():
-    db = SessionLocal()
+
+def _process_single_job() -> bool:
+    """Procesa un único job pendiente. Retorna True si procesó algo."""
+    job = client.get_next_job()
+    if job is None:
+        return False
+
+    logger.info(f"Processing episode {job.episode_id}: {job.title}")
     try:
-        db.begin()
-        episode = (
-            db.query(Episode)
-            .filter(Episode.status == "pending")
-            .order_by(Episode.created_at)
-            .with_for_update()
-            .first()
-        )
-        if not episode:
-            db.rollback()
-            return
-
-        episode.status = "running"
-        db.commit()
-        logger.info(f"Processing episode {episode.id}")
-
-        try:
-            handle_podcast_episode(episode, db)
-            logger.info(f"Episode {episode.id} completed")
-        except Exception as e:
-            # La sesión puede estar rota (p. ej. episodio borrado a mitad de
-            # síntesis): rollback obligatorio antes de reintentar commit.
-            db.rollback()
-            try:
-                fresh = db.query(Episode).filter(Episode.id == episode.id).first()
-                if fresh is not None:
-                    fresh.status = "failed"
-                    fresh.error_message = str(e)[:500]
-                    db.commit()
-            except Exception as e2:
-                db.rollback()
-                logger.error(f"No se pudo marcar el episodio {episode.id} como failed: {e2}")
-            logger.error(f"Episode {episode.id} failed: {e}")
+        output_path = handle_podcast_episode(job)
+        audio_url = f"/outputs/{job.episode_id}/{output_path.name}"
+        client.complete_job(job.episode_id, audio_url)
+        logger.info(f"Episode {job.episode_id} completed -> {audio_url}")
+        return True
     except Exception as e:
-        db.rollback()
-        logger.error(f"process_pending_jobs error: {e}")
-    finally:
-        db.close()
+        logger.error(f"Episode {job.episode_id} failed: {e}")
+        try:
+            client.fail_job(job.episode_id, str(e)[:500])
+        except Exception as e2:
+            logger.error(f"Could not report failure for episode {job.episode_id}: {e2}")
+        return True
+
+
+def _drain_pending_jobs() -> None:
+    """Procesa todos los jobs pendientes disponibles en una ráfaga."""
+    while _process_single_job():
+        pass
 
 
 def _autopilot_due(last_run_date: str | None) -> bool:
@@ -66,16 +53,51 @@ def _autopilot_due(last_run_date: str | None) -> bool:
     return last_run_date != now.date().isoformat()
 
 
-def run_loop(poll_interval: float = 2.0):
+def _run_autopilot(last_run_date: str | None) -> str | None:
+    if not _autopilot_due(last_run_date):
+        return last_run_date
+    launched = client.run_autopilot_tick()
+    for job_id in launched:
+        logger.info(f"Autopilot daily run launched job {job_id}")
+    return datetime.now().date().isoformat()
+
+
+def run_loop():
+    """Bucle principal del worker.
+
+    Intenta mantener una conexión SSE con el backend para reaccionar en cuanto
+    hay trabajo nuevo. Si el SSE falla, hace polling de respaldo. También
+    ejecuta el autopilot diario.
+    """
     last_run_date: str | None = None
+    use_sse = True
+
     while True:
-        process_pending_jobs()
-        if _autopilot_due(last_run_date):
-            last_run_date = datetime.now().date().isoformat()
+        try:
+            last_run_date = _run_autopilot(last_run_date)
+        except Exception as e:
+            logger.error(f"Autopilot tick failed: {e}")
+
+        _drain_pending_jobs()
+
+        if use_sse:
             try:
-                launched = autopilot_tick()
-                for job_id in launched:
-                    logger.info(f"Autopilot diario lanzó job {job_id}")
+                logger.info("Connecting to backend SSE stream...")
+                for event in client.listen_sse():
+                    if event.get("type") == "new_job":
+                        _drain_pending_jobs()
+                    elif event.get("type") == "disconnected":
+                        raise ConnectionError("SSE disconnected")
+                # Si el stream termina limpiamente, reconectamos
+                continue
             except Exception as e:
-                logger.error(f"Autopilot tick falló: {e}")
-        time.sleep(poll_interval)
+                logger.warning(f"SSE error: {e}; falling back to polling")
+                use_sse = False
+
+        # Modo polling de respaldo
+        time.sleep(POLL_BACKUP_SECONDS)
+        _drain_pending_jobs()
+
+        # Reintentar SSE periódicamente
+        if int(time.time()) % 60 < POLL_BACKUP_SECONDS:
+            use_sse = True
