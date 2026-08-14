@@ -1,30 +1,34 @@
-# Scripts de arranque
+# Podcast Voice Generator — Arquitectura web
 
-El proyecto se levanta con `starter.py`, que arranca los tres servicios de la pila web y abre un monitor en vivo. Existen además lanzadores por plataforma que delegan en él.
+El proyecto está organizado en una arquitectura desacoplada para que el **backend** y el **frontend** puedan desplegarse en un servidor y el **worker** corra en tu PC local.
+
+```
+backend/     API REST + SSE (FastAPI)
+frontend/    Aplicación web (Vite)
+worker/      Proceso local que consume trabajos del backend
+shared/      Contratos y configuración compartida (schemas, constantes)
+```
+
+La app de escritorio PyQt6 fue eliminada. Todo pasa por la web.
 
 ## Pila de servicios
 
-`starter.py` arranca en orden y con health-check entre cada uno:
+`starter.py` levanta los tres servicios localmente para desarrollo:
 
-| Servicio  | Origen                      | Puerto default | Health check                            |
-|-----------|-----------------------------|----------------|-----------------------------------------|
-| API       | `cd backend && python -m app.main` | 8000           | `GET http://127.0.0.1:8000/api/health`  |
-| Worker    | `cd worker && python -m main`      | 8001           | `GET http://127.0.0.1:8001/health`      |
-| Web (Vite)| `npm run dev` (en `frontend/`)     | 5173           | `http://127.0.0.1:5173`                 |
+| Servicio   | Origen                          | Puerto default | Health check                            |
+|------------|---------------------------------|----------------|-----------------------------------------|
+| API        | `cd backend && python -m app.main` | 8000           | `GET http://127.0.0.1:8000/api/health`  |
+| Worker     | `cd worker && python -m main`      | 8001           | `GET http://127.0.0.1:8001/health`      |
+| Web (Vite) | `npm run dev` (en `frontend/`)     | 5173           | `http://127.0.0.1:5173`                 |
 
-Los tres procesos se lanzan en segundo plano, su salida se redirige a `logs/{api,worker,web}.log` **y** se reemite a la consola con el prefijo `[api]`/`[worker]`/`[web]`. Al finalizar, `starter.py`:
+Los tres procesos se lanzan en segundo plano, su salida se redirige a `logs/{api,worker,web}.log` **y** se reemite a la consola con el prefijo `[api]`/`[worker]`/`[web]`. Al finalizar, `starter.py` abre el monitor curses (`starter_monitor.py`) y el navegador en `http://127.0.0.1:5173`.
 
-1. Abre una ventana de terminal nueva con el **monitor curses** (`starter_monitor.py`), si detecta un emulador (`gnome-terminal`, `konsole`, `xfce4-terminal`, `alacritty`, `wezterm`, `kitty`, `xterm`).
-2. Abre el navegador en `http://127.0.0.1:5173`.
+## Cómo ejecutar en desarrollo
 
-## Cómo ejecutar
-
-### lanzadores por plataforma
-
-Estos scripts simplemente delegan en `starter.py` (todos hacen `cd` al directorio del repo primero):
+### Lanzadores
 
 - **Linux/macOS**: `./starter.sh`
-- **Windows**: `starter.bat` ( doble clic o `starter.bat` en cmd)
+- **Windows**: `starter.bat`
 
 ### Directamente
 
@@ -32,16 +36,14 @@ Estos scripts simplemente delegan en `starter.py` (todos hacen `cd` al directori
 python starter.py
 ```
 
-También desde el entorno virtual:
+Desde el entorno virtual:
 
 ```bash
-source venv311/bin/activate
+source venv311/bin/activate   # Windows: venv311\Scripts\activate
 python starter.py
 ```
 
 ### Variables de entorno
-
-Todos los puertos son configurables. `starter.py` y `frontend/vite.config.ts` leen las mismas variables, así que el proxy del frontend siempre apunta a la API correcta:
 
 ```bash
 API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
@@ -51,77 +53,131 @@ API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 |---------------|---------|--------------------------------------------|
 | `API_PORT`    | 8000    | FastAPI (`backend/app/main.py`)            |
 | `WORKER_PORT` | 8001    | Worker de generación (`worker/main.py`)    |
-| `WEB_PORT`     | 5173    | Vite dev server (`frontend/`)              |
+| `WEB_PORT`    | 5173    | Vite dev server (`frontend/`)              |
+
+## Autenticación y seguridad
+
+La API está protegida con JWT para usuarios web y con un token estático para el worker.
+
+### Variables de auth (backend)
+
+| Variable               | Default | Descripción                                                  |
+|------------------------|---------|--------------------------------------------------------------|
+| `SECRET_KEY`           | *(vacío)* | Clave para firmar JWT. **Cambiar en producción.**          |
+| `ACCESS_TOKEN_EXPIRE_DAYS` | 7   | Duración de los tokens de acceso.                          |
+| `ADMIN_USER`           | `admin` | Usuario admin inicial.                                       |
+| `ADMIN_PASSWORD`       | *(vacío)* | Contraseña inicial del admin (se hashea al primer login).  |
+| `ADMIN_PASSWORD_HASH`  | *(vacío)* | Hash bcrypt directo del admin (opcional).                  |
+| `WORKER_TOKEN`         | *(vacío)* | Token compartido entre backend y worker. **Obligatorio.**  |
+| `REQUIRE_AUTH`         | `true` | En `false` deshabilita JWT para tests/desenvolvimiento.     |
+
+### Endpoints de auth
+
+- `POST /api/auth/login` — login de usuario, devuelve JWT.
+- `GET /api/auth/me` — información del usuario actual.
+
+Todos los endpoints de la API (salvo `/api/health` y `/api/auth/login`) requieren el header `Authorization: Bearer <jwt>`.
+
+### Endpoints del worker
+
+- `GET /api/worker/jobs/next` — reclama el siguiente episodio pendiente.
+- `POST /api/worker/jobs/{id}/complete` — marca episodio como completado.
+- `POST /api/worker/jobs/{id}/fail` — marca episodio como fallido.
+- `GET /api/worker/events` — stream SSE de nuevos trabajos.
+
+Todos requieren `Authorization: Bearer <WORKER_TOKEN>`.
+
+## Deploy en producción (servidor + PC local)
+
+### 1. Servidor: backend + frontend
+
+Copia `backend/` y `frontend/` al servidor (o el repo completo, los modelos y assets grandes pueden quedar en el PC local si no se usan voces clonadas en servidor).
+
+```bash
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r ../requirements.txt
+cp .env.example .env
+# Edita .env: SECRET_KEY, ADMIN_PASSWORD, WORKER_TOKEN, DATABASE_URL...
+python -m app.main
+```
+
+```bash
+# Frontend
+cd frontend
+npm install
+npm run build
+# Sirve dist/ con nginx/caddy o usa el preview de Vite solo para pruebas
+```
+
+Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en el backend.
+
+### 2. PC local: worker
+
+El worker debe poder alcanzar la URL pública del backend.
+
+```bash
+cd worker
+source ../venv311/bin/activate
+export BACKEND_URL=https://tu-dominio.com/api
+export WORKER_TOKEN=<mismo_token_que_backend>
+python -m main
+```
+
+El worker intenta conectarse por SSE a `/api/worker/events`; si falla, hace polling a `/api/worker/jobs/next` cada `POLL_BACKUP_SECONDS` (default 30 s).
+
+## Comunicación backend ↔ worker
+
+- **Push primario**: SSE (`/api/worker/events`). El backend notifica `new_job` cuando se crea o reintenta un episodio.
+- **Respaldo**: polling periódico a `/api/worker/jobs/next`.
+- **Resultado**: el worker reporta con `complete`/`fail` vía POST.
+
+El worker **no toca la base de datos**; todo pasa por la API.
 
 ## Monitor curses (`starter_monitor.py`)
 
-Dashboard en vivo (ventana de terminal independiente). Muestra:
-
-- URL, puerto y estado de salud de cada servicio.
-- Logs de `api`, `worker` y `web` en paneles separados, actualizados en tiempo real.
-- Contador de errores resaltados en rojo.
-
-Salir con `q` (modo curses) o `Ctrl+C` (modo consola simple si curses no está disponible). **Cerrar el monitor no detiene los servicios**: para pararlos usa `Ctrl+C` en la terminal donde corre `starter.py`.
-
-Si no se encuentra ningún emulador de terminal, el monitor no se abre pero los logs siguen estando en `./logs/`.
+Dashboard en vivo en desarrollo. Muestra estado, logs y errores de cada servicio. Salir con `q`. **Cerrar el monitor no detiene los servicios**: para pararlos usa `Ctrl+C` en la terminal donde corre `starter.py`.
 
 ## Detener todo
 
-`starter.py` captura `SIGINT` y `SIGTERM` y apaga limpiamente los tres procesos (termina y, si no ceden en 2 s, los matar). **Nunca uses `kill -9`** salvo emergencia.
+`starter.py` captura `SIGINT` y `SIGTERM` y apaga limpiamente los tres procesos. **Nunca uses `kill -9`** salvo emergencia.
 
-## Depencencias previas
-
-Antes de ejecutar `starter.py` por primera vez:
+## Dependencias previas
 
 ```bash
 # Python
 python3.11 -m venv venv311
-source venv311/bin/activate   # Windows: venv311\Scripts\activate
+source venv311/bin/activate
 pip install -r requirements.txt
 
 # Node (frontend)
 cd frontend && npm install
 ```
 
-Opcional pero recomendado para features de CrewAI: tener [Ollama](https://ollama.ai) corriendo con el modelo por defecto (`backend/app/config.py`, `OLLAMA_DEFAULT_MODEL`). `starter.py` comprueba su disponibilidad al arrancar y avisa (sin abortar) si falta.
+Opcional para CrewAI: tener [Ollama](https://ollama.ai) corriendo con el modelo configurado en `OLLAMA_DEFAULT_MODEL`.
 
-## Motor Qwen3-TTS (voz clonada)
+## Estructura clave
 
-El proyecto integra **Qwen/Qwen3-TTS-12Hz-1.7B-Base** como motor alternativo de clonación de voz, junto al Higgs v3 existente.
+| Archivo / Carpeta    | Qué hace                                                                      |
+|----------------------|-------------------------------------------------------------------------------|
+| `backend/app/main.py`| Aplicación FastAPI: routers, CORS, auth, static files.                        |
+| `backend/app/auth.py`| Hashing bcrypt y JWT.                                                         |
+| `backend/app/dependencies.py` | Dependencias de FastAPI: `get_current_user`, `require_worker_token`. |
+| `backend/app/routes/worker.py` | Endpoints exclusivos del worker (jobs + SSE).                          |
+| `backend/app/services/worker_service.py` | Lógica de reclamar/ completar/fallar jobs + notificaciones SSE. |
+| `worker/client.py`   | Cliente HTTP del worker para hablar con el backend.                           |
+| `worker/runner.py`   | Bucle principal: SSE + polling + procesamiento de episodios.                  |
+| `worker/handlers.py` | Renderizado de audio y postproducción local.                                  |
+| `shared/schemas/__init__.py` | Schemas Pydantic compartidos entre backend y worker.                  |
+| `shared/config.py`   | Rutas y configuración compartida.                                             |
+| `starter.py`         | Orquestador de desarrollo: api + worker + web + monitor.                      |
 
-| Motor   | Paquete       | Modelo default                         | VRAM     |
-|---------|---------------|----------------------------------------|----------|
-| Higgs   | vLLM-Omni     | `bosonai/higgs-audio-v3-tts-4b`        | ~18 GB   |
-| Qwen3   | `qwen-tts`    | `Qwen/Qwen3-TTS-12Hz-1.7B-Base`        | ~4 GB    |
-
-### Instalación
+## Tests
 
 ```bash
-pip install -r requirements.txt   # incluye qwen-tts
+python -m pytest backend/tests worker/tests -v --tb=short
 ```
 
-Opcional (recomendado): `pip install flash-attn --no-build-isolation`.
-
-### Configuración
-
-| Variable              | Default                                            |
-|-----------------------|----------------------------------------------------|
-| `QWEN3_TTS_MODEL`     | `Qwen/Qwen3-TTS-12Hz-1.7B-Base`                    |
-| `QWEN3_TTS_DEVICE`    | `cuda`                                             |
-| `QWEN3_TTS_DTYPE`     | *(vacío → bfloat16)*                               |
-
-### Uso en la web
-
-Las voces clonadas en `voices/clones/` se muestran **dos veces** en el dropdown de la interfaz: una con motor Higgs (retrocompatible) y otra con motor Qwen3 (`nombre (qwen3)`). El despacho se hace en `backend/app/routes/tts.py` mediante `_get_clone_engine(voice)`.
-
-### Documentación detallada
-
-Ver `docs/QWEN3_TTS_SETUP.md`.
-
-| Archivo              | Qué hace                                                                      |
-|----------------------|-------------------------------------------------------------------------------|
-| `starter.py`         | Orquestador principal: lanza api+worker+web, monitor y navegador, apagado limpio. |
-| `starter_monitor.py` | Dashboard curses en vivo (ventana independiente).                            |
-| `starter.sh`         | Wrapper bash: `cd` + `python starter.py`.                                     |
-| `starter.bat`        | Wrapper cmd para Windows.                                                     |
-| `logs/`              | Carpeta donde se guardan los logs de cada servicio al arrancar.              |
+En `backend/tests/conftest.py` se deshabilita auth (`REQUIRE_AUTH=false`) y se configura una base de datos SQLite temporal para los tests.

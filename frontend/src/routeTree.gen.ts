@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as VoicesRouteImport } from './routes/voices'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as QueueRouteImport } from './routes/queue'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as CreateRouteImport } from './routes/create'
 import { Route as ChannelsRouteImport } from './routes/channels'
 import { Route as BooksRouteImport } from './routes/books'
@@ -34,6 +35,11 @@ const StudioRoute = StudioRouteImport.update({
 const QueueRoute = QueueRouteImport.update({
   id: '/queue',
   path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CreateRoute = CreateRouteImport.update({
@@ -82,6 +88,7 @@ export interface FileRoutesByFullPath {
   '/books': typeof BooksRoute
   '/channels': typeof ChannelsRouteWithChildren
   '/create': typeof CreateRoute
+  '/login': typeof LoginRoute
   '/queue': typeof QueueRoute
   '/studio': typeof StudioRoute
   '/voices': typeof VoicesRoute
@@ -94,6 +101,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/books': typeof BooksRoute
   '/create': typeof CreateRoute
+  '/login': typeof LoginRoute
   '/queue': typeof QueueRoute
   '/studio': typeof StudioRoute
   '/voices': typeof VoicesRoute
@@ -108,6 +116,7 @@ export interface FileRoutesById {
   '/books': typeof BooksRoute
   '/channels': typeof ChannelsRouteWithChildren
   '/create': typeof CreateRoute
+  '/login': typeof LoginRoute
   '/queue': typeof QueueRoute
   '/studio': typeof StudioRoute
   '/voices': typeof VoicesRoute
@@ -123,6 +132,7 @@ export interface FileRouteTypes {
     | '/books'
     | '/channels'
     | '/create'
+    | '/login'
     | '/queue'
     | '/studio'
     | '/voices'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
     | '/'
     | '/books'
     | '/create'
+    | '/login'
     | '/queue'
     | '/studio'
     | '/voices'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '/books'
     | '/channels'
     | '/create'
+    | '/login'
     | '/queue'
     | '/studio'
     | '/voices'
@@ -162,6 +174,7 @@ export interface RootRouteChildren {
   BooksRoute: typeof BooksRoute
   ChannelsRoute: typeof ChannelsRouteWithChildren
   CreateRoute: typeof CreateRoute
+  LoginRoute: typeof LoginRoute
   QueueRoute: typeof QueueRoute
   StudioRoute: typeof StudioRoute
   VoicesRoute: typeof VoicesRoute
@@ -188,6 +201,13 @@ declare module '@tanstack/react-router' {
       path: '/queue'
       fullPath: '/queue'
       preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/create': {
@@ -272,6 +292,7 @@ const rootRouteChildren: RootRouteChildren = {
   BooksRoute: BooksRoute,
   ChannelsRoute: ChannelsRouteWithChildren,
   CreateRoute: CreateRoute,
+  LoginRoute: LoginRoute,
   QueueRoute: QueueRoute,
   StudioRoute: StudioRoute,
   VoicesRoute: VoicesRoute,

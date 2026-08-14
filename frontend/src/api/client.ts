@@ -11,7 +11,10 @@ import {
   BookResult,
   BookChapter,
   JobSummary,
+  LoginRequest,
+  LoginResponse,
 } from '../types'
+import { getAuthToken } from './auth'
 
 const API_BASE = '/api'
 
@@ -28,13 +31,22 @@ async function parseError(response: Response): Promise<Error> {
   return new Error(`HTTP ${response.status}: ${response.statusText}`)
 }
 
+function buildHeaders(options?: RequestInit): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options?.headers as Record<string, string> ?? {}),
+  }
+  const token = getAuthToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {}),
-    },
+    headers: buildHeaders(options),
   })
   if (!response.ok) {
     throw await parseError(response)
@@ -45,10 +57,7 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
 async function fetchVoid(url: string, options?: RequestInit): Promise<void> {
   const response = await fetch(`${API_BASE}${url}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers ?? {}),
-    },
+    headers: buildHeaders(options),
   })
   if (!response.ok) {
     throw await parseError(response)
@@ -56,6 +65,12 @@ async function fetchVoid(url: string, options?: RequestInit): Promise<void> {
 }
 
 export const api = {
+  login: (username: string, password: string) =>
+    fetchJson<LoginResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password } as LoginRequest),
+    }),
+
   getVoices: () => fetchJson<Voice[]>('/voices'),
   previewTts: (text: string, voiceId: string) =>
     fetchJson<{ audio_url: string }>('/tts/preview', {

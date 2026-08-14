@@ -1,19 +1,28 @@
 # 🎙️ Podcast Voice Generator
 
-Aplicación de escritorio en Python con PyQt6 para generar podcasts con voz sintética de alta calidad usando GPU NVIDIA. Soporta múltiples motores TTS (Text-to-Speech), clonación de voz y procesamiento de audio profesional.
+Aplicación web para generar podcasts con voz sintética de alta calidad usando GPU NVIDIA. Soporta múltiples motores TTS, clonación de voz y procesamiento de audio profesional.
+
+La arquitectura está dividida en tres partes:
+
+- **Backend** (`backend/`): API REST + SSE en FastAPI.
+- **Frontend** (`frontend/`): Interfaz web en Vite.
+- **Worker** (`worker/`): Proceso local que renderiza audio y reporta resultados al backend.
+
+> La versión de escritorio PyQt6 fue eliminada. Todo se controla desde el navegador.
 
 ## ✨ Características
 
-- **🖥️ Interfaz Gráfica Intuitiva**: Construida con PyQt6, diseño moderno y responsivo
+- **🌐 Interfaz Web**: Trabaja desde cualquier lugar; el backend puede ir a un servidor y el worker a tu PC.
 - **🔊 Múltiples Motores TTS**:
-  - **XTTS v2** (Coqui) - Clonación de voz con solo 6 segundos de audio de referencia
-  - **Bark** (Suno) - Generación de voz expresiva y natural
-  - **Edge-TTS** - Síntesis rápida en la nube (sin requisitos de GPU)
-- **🎭 Clonación de Voz**: Clona cualquier voz a partir de un archivo de audio de referencia
-- **⚡ Aceleración GPU**: Soporte completo para NVIDIA CUDA con gestión inteligente de VRAM
+  - **XTTS v2** (Coqui) - Clonación de voz con audio de referencia
+  - **Bark** (Suno) - Voz expresiva y natural
+  - **Edge-TTS** - Síntesis rápida en la nube
+  - **Qwen3-TTS** - Clonación de voz ligera (~4 GB VRAM)
+- **🎭 Clonación de Voz**: Clona voces a partir de archivos de referencia
+- **⚡ Aceleración GPU**: Soporte NVIDIA CUDA con gestión de VRAM
 - **🎚️ Procesamiento de Audio**: Mezcla, normalización, efectos y exportación profesional
-- **📁 Gestión de Proyectos**: Guarda y organiza tus proyectos de podcast
-- **🌍 Multi-idioma**: Soporte para 16 idiomas (español, inglés, francés, alemán, etc.)
+- **🤖 Autopiloto de Canales**: Generación automática de temporadas, planes y guiones
+- **🌍 Multi-idioma**: Soporte para varios idiomas
 
 ## 🚀 Instalación
 
@@ -23,6 +32,7 @@ Aplicación de escritorio en Python con PyQt6 para generar podcasts con voz sint
 - NVIDIA GPU con CUDA (opcional pero recomendado)
 - 8GB+ RAM (16GB recomendado)
 - ~5GB espacio libre para modelos
+- Node.js 18+ (para el frontend)
 
 ### Paso 1: Clonar el repositorio
 
@@ -31,7 +41,7 @@ git clone <repo-url>
 cd podcast-voice-generator
 ```
 
-### Paso 2: Crear entorno virtual
+### Paso 2: Crear entorno virtual de Python
 
 ```bash
 python3.11 -m venv venv311
@@ -39,108 +49,124 @@ source venv311/bin/activate  # Linux/Mac
 # venv311\Scripts\activate  # Windows
 ```
 
-### Paso 3: Instalar dependencias
+### Paso 3: Instalar dependencias de Python
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> **Nota para RTX 50-series (5060/5070/5080/5090)**: PyTorch < 2.11 no es compatible con la arquitectura sm_120 (Blackwell). La aplicación detectará automáticamente esto y usará CPU fallback para XTTS/Bark. **Para usar GPU, instala PyTorch 2.11+ con CUDA 13.0:**
-> ```bash
-> pip install torch==2.11.0 torchaudio==2.11.0
-> ```
+> **Nota para RTX 50-series**: PyTorch < 2.11 no es compatible con sm_120 (Blackwell). La app usa CPU fallback si detecta una GPU no soportada. Para GPU instala PyTorch 2.11+ con CUDA 13.0.
 
-### Paso 4: Configurar HuggingFace (para Bark)
-
-Si planeas usar el motor Bark, configura tu token de HuggingFace para evitar rate limiting:
+### Paso 4: Instalar dependencias del frontend
 
 ```bash
-# Obtén tu token en https://huggingface.co/settings/tokens
-huggingface-cli login
-# o
-export HF_TOKEN="tu_token_aqui"
+cd frontend && npm install && cd ..
 ```
 
-### Paso 5: Ejecutar la aplicación
+### Paso 5: Configurar variables de entorno
 
 ```bash
-python main.py
+cp backend/.env.example backend/.env
+cp worker/.env.example worker/.env
+cp frontend/.env.example frontend/.env
 ```
 
-## 📖 Uso
+Edita al menos:
 
-### Generar un Podcast
+- `backend/.env`: `SECRET_KEY`, `ADMIN_PASSWORD`, `WORKER_TOKEN`
+- `worker/.env`: `BACKEND_URL`, `WORKER_TOKEN` (mismo valor)
+- `frontend/.env`: `VITE_API_URL` (URL pública del backend)
 
-1. Abre la aplicación con `python main.py`
-2. Crea un nuevo proyecto o abre uno existente
-3. Escribe o importa tu guion en el editor de texto
-4. Selecciona la voz y el motor TTS deseado
-5. Haz clic en **Generar Audio**
-6. El archivo resultante se guardará en la carpeta `output/`
+### Paso 6: Ejecutar en desarrollo
 
-### Clonar una Voz
-
-1. Ve al panel **Voces** → **Clonar Voz**
-2. Selecciona un archivo de audio de referencia (mínimo 6 segundos, voz clara)
-3. Dale un nombre a la voz clonada
-4. Usa la voz clonada en cualquier proyecto
-
-### Configuración de GPU
-
-Edita `config.yaml` para ajustar:
-
-```yaml
-gpu:
-  device: "auto"          # auto, cpu, cuda:0, cuda:1...
-  use_fp16: true          # Media precisión para ahorrar VRAM
-  max_vram_gb: 22         # Límite de VRAM a usar
-  keep_model_loaded: true # Mantener modelo en memoria
+```bash
+python starter.py
 ```
+
+Esto levanta backend (`:8000`), worker (`:8001`) y frontend (`:5173`), y abre el navegador.
 
 ## 🏗️ Arquitectura
 
 ```
 podcast-voice-generator/
-├── main.py                  # Punto de entrada
-├── config.yaml              # Configuración global
-├── requirements.txt         # Dependencias
-├── core/                    # Lógica de negocio
-│   ├── project.py           # Modelos de datos
-│   ├── xtts_engine.py       # Motor XTTS v2
-│   ├── bark_engine.py       # Motor Bark
-│   ├── batch_generator.py   # Generación por lotes
-│   └── audio_pipeline.py    # Pipeline de audio
-├── gui/                     # Interfaz gráfica
-│   ├── main_window.py       # Ventana principal
-│   ├── generation_panel.py  # Panel de generación
-│   ├── voice_manager.py     # Gestor de voces
-│   └── script_editor.py     # Editor de guiones
+├── backend/                 # API FastAPI
+│   ├── app/
+│   │   ├── main.py          # Punto de entrada FastAPI
+│   │   ├── auth.py          # JWT y hashing
+│   │   ├── dependencies.py  # Auth dependencies
+│   │   ├── routes/          # Routers (auth, worker, episodes, channels...)
+│   │   └── services/        # Lógica de negocio
+│   ├── tests/               # Tests del backend
+│   └── .env.example
+├── frontend/                # Aplicación web Vite
+│   ├── src/
+│   ├── package.json
+│   └── .env.example
+├── worker/                  # Proceso local de renderizado
+│   ├── main.py              # Health check HTTP + bucle
+│   ├── runner.py            # Bucle SSE/polling
+│   ├── client.py            # Cliente HTTP hacia backend
+│   ├── handlers.py          # Renderizado de audio
+│   ├── tests/
+│   └── .env.example
+├── shared/                  # Contratos y config compartidos
+│   ├── schemas/__init__.py  # Schemas Pydantic
+│   └── config.py
+├── core/                    # Motores TTS y pipelines
 ├── audio/                   # Procesamiento de audio
-│   ├── mixer.py             # Mezclador
-│   ├── effects.py           # Efectos
-│   ├── normalizer.py        # Normalización
-│   └── exporter.py          # Exportación
-├── utils/                   # Utilidades
-│   ├── gpu_utils.py         # Gestión de GPU
-│   ├── config_manager.py    # Configuración
-│   └── file_utils.py        # Archivos
-├── tests/                   # Tests unitarios
-├── voices/                  # Voces almacenadas
-├── output/                  # Archivos generados
-└── projects/                # Proyectos guardados
+├── models/                  # Modelos descargados
+├── voices/                  # Voces y clones
+└── output/                  # Audio generado
 ```
+
+## 🌍 Deploy en producción
+
+### Servidor (backend + frontend)
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r ../requirements.txt
+cp .env.example .env
+# Edita SECRET_KEY, ADMIN_PASSWORD, WORKER_TOKEN, DATABASE_URL...
+python -m app.main
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm install
+npm run build
+# Sirve dist/ con nginx/caddy
+```
+
+Configura `CORS_ORIGINS` en el backend con el dominio del frontend.
+
+### PC local (worker)
+
+```bash
+export BACKEND_URL=https://tu-dominio.com
+export WORKER_TOKEN=<mismo_token_que_backend>
+cd worker
+python -m main
+```
+
+El worker se conecta por SSE y, si falla, hace polling cada 30 segundos.
+
+## 🔐 Seguridad
+
+- Las rutas de la API web requieren JWT (`Authorization: Bearer <token>`).
+- Las rutas del worker requieren el token estático `WORKER_TOKEN`.
+- `REQUIRE_AUTH=false` deshabilita JWT solo para desarrollo/tests.
+- Nunca subas `.env` con secretos reales.
 
 ## 🧪 Tests
 
 ```bash
-pytest tests/ -v
+python -m pytest backend/tests worker/tests -v --tb=short
 ```
-
-34 tests unitarios cubriendo:
-- Motores TTS (XTTS, Bark)
-- Pipeline de audio
-- Gestión de GPU/VRAM
-- Utilidades y configuración
 
 ## 🖥️ Compatibilidad de GPU
 
@@ -151,38 +177,8 @@ pytest tests/ -v
 | GTX 1060-1080 | Pascal | sm_61 | 2.6.0+cu124 | ✅ GPU |
 | Sin GPU | - | - | Cualquiera | ✅ CPU |
 
-\* La aplicación detecta automáticamente GPUs no compatibles y usa CPU fallback para estabilidad. Instala PyTorch 2.11+ para habilitar GPU en RTX 50-series.
-
-## 📝 Notas sobre Modelos
-
-### XTTS v2
-- **Tamaño**: ~1.9GB
-- **Descarga automática** en primer uso
-- **Licencia**: CPML (Coqui Public Model License)
-- **Requiere aceptación** de términos en primer uso
-
-### Bark
-- **Tamaño**: ~1.5GB (small) / ~3.9GB (large)
-- **Descarga automática** vía HuggingFace (requiere `HF_TOKEN` para evitar rate limiting)
-- **Modelos**: `suno/bark-small`, `suno/bark-large`
-- **Nota**: Sin token, HuggingFace puede aplicar rate limiting tras múltiples descargas
-
-## 🤝 Contribuir
-
-1. Fork el repositorio
-2. Crea una rama (`git checkout -b feature/nueva-funcionalidad`)
-3. Commitea tus cambios
-4. Abre un Pull Request
-
-## 📄 Licencia
+## 📝 Licencia
 
 MIT License - ver archivo LICENSE para detalles.
 
-Los modelos XTTS v2 y Bark tienen sus propias licencias (CPML y MIT respectivamente).
-
-## 🙏 Agradecimientos
-
-- [Coqui AI](https://github.com/coqui-ai/TTS) - XTTS v2
-- [Suno AI](https://github.com/suno-ai/bark) - Bark
-- [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) - Framework GUI
-- [PyTorch](https://pytorch.org/) - Framework ML
+Los modelos XTTS v2, Bark y Qwen3-TTS tienen sus propias licencias.

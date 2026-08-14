@@ -2,9 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { RouterProvider, createRouter } from '@tanstack/react-router'
 import { routeTree } from './routeTree.gen'
+import { useAuthStore } from './stores/authStore'
 import './index.css'
 
 const router = createRouter({ routeTree })
+
+useAuthStore.getState().init()
 
 declare module '@tanstack/react-router' {
   interface Register {
