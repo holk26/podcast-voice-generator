@@ -27,8 +27,8 @@ _shutdown_called = False
 
 def _check_ollama():
     try:
-        from web_api.config import OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL
-        from web_api.services.llm_provider import check_ollama
+        from backend.app.config import OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL
+        from backend.app.services.llm_provider import check_ollama
 
         status = check_ollama()
         if not status["available"]:
@@ -190,12 +190,20 @@ def main():
     _check_ollama()
     venv_python = _find_python()
 
-    start_process("api", [str(venv_python), "-m", "web_api.main"])
+    start_process(
+        "api",
+        [str(venv_python), "-m", "app.main"],
+        cwd=BASE_DIR / "backend",
+    )
     if not wait_for_service(f"http://127.0.0.1:{API_PORT}/api/health"):
         print("[STARTER] API did not start")
         shutdown(exit_code=1)
 
-    start_process("worker", [str(venv_python), "-m", "worker.main"])
+    start_process(
+        "worker",
+        [str(venv_python), "-m", "main"],
+        cwd=BASE_DIR / "worker",
+    )
     if not wait_for_service(f"http://127.0.0.1:{WORKER_PORT}/health"):
         print("[STARTER] Worker did not start")
         shutdown(exit_code=1)
@@ -203,7 +211,7 @@ def main():
     start_process(
         "web",
         ["npm", "run", "dev", "--", "--port", str(WEB_PORT), "--host", "127.0.0.1"],
-        cwd=BASE_DIR / "web",
+        cwd=BASE_DIR / "frontend",
     )
     if not wait_for_service(f"http://127.0.0.1:{WEB_PORT}"):
         print("[STARTER] Web did not start")
