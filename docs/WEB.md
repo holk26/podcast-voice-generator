@@ -30,14 +30,14 @@ Para usar puertos diferentes:
 API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 ```
 
-`starter.py` y `web/vite.config.ts` leen las mismas variables, así que el proxy del frontend apunta automáticamente a la API correcta.
+`starter.py` y `frontend/vite.config.ts` leen las mismas variables, así que el proxy del frontend apunta automáticamente a la API correcta.
 
 ## Requisitos
 
 - Node.js 18+
 - Python 3.11+
 - Dependencias de Python instaladas (`pip install -r requirements.txt`)
-- Dependencias de Node instaladas (`cd web && npm install`)
+- Dependencias de Node instaladas (`cd frontend && npm install`)
 
 ## Uso básico
 
@@ -101,7 +101,7 @@ del congreso (caída a CPU si la GPU está ocupada = mucho más lento).
 ## Tests frontend
 
 ```bash
-cd web
+cd frontend
 npm test -- --run
 npm run build
 ```
@@ -109,8 +109,8 @@ npm run build
 ## Arquitectura
 
 ```
-web/          # React + Vite + Tailwind + TanStack Router + Zustand
-web_api/      # FastAPI + SQLAlchemy + SQLite
+frontend/     # React + Vite + Tailwind + TanStack Router + Zustand
+backend/      # FastAPI + SQLAlchemy + SQLite
 worker/       # Proceso Python con Edge-TTS
 starter.py    # Lanza los tres servicios
 ```
