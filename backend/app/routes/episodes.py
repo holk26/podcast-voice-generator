@@ -7,7 +7,7 @@ import json
 import time
 from web_api.database import get_db, SessionLocal
 from web_api.models import Episode
-from web_api.schemas import EpisodeCreate, EpisodeResponse
+from shared.schemas import EpisodeCreate, EpisodeResponse
 
 router = APIRouter()
 

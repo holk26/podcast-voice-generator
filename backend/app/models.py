@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import Column, Integer, String, DateTime, Text, Float, Boolean, ForeignKey, JSON
 from sqlalchemy.orm import relationship
-from web_api.database import Base
+from backend.app.database import Base
 
 
 class Episode(Base):

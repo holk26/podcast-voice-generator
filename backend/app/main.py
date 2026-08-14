@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from web_api.config import OUTPUT_DIR, API_PORT, init_dirs
 from web_api.database import init_db
-from web_api import models  # noqa: F401 - ensures tables are registered
+from backend.app import models  # noqa: F401 - ensures tables are registered
 from web_api.routes import voices, tts, episodes, channels, llm, jobs, books
 
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))

@@ -6,7 +6,7 @@ import soundfile as sf
 from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
-from web_api.schemas import PreviewRequest, PreviewResponse
+from shared.schemas import PreviewRequest, PreviewResponse
 from web_api.config import PREVIEW_DIR
 from web_api.routes.voices import list_voices, VoiceResponse
 from web_api.services.job_service import registry

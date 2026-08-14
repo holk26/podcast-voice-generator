@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from web_api.database import get_db
 from web_api.models import Channel, ContentPlanEntry, Episode
-from web_api.schemas import (
+from shared.schemas import (
     ChannelCreate,
     ChannelUpdate,
     ChannelResponse,

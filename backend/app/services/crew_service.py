@@ -3,7 +3,7 @@ import json
 import re
 from typing import List
 from crewai import Agent, Task, Crew
-from web_api.schemas import PlanEntryCreate
+from shared.schemas import PlanEntryCreate
 from web_api.services.llm_provider import get_planning_llm, get_script_llm
 
 
