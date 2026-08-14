@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from web_api.services.llm_provider import (
+from backend.app.services.llm_provider import (
     check_ollama,
     get_current_model,
     set_current_model,

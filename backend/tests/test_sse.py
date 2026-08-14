@@ -1,7 +1,7 @@
 from fastapi.testclient import TestClient
-from web_api.main import app
-from web_api.database import SessionLocal
-from web_api.models import Episode
+from backend.app.main import app
+from backend.app.database import SessionLocal
+from backend.app.models import Episode
 import json
 
 client = TestClient(app)

@@ -4,7 +4,7 @@ import re
 from typing import List
 from crewai import Agent, Task, Crew
 from shared.schemas import PlanEntryCreate
-from web_api.services.llm_provider import get_planning_llm, get_script_llm
+from backend.app.services.llm_provider import get_planning_llm, get_script_llm
 
 
 PLAN_PROMPT = """Eres un estratega de contenidos. Para el canal "{name}" ({format}) sobre el nicho "{niche}",

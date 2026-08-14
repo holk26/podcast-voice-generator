@@ -1,7 +1,7 @@
 """Aísla los tests de la BD y directorios reales.
 
 Sin esto, los tests escriben canales/episodios en data/app.db (la BD de
-producción). Debe cargarse antes que cualquier import de web_api.
+producción). Debe cargarse antes que cualquier import de backend.app.
 """
 
 import os

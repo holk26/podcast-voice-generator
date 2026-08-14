@@ -2,7 +2,7 @@ import os
 import logging
 from fastapi import FastAPI
 from worker.runner import run_loop
-from web_api.config import WORKER_PORT
+from backend.app.config import WORKER_PORT
 
 logging.basicConfig(level=logging.INFO)
 

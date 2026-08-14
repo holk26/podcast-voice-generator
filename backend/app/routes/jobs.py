@@ -3,7 +3,7 @@ import time
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
-from web_api.services.job_service import registry
+from backend.app.services.job_service import registry
 
 router = APIRouter()
 

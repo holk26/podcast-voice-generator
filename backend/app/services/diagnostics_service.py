@@ -67,7 +67,7 @@ def _check_gpu() -> DiagnosticCheckResult:
 
 
 def _check_ollama() -> DiagnosticCheckResult:
-    from web_api.config import OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL
+    from backend.app.config import OLLAMA_BASE_URL, OLLAMA_DEFAULT_MODEL
 
     try:
         url = f"{OLLAMA_BASE_URL}/api/tags"
@@ -126,7 +126,7 @@ def _check_disk() -> DiagnosticCheckResult:
 
 
 def _check_worker() -> DiagnosticCheckResult:
-    from web_api.config import WORKER_PORT
+    from backend.app.config import WORKER_PORT
 
     url = f"http://127.0.0.1:{WORKER_PORT}/health"
     try:
@@ -162,7 +162,7 @@ def _check_web_assets() -> DiagnosticCheckResult:
             detail="Production build found in web/dist.",
             checked_at=datetime.utcnow(),
         )
-    from web_api.config import WEB_PORT
+    from backend.app.config import WEB_PORT
 
     url = f"http://127.0.0.1:{WEB_PORT}"
     try:

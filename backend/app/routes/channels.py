@@ -3,8 +3,8 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from web_api.database import get_db
-from web_api.models import Channel, ContentPlanEntry, Episode
+from backend.app.database import get_db
+from backend.app.models import Channel, ContentPlanEntry, Episode
 from shared.schemas import (
     ChannelCreate,
     ChannelUpdate,
@@ -12,8 +12,8 @@ from shared.schemas import (
     PlanEntryCreate,
     PlanEntryResponse,
 )
-from web_api.services.crew_service import suggest_channel, improve_channel_prompt
-from web_api.services.automation_service import start_plan_job, start_script_job, start_season_job
+from backend.app.services.crew_service import suggest_channel, improve_channel_prompt
+from backend.app.services.automation_service import start_plan_job, start_script_job, start_season_job
 
 
 class ChannelSuggestRequest(BaseModel):

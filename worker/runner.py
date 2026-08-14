@@ -3,10 +3,10 @@ import time
 import logging
 from datetime import datetime
 from sqlalchemy.orm import Session
-from web_api.database import SessionLocal
-from web_api.models import Episode
+from backend.app.database import SessionLocal
+from backend.app.models import Episode
 from worker.handlers import handle_podcast_episode
-from web_api.services.automation_service import autopilot_tick
+from backend.app.services.automation_service import autopilot_tick
 
 logger = logging.getLogger(__name__)
 

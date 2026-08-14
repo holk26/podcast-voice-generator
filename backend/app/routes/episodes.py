@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from typing import List
 import json
 import time
-from web_api.database import get_db, SessionLocal
-from web_api.models import Episode
+from backend.app.database import get_db, SessionLocal
+from backend.app.models import Episode
 from shared.schemas import EpisodeCreate, EpisodeResponse
 
 router = APIRouter()

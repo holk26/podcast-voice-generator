@@ -10,19 +10,19 @@ import threading
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
-from web_api.database import SessionLocal
-from web_api.models import Channel, ContentPlanEntry, Episode
+from backend.app.database import SessionLocal
+from backend.app.models import Channel, ContentPlanEntry, Episode
 from processors.dialogue_parser import parse_dialogue
 from core.multi_voice_mixer import mix_dialogue
-from web_api.config import OUTPUT_DIR
-from web_api.services.crew_service import (
+from backend.app.config import OUTPUT_DIR
+from backend.app.services.crew_service import (
     generate_plan,
     generate_script,
     generate_dialogue_script,
     generate_season,
     _is_dialogue_mode,
 )
-from web_api.services.job_service import registry
+from backend.app.services.job_service import registry
 
 # Claves en curso para no lanzar dos jobs sobre el mismo recurso
 _active: set[str] = set()

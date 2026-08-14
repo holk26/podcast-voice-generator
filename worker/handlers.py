@@ -6,8 +6,8 @@ import subprocess
 import urllib.request
 from pathlib import Path
 from sqlalchemy.orm import Session
-from web_api.models import Episode
-from web_api.config import OUTPUT_DIR, BASE_DIR
+from backend.app.models import Episode
+from backend.app.config import OUTPUT_DIR, BASE_DIR
 
 VOICE_MAP = {
     "jorge": "es-ES-AlvaroNeural",

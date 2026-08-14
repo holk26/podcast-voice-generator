@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
-from web_api.main import app
-from web_api.database import init_db
+from backend.app.main import app
+from backend.app.database import init_db
 
 init_db()
 
@@ -68,8 +68,8 @@ def test_publish_and_unpublish_episode():
             "voice_id": "jorge",
         })
         episode_id = create_resp.json()["id"]
-        from web_api.database import SessionLocal
-        from web_api.models import Episode
+        from backend.app.database import SessionLocal
+        from backend.app.models import Episode
         db = SessionLocal()
         db.query(Episode).filter(Episode.id == episode_id).first().status = "completed"
         db.commit()

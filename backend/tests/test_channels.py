@@ -1,8 +1,8 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch
-from web_api.main import app
-from web_api.database import init_db
-from web_api.schemas import PlanEntryCreate
+from backend.app.main import app
+from backend.app.database import init_db
+from shared.schemas import PlanEntryCreate
 
 
 init_db()
@@ -51,7 +51,7 @@ def test_generate_plan_creates_entries():
         })
         channel_id = response.json()["id"]
 
-        with patch("web_api.services.automation_service.generate_plan") as mock_generate:
+        with patch("backend.app.services.automation_service.generate_plan") as mock_generate:
             mock_generate.return_value = [
                 PlanEntryCreate(title="T1", description="D1"),
                 PlanEntryCreate(title="T2", description="D2"),
@@ -83,7 +83,7 @@ def test_approve_entry_creates_episode():
         })
         entry_id = response.json()["id"]
 
-        with patch("web_api.services.automation_service.generate_script") as mock_script:
+        with patch("backend.app.services.automation_service.generate_script") as mock_script:
             mock_script.return_value = "Guion generado"
             response = client.post(f"/api/channels/plan/{entry_id}/approve")
             assert response.status_code == 202
@@ -117,8 +117,8 @@ def test_plan_entries_include_episode_published_at():
             "source_text": "Texto",
             "voice_id": "jorge",
         }).json()
-        from web_api.database import SessionLocal
-        from web_api.models import Episode, ContentPlanEntry
+        from backend.app.database import SessionLocal
+        from backend.app.models import Episode, ContentPlanEntry
         db = SessionLocal()
         db.query(Episode).filter(Episode.id == ep["id"]).first().status = "completed"
         db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry["id"]).first().episode_id = ep["id"]

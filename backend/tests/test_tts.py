@@ -1,11 +1,11 @@
 from unittest.mock import patch, AsyncMock
 from fastapi.testclient import TestClient
-from web_api.main import app
+from backend.app.main import app
 
 client = TestClient(app)
 
 
-@patch("web_api.routes.tts.edge_tts.Communicate")
+@patch("backend.app.routes.tts.edge_tts.Communicate")
 def test_preview_generates_audio(mock_communicate):
     mock_instance = mock_communicate.return_value
     mock_instance.save = AsyncMock()

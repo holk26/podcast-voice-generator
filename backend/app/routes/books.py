@@ -6,10 +6,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from content.gutenberg_fetcher import GutenbergFetcher
-from web_api.database import SessionLocal
-from web_api.models import Episode
-from web_api.services.crew_service import curate_audiobook
-from web_api.services.job_service import registry
+from backend.app.database import SessionLocal
+from backend.app.models import Episode
+from backend.app.services.crew_service import curate_audiobook
+from backend.app.services.job_service import registry
 
 router = APIRouter()
 

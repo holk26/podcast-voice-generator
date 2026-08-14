@@ -3,12 +3,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from web_api.config import OUTPUT_DIR, API_PORT, init_dirs
-from web_api.database import init_db
+from backend.app.config import OUTPUT_DIR, API_PORT, init_dirs
+from backend.app.database import init_db
 from backend.app import models  # noqa: F401 - ensures tables are registered
-from web_api.routes import voices, tts, episodes, channels, llm, jobs, books
+from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books
 
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
+
+# Asegurar que los directorios existen antes de montar static files
+init_dirs()
+init_db()
 
 
 @asynccontextmanager

@@ -1,5 +1,5 @@
 from crewai import LLM
-from web_api.config import (
+from backend.app.config import (
     OLLAMA_BASE_URL,
     OLLAMA_DEFAULT_MODEL,
     save_llm_model,

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch
-from web_api.services.crew_service import generate_plan, generate_script, _parse_plan_result
+from backend.app.services.crew_service import generate_plan, generate_script, _parse_plan_result
 
 
 def test_parse_plan_result_valid_json():
@@ -64,7 +64,7 @@ def test_generate_script_returns_string():
         "description": "D1",
     })()
 
-    with patch("web_api.services.crew_service.Crew") as mock_crew:
+    with patch("backend.app.services.crew_service.Crew") as mock_crew:
         mock_crew.return_value.kickoff.return_value = " ".join(["Guion"] * 150)
         result = generate_script(channel, entry)
         assert result == " ".join(["Guion"] * 150)
@@ -82,7 +82,7 @@ def test_generate_script_rejects_llm_refusal():
         "description": "D1",
     })()
 
-    with patch("web_api.services.crew_service.Crew") as mock_crew:
+    with patch("backend.app.services.crew_service.Crew") as mock_crew:
         mock_crew.return_value.kickoff.return_value = (
             "Sorry, but I can't assist with that. "
             "If you have any other questions, feel free to ask!"
@@ -104,7 +104,7 @@ def test_generate_script_survives_voice_director_collapse():
     })()
     long_script = " ".join(["contenido"] * 300)
 
-    with patch("web_api.services.crew_service.Crew") as mock_crew:
+    with patch("backend.app.services.crew_service.Crew") as mock_crew:
         class FakeCrew:
             def __init__(self, agents=None, tasks=None, verbose=False):
                 self._task_desc = tasks[0].description if tasks else ""
@@ -122,7 +122,7 @@ def test_generate_script_survives_voice_director_collapse():
 
 
 def test_clean_prompt_lists_emotion_tokens_and_keeps_them():
-    from web_api.services.crew_service import CLEAN_PROMPT, _strip_markup
+    from backend.app.services.crew_service import CLEAN_PROMPT, _strip_markup
     # El prompt del director de voz incluye la lista cerrada de emociones
     assert "<|emotion:" in CLEAN_PROMPT
     assert "enthusiasm" in CLEAN_PROMPT

@@ -7,9 +7,9 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.concurrency import run_in_threadpool
 from shared.schemas import PreviewRequest, PreviewResponse
-from web_api.config import PREVIEW_DIR
-from web_api.routes.voices import list_voices, VoiceResponse
-from web_api.services.job_service import registry
+from backend.app.config import PREVIEW_DIR
+from backend.app.routes.voices import list_voices, VoiceResponse
+from backend.app.services.job_service import registry
 from core.emotion_tags import sanitize_emotion_tags
 
 router = APIRouter()
@@ -33,7 +33,7 @@ def _get_higgs_engine():
     global _higgs_engine
     if _higgs_engine is None:
         from core.higgs_engine import HiggsAudioEngine
-        from web_api.config import BASE_DIR
+        from backend.app.config import BASE_DIR
         _higgs_engine = HiggsAudioEngine(
             model_name=str(BASE_DIR / "models" / "higgs-audio-v3-tts-4b")
         )

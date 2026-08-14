@@ -3,17 +3,10 @@ from pathlib import Path
 
 import yaml
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = Path(os.getenv("DATA_DIR", BASE_DIR / "data"))
-OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", BASE_DIR / "output"))
-PREVIEW_DIR = OUTPUT_DIR / "previews"
+from shared.config import BASE_DIR, DATA_DIR, OUTPUT_DIR, PREVIEW_DIR, init_dirs
 
-
-def init_dirs() -> None:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
-
+# Rutas y constantes compartidas se reexportan para compatibilidad
+__all__ = ["BASE_DIR", "DATA_DIR", "OUTPUT_DIR", "PREVIEW_DIR", "init_dirs"]
 
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR / 'app.db'}")
 
@@ -26,6 +19,15 @@ try:
     WORKER_PORT = int(os.getenv("WORKER_PORT", "8001"))
 except (ValueError, TypeError):
     WORKER_PORT = 8001
+
+
+# Auth settings
+SECRET_KEY = os.getenv("SECRET_KEY", "cambia_esto_por_una_clave_secreta_larga")
+ACCESS_TOKEN_EXPIRE_DAYS = int(os.getenv("ACCESS_TOKEN_EXPIRE_DAYS", "7"))
+ADMIN_USER = os.getenv("ADMIN_USER", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
+WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 
 
 def _load_config() -> dict:

@@ -6,7 +6,7 @@ from typing import List, Optional
 
 import soundfile as sf
 
-from web_api.config import BASE_DIR
+from backend.app.config import BASE_DIR
 
 router = APIRouter()
 
