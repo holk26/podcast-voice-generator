@@ -1,0 +1,14 @@
+requests>=2.31
+pydantic>=2.6.0
+pyyaml>=6.0
+torch>=2.0.0
+torchaudio>=2.0.0
+TTS>=0.22.0
+edge-tts>=6.1.0
+pydub>=0.25.1
+soundfile>=0.12.1
+pynvml>=11.5.0
+qwen-tts>=0.1.0
+pytest>=7.4.0
+responses>=0.25.0
+sseclient-py>=1.8.0
