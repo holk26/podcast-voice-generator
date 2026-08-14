@@ -7,7 +7,7 @@ from backend.app.config import OUTPUT_DIR, API_PORT, init_dirs
 from backend.app.database import init_db
 from backend.app import models  # noqa: F401 - ensures tables are registered
 from backend.app.dependencies import get_current_user
-from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth
+from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth, worker
 
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
 EXTRA_CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
@@ -41,6 +41,9 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Auth router is public (login does not require a token)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+
+# Worker router uses its own static-token dependency
+app.include_router(worker.router, prefix="/api", tags=["worker"])
 
 # Protected API routers
 auth_dep = [Depends(get_current_user)]

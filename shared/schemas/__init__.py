@@ -144,3 +144,20 @@ class UserResponse(BaseModel):
 class LoginRequest(BaseModel):
     username: str
     password: str
+
+
+class WorkerJob(BaseModel):
+    episode_id: int
+    title: str
+    type: str
+    source_text: Optional[str] = None
+    voice_id: str
+    target_duration_minutes: Optional[float] = None
+
+
+class WorkerJobCompleteRequest(BaseModel):
+    audio_url: str
+
+
+class WorkerJobFailRequest(BaseModel):
+    error: str

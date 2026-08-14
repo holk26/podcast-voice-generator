@@ -64,9 +64,6 @@ def require_worker_token(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> str:
     """Valida el token estático compartido entre backend y worker."""
-    if _auth_disabled():
-        return "test-token"
-
     if not WORKER_TOKEN:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

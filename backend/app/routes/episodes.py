@@ -7,6 +7,7 @@ import json
 import time
 from backend.app.database import get_db, SessionLocal
 from backend.app.models import Episode
+from backend.app.services import worker_service
 from shared.schemas import EpisodeCreate, EpisodeResponse
 
 router = APIRouter()
@@ -66,6 +67,7 @@ def create_episode(request: EpisodeCreate, db: Session = Depends(get_db)):
     db.add(episode)
     db.commit()
     db.refresh(episode)
+    worker_service.notify_new_job()
     return episode
 
 
@@ -104,6 +106,7 @@ def retry_episode(episode_id: int, db: Session = Depends(get_db)):
     episode.audio_url = None
     db.commit()
     db.refresh(episode)
+    worker_service.notify_new_job()
     return episode
 
 
