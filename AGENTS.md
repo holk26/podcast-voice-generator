@@ -6,11 +6,11 @@ El proyecto se levanta con `starter.py`, que arranca los tres servicios de la pi
 
 `starter.py` arranca en orden y con health-check entre cada uno:
 
-| Servicio  | Origen                | Puerto default | Health check                         |
-|-----------|-----------------------|----------------|--------------------------------------|
-| API       | `python -m web_api.main`   | 8000           | `GET http://127.0.0.1:8000/api/health` |
-| Worker    | `python -m worker.main`    | 8001           | `GET http://127.0.0.1:8001/health`     |
-| Web (Vite)| `npm run dev` (en `web/`)  | 5173           | `http://127.0.0.1:5173`                |
+| Servicio  | Origen                      | Puerto default | Health check                            |
+|-----------|-----------------------------|----------------|-----------------------------------------|
+| API       | `cd backend && python -m app.main` | 8000           | `GET http://127.0.0.1:8000/api/health`  |
+| Worker    | `cd worker && python -m main`      | 8001           | `GET http://127.0.0.1:8001/health`      |
+| Web (Vite)| `npm run dev` (en `frontend/`)     | 5173           | `http://127.0.0.1:5173`                 |
 
 Los tres procesos se lanzan en segundo plano, su salida se redirige a `logs/{api,worker,web}.log` **y** se reemite a la consola con el prefijo `[api]`/`[worker]`/`[web]`. Al finalizar, `starter.py`:
 
@@ -47,11 +47,11 @@ Todos los puertos son configurables. `starter.py` y `web/vite.config.ts` leen la
 API_PORT=9000 WORKER_PORT=9001 WEB_PORT=5174 python starter.py
 ```
 
-| Variable      | Default | Descripción                              |
-|---------------|---------|------------------------------------------|
-| `API_PORT`    | 8000    | FastAPI (`web_api/main.py`)              |
-| `WORKER_PORT` | 8001    | Worker de generación (`worker/main.py`)  |
-| `WEB_PORT`     | 5173    | Vite dev server                          |
+| Variable      | Default | Descripción                                |
+|---------------|---------|--------------------------------------------|
+| `API_PORT`    | 8000    | FastAPI (`backend/app/main.py`)            |
+| `WORKER_PORT` | 8001    | Worker de generación (`worker/main.py`)    |
+| `WEB_PORT`     | 5173    | Vite dev server (`frontend/`)              |
 
 ## Monitor curses (`starter_monitor.py`)
 
@@ -80,18 +80,10 @@ source venv311/bin/activate   # Windows: venv311\Scripts\activate
 pip install -r requirements.txt
 
 # Node (frontend)
-cd web && npm install
+cd frontend && npm install
 ```
 
-Opcional pero recomendado para features de CrewAI: tener [Ollama](https://ollama.ai) corriendo con el modelo por defecto (`web_api/config.py`, `OLLAMA_DEFAULT_MODEL`). `starter.py` comprueba su disponibilidad al arrancar y avisa (sin abortar) si falta.
-
-## Sólo la app de escritorio
-
-`starter.py` es **solo para la versión web**. La app de escritorio PyQt6 se lanza aparte con:
-
-```bash
-python main.py
-```
+Opcional pero recomendado para features de CrewAI: tener [Ollama](https://ollama.ai) corriendo con el modelo por defecto (`backend/app/config.py`, `OLLAMA_DEFAULT_MODEL`). `starter.py` comprueba su disponibilidad al arrancar y avisa (sin abortar) si falta.
 
 ## Motor Qwen3-TTS (voz clonada)
 
@@ -120,7 +112,7 @@ Opcional (recomendado): `pip install flash-attn --no-build-isolation`.
 
 ### Uso en la web
 
-Las voces clonadas en `voices/clones/` se muestran **dos veces** en el dropdown de la interfaz: una con motor Higgs (retrocompatible) y otra con motor Qwen3 (`nombre (qwen3)`). El despacho se hace en `web_api/routes/tts.py` mediante `_get_clone_engine(voice)`.
+Las voces clonadas en `voices/clones/` se muestran **dos veces** en el dropdown de la interfaz: una con motor Higgs (retrocompatible) y otra con motor Qwen3 (`nombre (qwen3)`). El despacho se hace en `backend/app/routes/tts.py` mediante `_get_clone_engine(voice)`.
 
 ### Documentación detallada
 
