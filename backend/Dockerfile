@@ -18,7 +18,8 @@ COPY content/ ./content/
 COPY processors/ ./processors/
 COPY config.yaml .
 
-RUN mkdir -p /app/data /app/output /app/voices /app/projects /app/music
+RUN mkdir -p /app/data /app/output /app/voices /app/projects /app/music && \
+    chmod -R 777 /app/data /app/output /app/voices /app/projects /app/music
 
 ENV PYTHONPATH=/app
 ENV DATA_DIR=/app/data
