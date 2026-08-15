@@ -1,16 +1,34 @@
+import logging
 import os
+import subprocess
 from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from backend.app.config import OUTPUT_DIR, API_PORT, init_dirs
+from backend.app.config import OUTPUT_DIR, API_PORT, DATA_DIR, init_dirs
 from backend.app.database import init_db
 from backend.app import models  # noqa: F401 - ensures tables are registered
 from backend.app.dependencies import get_current_user
 from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth, worker
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+logger = logging.getLogger(__name__)
+
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
 EXTRA_CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
+
+logger.info("=== Startup diagnostics ===")
+logger.info("USER=%s", os.getenv("USER") or os.getenv("USERNAME") or "unknown")
+logger.info("CWD=%s", os.getcwd())
+logger.info("PYTHONPATH=%s", os.getenv("PYTHONPATH", "<unset>"))
+logger.info("DATA_DIR=%s exists=%s", DATA_DIR, Path(DATA_DIR).exists())
+logger.info("OUTPUT_DIR=%s exists=%s", OUTPUT_DIR, Path(OUTPUT_DIR).exists())
+try:
+    logger.info("ls -la /app:\n%s", subprocess.check_output(["ls", "-la", "/app"], text=True))
+except Exception as exc:  # noqa: BLE001
+    logger.warning("Could not ls /app: %s", exc)
 
 # Asegurar que los directorios existen antes de montar static files
 init_dirs()

@@ -114,6 +114,22 @@ npm run build
 
 Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en el backend.
 
+#### Opción A: Dokploy (recomendada)
+
+1. Crea dos aplicaciones en Dokploy:
+   - **Frontend**: tipo `static` o `nixpacks`, build path `/frontend`, dominio `https://podcash.app.moonsbow.com`.
+   - **Backend**: tipo `dockerfile`, build path `/backend`, dominio `https://api.podcash.app.moonsbow.com`, puerto `8000`.
+2. Variables de entorno obligatorias del backend:
+   - `SECRET_KEY`, `ADMIN_USER`, `ADMIN_PASSWORD`, `WORKER_TOKEN`
+   - `DATABASE_URL=sqlite:///app/data/app.db`
+   - `CORS_ORIGINS=https://podcash.app.moonsbow.com`
+   - `API_PORT=8000`, `REQUIRE_AUTH=true`
+3. Monta volúmenes persistentes en el backend para no perder datos al redeployar:
+   - `/app/data` → base SQLite (`app.db`)
+   - `/app/output` → audios generados expuestos por `/outputs`
+   - `/app/voices` → muestras de voz clonadas
+4. Asegúrate de que el frontend apunte a la URL pública de la API (`VITE_API_URL=https://api.podcash.app.moonsbow.com`).
+
 ### 2. PC local: worker
 
 El worker debe poder alcanzar la URL pública del backend.
