@@ -50,10 +50,18 @@ def _migrate() -> None:
 
 def init_db():
     print(f"[init_db] DATABASE_URL={DATABASE_URL}", flush=True)
-    db_path = DATABASE_URL.replace("sqlite:///", "")
+    # Normalizar a ruta absoluta; sqlite:/// es relativo, sqlite://// es absoluto.
+    if DATABASE_URL.startswith("sqlite:////"):
+        db_path = DATABASE_URL[len("sqlite:////") :]
+    elif DATABASE_URL.startswith("sqlite:///"):
+        db_path = str(Path(os.getcwd()) / DATABASE_URL[len("sqlite:///") :])
+    else:
+        db_path = DATABASE_URL
     parent = Path(db_path).parent
+    if not parent.exists():
+        parent.mkdir(parents=True, exist_ok=True)
     print(
-        f"[init_db] parent={parent} exists={parent.exists()} "
+        f"[init_db] db_path={db_path} parent={parent} exists={parent.exists()} "
         f"writable={os.access(parent, os.W_OK) if parent.exists() else 'N/A'} "
         f"user={os.getenv('USER') or os.getenv('USERNAME') or 'unknown'} "
         f"cwd={os.getcwd()}",
