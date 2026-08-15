@@ -51,10 +51,10 @@ def _migrate() -> None:
 def init_db():
     print(f"[init_db] DATABASE_URL={DATABASE_URL}", flush=True)
     # Normalizar a ruta absoluta; sqlite:/// es relativo, sqlite://// es absoluto.
-    if DATABASE_URL.startswith("sqlite:////"):
-        db_path = DATABASE_URL[len("sqlite:////") :]
-    elif DATABASE_URL.startswith("sqlite:///"):
-        db_path = str(Path(os.getcwd()) / DATABASE_URL[len("sqlite:///") :])
+    if DATABASE_URL.startswith("sqlite:///"):
+        db_path = DATABASE_URL[len("sqlite:///") :]
+        if not db_path.startswith("/"):
+            db_path = str(Path(os.getcwd()) / db_path)
     else:
         db_path = DATABASE_URL
     parent = Path(db_path).parent
