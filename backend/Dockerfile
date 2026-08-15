@@ -13,6 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
 COPY shared/ ./shared/
+COPY core/ ./core/
+COPY content/ ./content/
+COPY processors/ ./processors/
 COPY config.yaml .
 
 ENV PYTHONPATH=/app
