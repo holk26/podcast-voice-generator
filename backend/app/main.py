@@ -1,6 +1,6 @@
-import logging
 import os
 import subprocess
+import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -13,26 +13,28 @@ from backend.app import models  # noqa: F401 - ensures tables are registered
 from backend.app.dependencies import get_current_user
 from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth, worker
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-logger = logging.getLogger(__name__)
-
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
 EXTRA_CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
 
-logger.info("=== Startup diagnostics ===")
-logger.info("USER=%s", os.getenv("USER") or os.getenv("USERNAME") or "unknown")
-logger.info("CWD=%s", os.getcwd())
-logger.info("PYTHONPATH=%s", os.getenv("PYTHONPATH", "<unset>"))
-logger.info("DATA_DIR=%s exists=%s", DATA_DIR, Path(DATA_DIR).exists())
-logger.info("OUTPUT_DIR=%s exists=%s", OUTPUT_DIR, Path(OUTPUT_DIR).exists())
+print("=== Startup diagnostics ===", flush=True)
+print(f"USER={os.getenv('USER') or os.getenv('USERNAME') or 'unknown'}", flush=True)
+print(f"CWD={os.getcwd()}", flush=True)
+print(f"PYTHONPATH={os.getenv('PYTHONPATH', '<unset>')}", flush=True)
+print(f"DATA_DIR={DATA_DIR} exists={Path(DATA_DIR).exists()}", flush=True)
+print(f"OUTPUT_DIR={OUTPUT_DIR} exists={Path(OUTPUT_DIR).exists()}", flush=True)
 try:
-    logger.info("ls -la /app:\n%s", subprocess.check_output(["ls", "-la", "/app"], text=True))
+    print(f"ls -la /app:\n{subprocess.check_output(['ls', '-la', '/app'], text=True)}", flush=True)
 except Exception as exc:  # noqa: BLE001
-    logger.warning("Could not ls /app: %s", exc)
+    print(f"Could not ls /app: {exc}", flush=True)
 
 # Asegurar que los directorios existen antes de montar static files
 init_dirs()
-init_db()
+try:
+    init_db()
+except Exception as exc:  # noqa: BLE001
+    print(f"init_db failed: {exc}", flush=True)
+    traceback.print_exc()
+    raise
 
 
 @asynccontextmanager

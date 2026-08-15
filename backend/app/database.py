@@ -1,12 +1,9 @@
-import logging
 import os
 from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 from backend.app.config import DATABASE_URL
-
-logger = logging.getLogger(__name__)
 
 engine = create_engine(
     DATABASE_URL,
@@ -52,17 +49,16 @@ def _migrate() -> None:
 
 
 def init_db():
-    logger.info("Initializing database with DATABASE_URL=%s", DATABASE_URL)
+    print(f"[init_db] DATABASE_URL={DATABASE_URL}", flush=True)
     db_path = DATABASE_URL.replace("sqlite:///", "")
     parent = Path(db_path).parent
-    logger.info(
-        "SQLite parent dir=%s exists=%s writable=%s user=%s cwd=%s",
-        parent,
-        parent.exists(),
-        os.access(parent, os.W_OK) if parent.exists() else "N/A",
-        os.getenv("USER") or os.getenv("USERNAME") or "unknown",
-        os.getcwd(),
+    print(
+        f"[init_db] parent={parent} exists={parent.exists()} "
+        f"writable={os.access(parent, os.W_OK) if parent.exists() else 'N/A'} "
+        f"user={os.getenv('USER') or os.getenv('USERNAME') or 'unknown'} "
+        f"cwd={os.getcwd()}",
+        flush=True,
     )
     Base.metadata.create_all(bind=engine)
     _migrate()
-    logger.info("Database initialized successfully.")
+    print("[init_db] Database initialized successfully.", flush=True)
