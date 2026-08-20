@@ -16,6 +16,7 @@ from backend.app.database import get_db
 from backend.app.dependencies import require_worker_token
 from backend.app.models import Episode
 from backend.app.services import worker_service
+from backend.app.services.automation_service import autopilot_tick
 from shared.config import OUTPUT_DIR
 from shared.schemas import WorkerJob, WorkerJobCompleteRequest, WorkerJobFailRequest
 
@@ -120,3 +121,13 @@ def worker_events(token: str = Depends(require_worker_token)):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/autopilot/tick", response_model=dict)
+def worker_autopilot_tick(token: str = Depends(require_worker_token)):
+    """El worker pide al backend que ejecute un tick del piloto automático.
+
+    Esta ruta está protegida por el token estático del worker; no requiere JWT.
+    """
+    launched = autopilot_tick()
+    return {"launched": launched}

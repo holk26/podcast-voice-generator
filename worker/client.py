@@ -99,7 +99,7 @@ def run_autopilot_tick() -> list[str]:
     Retorna la lista de job_ids lanzados.
     """
     req = urllib.request.Request(
-        _url("/api/channels/autopilot/tick"),
+        _url("/api/worker/autopilot/tick"),
         data=b"{}",
         headers=_headers(),
         method="POST",

@@ -42,3 +42,13 @@ data/
 Qwen3-TTS-12Hz-1.7B-Base/
 logs/
 .worktrees/
+
+# Assets y datos generados en runtime
+outputs/
+voices/
+music/
+sfx_library/
+media_packages/*/assets/
+
+# Exportes de sesión y archivos temporales personales
+kimi-export-session*.md

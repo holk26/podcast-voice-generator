@@ -4,6 +4,12 @@ import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Cargar backend/.env automáticamente en desarrollo. En producción (Dokploy,
+# Docker) las variables se inyectan como env y este load_dotenv no hace nada.
+load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

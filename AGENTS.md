@@ -17,8 +17,8 @@ La app de escritorio PyQt6 fue eliminada. Todo pasa por la web.
 
 | Servicio   | Origen                          | Puerto default | Health check                            |
 |------------|---------------------------------|----------------|-----------------------------------------|
-| API        | `cd backend && python -m app.main` | 8000           | `GET http://127.0.0.1:8000/api/health`  |
-| Worker     | `cd worker && python -m main`      | 8001           | `GET http://127.0.0.1:8001/health`      |
+| API        | `python -m backend.app.main` (desde raíz) | 8000           | `GET http://127.0.0.1:8000/api/health`  |
+| Worker     | `python -m worker.main` (desde raíz)      | 8001           | `GET http://127.0.0.1:8001/health`      |
 | Web (Vite) | `npm run dev` (en `frontend/`)     | 5173           | `http://127.0.0.1:5173`                 |
 
 Los tres procesos se lanzan en segundo plano, su salida se redirige a `logs/{api,worker,web}.log` **y** se reemite a la consola con el prefijo `[api]`/`[worker]`/`[web]`. Al finalizar, `starter.py` abre el monitor curses (`starter_monitor.py`) y el navegador en `http://127.0.0.1:5173`.
@@ -95,13 +95,13 @@ Copia `backend/` y `frontend/` al servidor (o el repo completo, los modelos y as
 
 ```bash
 # Backend
-cd backend
+cd /ruta/al/repo
 python -m venv venv
 source venv/bin/activate
-pip install -r ../requirements.txt
-cp .env.example .env
-# Edita .env: SECRET_KEY, ADMIN_PASSWORD, WORKER_TOKEN, DATABASE_URL...
-python -m app.main
+pip install -r requirements.txt
+cp backend/.env.example backend/.env
+# Edita backend/.env: SECRET_KEY, ADMIN_PASSWORD, WORKER_TOKEN, DATABASE_URL...
+PYTHONPATH=/ruta/al/repo python -m backend.app.main
 ```
 
 ```bash

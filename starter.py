@@ -72,15 +72,19 @@ def _register_signals():
         signal.signal(signal.SIGTERM, lambda s, f: shutdown(0, s, f))
 
 
-def start_process(name, cmd, cwd=None):
+def start_process(name, cmd, cwd=None, env=None):
     print(f"[STARTER] Starting {name}...")
     log_path = LOG_DIR / f"{name}.log"
     log_file = open(log_path, "w", encoding="utf-8", errors="ignore")
     log_files.append(log_file)
 
+    proc_env = (env or os.environ).copy()
+    proc_env["PYTHONPATH"] = str(BASE_DIR)
+
     proc = subprocess.Popen(
         cmd,
         cwd=cwd or BASE_DIR,
+        env=proc_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -190,19 +194,33 @@ def main():
     _check_ollama()
     venv_python = _find_python()
 
+    # En modo desarrollo local backend y worker deben compartir el mismo
+    # WORKER_TOKEN; si el usuario lo exporta, lo respetamos.
+    dev_worker_token = os.environ.get("WORKER_TOKEN", "dev-worker-token-local")
+
+    api_env = os.environ.copy()
+    api_env["PYTHONPATH"] = str(BASE_DIR)
+    api_env["WORKER_TOKEN"] = dev_worker_token
+
     start_process(
         "api",
-        [str(venv_python), "-m", "app.main"],
-        cwd=BASE_DIR / "backend",
+        [str(venv_python), "-m", "backend.app.main"],
+        cwd=BASE_DIR,
+        env=api_env,
     )
     if not wait_for_service(f"http://127.0.0.1:{API_PORT}/api/health"):
         print("[STARTER] API did not start")
         shutdown(exit_code=1)
 
+    worker_env = os.environ.copy()
+    worker_env["PYTHONPATH"] = str(BASE_DIR)
+    worker_env["BACKEND_URL"] = f"http://127.0.0.1:{API_PORT}"
+    worker_env["WORKER_TOKEN"] = dev_worker_token
     start_process(
         "worker",
-        [str(venv_python), "-m", "main"],
-        cwd=BASE_DIR / "worker",
+        [str(venv_python), "-m", "worker.main"],
+        cwd=BASE_DIR,
+        env=worker_env,
     )
     if not wait_for_service(f"http://127.0.0.1:{WORKER_PORT}/health"):
         print("[STARTER] Worker did not start")

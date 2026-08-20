@@ -1,5 +1,12 @@
 import os
 import logging
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Cargar variables de entorno desde worker/.env sin depender del CWD.
+load_dotenv(Path(__file__).with_name(".env"), override=False)
+
 from fastapi import FastAPI
 from worker.runner import run_loop
 from backend.app.config import WORKER_PORT
