@@ -61,6 +61,8 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 
 # Auth router is public (login does not require a token)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+# Compatibilidad con builds antiguos del frontend que apuntan a /auth/login
+app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
 
 # Worker router uses its own static-token dependency
 app.include_router(worker.router, prefix="/api", tags=["worker"])
