@@ -16,6 +16,7 @@ venv*/
 # Environment variables
 .env
 .env.local
+worker/.env
 
 # Existing ignores
 *.pyo

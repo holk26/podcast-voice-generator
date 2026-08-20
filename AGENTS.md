@@ -78,6 +78,16 @@ La API está protegida con JWT para usuarios web y con un token estático para e
 
 Todos los endpoints de la API (salvo `/api/health` y `/api/auth/login`) requieren el header `Authorization: Bearer <jwt>`.
 
+### Solución de problemas de login
+
+Si la web muestra `Error: HTTP 401: User not found` después de iniciar sesión:
+
+1. El navegador guarda el JWT en `localStorage` (`podcast_studio_auth`).
+2. Si la base de datos del backend se reinicia (redeploy sin volumen persistente, nuevo contenedor, etc.), el usuario del token ya no existe, aunque el token siga siendo técnicamente válido.
+3. **Solución rápida:** cierra sesión y vuelve a entrar. Esto recrea el usuario admin en la base de datos actual y genera un token nuevo.
+4. Si persiste, abre las herramientas de desarrollador del navegador → Application → Local Storage → `https://podcash.app.moonsbow.com`, borra la clave `podcast_studio_auth` y recarga.
+5. En el servidor, confirma que `DATABASE_URL` apunta a `/app/data/app.db` y que el volumen `/app/data` está montado.
+
 ### Endpoints del worker
 
 - `GET /api/worker/jobs/next` — reclama el siguiente episodio pendiente.
@@ -134,22 +144,32 @@ Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en
 
 > **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`. Usuario inicial: `admin` / `admin`.
 >
+> **Importante:** verifica en Dokploy que el backend tenga montado el volumen `/app/data` y que `DATABASE_URL=sqlite:////app/data/app.db` (ruta absoluta, 4 barras). Si la base de datos no persiste, cada redeploy borra canales, episodios y usuarios, y los tokens JWT guardados en el navegador quedan huérfanos.
+>
 > **Nota sobre caché de edge/CDN:** moonsbow/Cloudflare cachea agresivamente el `index.html`. Si tras un redeploy sigues viendo un build antiguo, purga la caché del dominio desde el panel de moonsbow/Cloudflare, o espera a que expire el TTL. El frontend ahora envía `Cache-Control: no-cache` en `index.html` y un marcador `build-time` para que los deploys futuros invaliden la caché automáticamente. Como workaround, el backend también expone los routers protegidos en la raíz (`/voices`, `/episodes`, etc.) además de `/api/*`, para que builds antiguos del frontend sigan funcionando.
 
 ### 2. PC local: worker
 
-El worker debe poder alcanzar la URL pública del backend.
+El worker debe poder alcanzar la URL pública del backend. En este proyecto ya existe `worker/.env` configurado para apuntar al backend remoto. **No subas `worker/.env` a git** (está en `.gitignore`).
 
 ```bash
 cd worker
 source ../venv311/bin/activate
-export BACKEND_URL=https://api.podcash.app.moonsbow.com
-export WORKER_TOKEN=<mismo_token_que_backend>
 python -m main
 ```
 
+Variables que controla `worker/.env`:
+
+| Variable            | Default | Descripción |
+|---------------------|---------|-------------|
+| `BACKEND_URL`       | `http://127.0.0.1:8000` | URL pública del backend (`https://api.podcash.app.moonsbow.com`). |
+| `WORKER_TOKEN`      | *(vacío)* | Token estático compartido con el backend. **Obligatorio.** |
+| `AUTOPILOT_HOUR`    | 7 | Hora local a la que corre el piloto automático. |
+| `SSE_RETRY_SECONDS` | 5 | Reconexión SSE ante desconexiones. |
+| `POLL_BACKUP_SECONDS` | 30 | Intervalo de polling si el SSE no funciona. |
+
 > **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com`.
-> Para obtener el `WORKER_TOKEN` sin acceder al servidor, usa el endpoint de admin:
+> Si necesitas regenerar el `WORKER_TOKEN`, usa el endpoint de admin:
 > ```bash
 > TOKEN=$(curl -s -X POST https://api.podcash.app.moonsbow.com/api/auth/login \
 >   -H 'Content-Type: application/json' \
@@ -157,6 +177,7 @@ python -m main
 > curl -s -H "Authorization: Bearer $TOKEN" \
 >   https://api.podcash.app.moonsbow.com/api/admin/worker-token
 > ```
+> Luego actualiza `WORKER_TOKEN` en `worker/.env` y en la variable de entorno del backend en Dokploy, y redepliega ambos.
 
 El worker intenta conectarse por SSE a `/api/worker/events`; si falla, hace polling a `/api/worker/jobs/next` cada `POLL_BACKUP_SECONDS` (default 30 s).
 
