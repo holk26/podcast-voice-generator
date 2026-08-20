@@ -10,8 +10,8 @@ from fastapi.staticfiles import StaticFiles
 from backend.app.config import OUTPUT_DIR, API_PORT, DATA_DIR, init_dirs
 from backend.app.database import init_db
 from backend.app import models  # noqa: F401 - ensures tables are registered
-from backend.app.dependencies import get_current_user
-from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth, worker
+from backend.app.dependencies import get_current_user, require_admin
+from backend.app.routes import voices, tts, episodes, channels, llm, jobs, books, auth, worker, admin
 
 WEB_PORT = int(os.getenv("WEB_PORT", "5173"))
 EXTRA_CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "").split(",") if origin.strip()]
@@ -63,6 +63,9 @@ app.mount("/outputs", StaticFiles(directory=OUTPUT_DIR), name="outputs")
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
 # Compatibilidad con builds antiguos del frontend que apuntan a /auth/login
 app.include_router(auth.router, prefix="/auth", tags=["auth-compat"])
+
+# Admin router (protected by admin JWT)
+app.include_router(admin.router, prefix="/api", tags=["admin"], dependencies=[Depends(require_admin)])
 
 # Worker router uses its own static-token dependency
 app.include_router(worker.router, prefix="/api", tags=["worker"])
