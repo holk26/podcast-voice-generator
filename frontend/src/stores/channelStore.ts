@@ -7,7 +7,7 @@ import {
   ActiveCrewJob,
   CrewJobEvent,
 } from '../types'
-import { api } from '../api/client'
+import { api, API_BASE } from '../api/client'
 import { formatError } from '../utils/error'
 
 interface ChannelState {
@@ -64,7 +64,7 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       error: null,
     })
 
-    const source = new EventSource(`/api/jobs/${jobId}/events`)
+    const source = new EventSource(`${API_BASE}/jobs/${jobId}/events`)
     jobSource = source
 
     source.onmessage = (event) => {

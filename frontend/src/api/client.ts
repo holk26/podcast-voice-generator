@@ -16,7 +16,7 @@ import {
 } from '../types'
 import { getAuthToken } from './auth'
 
-const API_BASE = '/api'
+export const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 async function parseError(response: Response): Promise<Error> {
   try {
