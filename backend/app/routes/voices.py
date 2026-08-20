@@ -1,12 +1,15 @@
 import os
+import shutil
 from pathlib import Path
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from pydantic import BaseModel
 from typing import List, Optional
 
 import soundfile as sf
 
 from backend.app.config import BASE_DIR
+from backend.app.dependencies import get_current_user
+from backend.app.models import User
 
 router = APIRouter()
 
@@ -73,6 +76,41 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
 @router.get("", response_model=List[VoiceResponse])
 def list_voices():
     return DEFAULT_VOICES + _scan_cloned_voices()
+
+
+@router.post("/upload", response_model=VoiceResponse)
+def upload_cloned_voice(
+    audio: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    """Sube una muestra de voz clonada al directorio voices/clones.
+
+    El archivo debe ser de audio mono a 24000 Hz para los motores de clonación.
+    """
+    CLONES_DIR.mkdir(parents=True, exist_ok=True)
+
+    filename = audio.filename or "voice.wav"
+    suffix = Path(filename).suffix.lower()
+    if suffix not in AUDIO_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported audio format: {suffix}. Use one of {AUDIO_EXTENSIONS}",
+        )
+
+    dest_path = CLONES_DIR / filename
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+
+    stem = dest_path.stem
+    return VoiceResponse(
+        id=f"clone:{stem}",
+        name=stem,
+        engine="higgs",
+        language="es",
+        gender="unknown",
+        type="cloned",
+        reference_path=str(dest_path),
+    )
 
 
 @router.get("/{voice_id}", response_model=VoiceResponse)
