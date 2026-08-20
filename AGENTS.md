@@ -133,6 +133,8 @@ Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en
 4. Asegúrate de que el frontend apunte a la URL pública de la API (`VITE_API_URL=https://api.podcash.app.moonsbow.com`).
 
 > **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`. Usuario inicial: `admin` / `admin`.
+>
+> **Nota sobre caché de edge/CDN:** moonsbow/Cloudflare cachea agresivamente el `index.html`. Si tras un redeploy sigues viendo un build antiguo, purga la caché del dominio desde el panel de moonsbow/Cloudflare, o espera a que expire el TTL. El frontend ahora envía `Cache-Control: no-cache` en `index.html` y un marcador `build-time` para que los deploys futuros invaliden la caché automáticamente. Como workaround, el backend también expone los routers protegidos en la raíz (`/voices`, `/episodes`, etc.) además de `/api/*`, para que builds antiguos del frontend sigan funcionando.
 
 ### 2. PC local: worker
 

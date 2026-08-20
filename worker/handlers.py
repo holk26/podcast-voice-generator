@@ -6,7 +6,7 @@ import subprocess
 import urllib.request
 from pathlib import Path
 
-from backend.app.config import OUTPUT_DIR, BASE_DIR
+from shared.config import BASE_DIR, OUTPUT_DIR
 from shared.schemas import WorkerJob
 
 VOICE_MAP = {
@@ -16,7 +16,7 @@ VOICE_MAP = {
 }
 DEFAULT_VOICE = "es-ES-AlvaroNeural"
 
-API_BASE = f"http://localhost:{os.getenv('API_PORT', '8000')}"
+API_BASE = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 
 MUSIC_INTRO = BASE_DIR / "sfx_library" / "music" / "intro_jingle.wav"
 MUSIC_OUTRO = BASE_DIR / "sfx_library" / "music" / "outro_theme.wav"

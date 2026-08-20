@@ -5,9 +5,10 @@ Todas las rutas requieren el token estático compartido entre backend y worker.
 
 import asyncio
 import json
+import shutil
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -15,6 +16,7 @@ from backend.app.database import get_db
 from backend.app.dependencies import require_worker_token
 from backend.app.models import Episode
 from backend.app.services import worker_service
+from shared.config import OUTPUT_DIR
 from shared.schemas import WorkerJob, WorkerJobCompleteRequest, WorkerJobFailRequest
 
 router = APIRouter(prefix="/worker", tags=["worker"])
@@ -55,6 +57,28 @@ def complete_job(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     return {"status": "ok"}
+
+
+@router.post("/jobs/{episode_id}/upload", response_model=dict)
+def upload_job_audio(
+    episode_id: int,
+    audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    token: str = Depends(require_worker_token),
+):
+    """Recibe el audio generado por el worker y lo guarda en el volumen compartido del servidor."""
+    episode_dir = OUTPUT_DIR / str(episode_id)
+    episode_dir.mkdir(parents=True, exist_ok=True)
+
+    # Nombre seguro: usa el nombre original o un default.
+    filename = audio.filename or "final.mp3"
+    file_path = episode_dir / filename
+
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+
+    audio_url = f"/outputs/{episode_id}/{filename}"
+    return {"audio_url": audio_url}
 
 
 @router.post("/jobs/{episode_id}/fail", response_model=dict)

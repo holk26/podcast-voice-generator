@@ -9,13 +9,16 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Optional
+
+import requests
 
 from shared.schemas import WorkerJob
 
 logger = logging.getLogger(__name__)
 
-API_BASE = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+API_BASE = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
 WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 
 
@@ -53,6 +56,17 @@ def get_next_job() -> Optional[WorkerJob]:
     except Exception as e:
         logger.error(f"Error fetching next job: {e}")
         raise
+
+
+def upload_audio(episode_id: int, file_path: Path) -> str:
+    """Sube el archivo de audio al backend y devuelve la URL pública del recurso."""
+    url = _url(f"/api/worker/jobs/{episode_id}/upload")
+    headers = {"Authorization": f"Bearer {WORKER_TOKEN}"}
+    with open(file_path, "rb") as f:
+        files = {"audio": (file_path.name, f, "audio/mpeg")}
+        resp = requests.post(url, headers=headers, files=files, timeout=300)
+    resp.raise_for_status()
+    return resp.json()["audio_url"]
 
 
 def complete_job(episode_id: int, audio_url: str) -> None:

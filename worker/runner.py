@@ -26,7 +26,8 @@ def _process_single_job() -> bool:
     logger.info(f"Processing episode {job.episode_id}: {job.title}")
     try:
         output_path = handle_podcast_episode(job)
-        audio_url = f"/outputs/{job.episode_id}/{output_path.name}"
+        # El backend vive en otro servidor, así que subimos el audio generado.
+        audio_url = client.upload_audio(job.episode_id, output_path)
         client.complete_job(job.episode_id, audio_url)
         logger.info(f"Episode {job.episode_id} completed -> {audio_url}")
         return True
