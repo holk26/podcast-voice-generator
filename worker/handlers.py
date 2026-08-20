@@ -1,13 +1,12 @@
 import asyncio
 import edge_tts
-import json
 import os
 import subprocess
-import urllib.request
 from pathlib import Path
 
 from shared.config import BASE_DIR, OUTPUT_DIR
 from shared.schemas import WorkerJob
+from worker.tts_local import synthesize_clone
 
 VOICE_MAP = {
     "jorge": "es-ES-AlvaroNeural",
@@ -16,29 +15,17 @@ VOICE_MAP = {
 }
 DEFAULT_VOICE = "es-ES-AlvaroNeural"
 
-API_BASE = os.getenv("BACKEND_URL", "http://127.0.0.1:8000").rstrip("/")
-
 MUSIC_INTRO = BASE_DIR / "sfx_library" / "music" / "intro_jingle.wav"
 MUSIC_OUTRO = BASE_DIR / "sfx_library" / "music" / "outro_theme.wav"
 
 
 def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
-    """Voces clonadas: delega en la API, que mantiene el motor Higgs cargado
-    en GPU (el worker no tiene VRAM para una segunda instancia)."""
+    """Voces clonadas: genera audio localmente con Higgs/Qwen3 en el worker.
+
+    El backend remoto NO ejecuta modelos pesados ni almacena muestras de voz.
+    """
     output_path = output_dir / "final.wav"
-    req = urllib.request.Request(
-        f"{API_BASE}/api/tts/synthesize",
-        data=json.dumps({
-            "voice_id": job.voice_id,
-            "text": job.source_text or "",
-            "label": f"Episodio #{job.episode_id}: {job.title}",
-        }).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=3600) as resp:
-        audio_url = json.load(resp)["audio_url"]
-    with urllib.request.urlopen(f"{API_BASE}{audio_url}", timeout=300) as resp:
-        output_path.write_bytes(resp.read())
+    synthesize_clone(job.source_text or "", job.voice_id, str(output_path))
     return output_path
 
 

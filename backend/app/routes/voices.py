@@ -13,12 +13,16 @@ from backend.app.models import User
 
 router = APIRouter()
 
-CLONES_DIR = BASE_DIR / "voices" / "clones"
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".opus"}
 
 # Motores disponibles para voces clonadas. Cada wav se expone dos veces,
 # una por motor, para que el usuario elija en el dropdown de la UI.
 CLONE_ENGINES = ("higgs", "qwen3")
+
+# Voces clonadas conocidas por la aplicación. Los archivos de referencia
+# reales viven en el worker local; el backend solo expone los metadatos
+# para que el frontend pueda seleccionarlos.
+LOCAL_CLONE_NAMES = ("alejandra", "alejandra_original", "homero_referencia")
 
 
 class VoiceResponse(BaseModel):
@@ -39,24 +43,14 @@ DEFAULT_VOICES: List[VoiceResponse] = [
 
 
 def _scan_cloned_voices() -> List[VoiceResponse]:
+    """Voces clonadas expuestas como metadatos.
+
+    Los archivos de referencia no viven en el servidor; el worker local los
+    usa para sintetizar audio con Higgs/Qwen3. Aquí solo devolvemos los IDs
+    conocidos para que el frontend pueda mostrarlos en el selector.
+    """
     cloned: List[VoiceResponse] = []
-    if not CLONES_DIR.is_dir():
-        return cloned
-    for entry in sorted(CLONES_DIR.iterdir()):
-        if not entry.is_file():
-            continue
-        if entry.suffix.lower() not in AUDIO_EXTENSIONS:
-            continue
-        try:
-            info = sf.info(entry)
-            if info.samplerate != 24000 or info.channels != 1:
-                print(
-                    f"[voices] WARNING {entry.name}: expected 24000 Hz mono, "
-                    f"got {info.samplerate} Hz {info.channels}ch"
-                )
-        except Exception as e:
-            print(f"[voices] WARNING could not inspect {entry.name}: {e}")
-        stem = entry.stem
+    for stem in LOCAL_CLONE_NAMES:
         for engine in CLONE_ENGINES:
             suffix = "" if engine == "higgs" else f":{engine}"
             cloned.append(
@@ -67,7 +61,7 @@ def _scan_cloned_voices() -> List[VoiceResponse]:
                     language="es",
                     gender="unknown",
                     type="cloned",
-                    reference_path=str(entry),
+                    reference_path=f"/app/voices/clones/{stem}.wav",
                 )
             )
     return cloned
