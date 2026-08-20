@@ -143,10 +143,20 @@ El worker debe poder alcanzar la URL pública del backend.
 ```bash
 cd worker
 source ../venv311/bin/activate
-export BACKEND_URL=https://tu-dominio.com/api
+export BACKEND_URL=https://api.podcash.app.moonsbow.com
 export WORKER_TOKEN=<mismo_token_que_backend>
 python -m main
 ```
+
+> **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com`.
+> Para obtener el `WORKER_TOKEN` sin acceder al servidor, usa el endpoint de admin:
+> ```bash
+> TOKEN=$(curl -s -X POST https://api.podcash.app.moonsbow.com/api/auth/login \
+>   -H 'Content-Type: application/json' \
+>   -d '{"username":"admin","password":"admin"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+> curl -s -H "Authorization: Bearer $TOKEN" \
+>   https://api.podcash.app.moonsbow.com/api/admin/worker-token
+> ```
 
 El worker intenta conectarse por SSE a `/api/worker/events`; si falla, hace polling a `/api/worker/jobs/next` cada `POLL_BACKUP_SECONDS` (default 30 s).
 
