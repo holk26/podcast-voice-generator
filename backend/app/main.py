@@ -77,6 +77,18 @@ app.include_router(llm.router, prefix="/api/llm", tags=["llm"], dependencies=aut
 app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"], dependencies=auth_dep)
 app.include_router(books.router, prefix="/api/books", tags=["books"], dependencies=auth_dep)
 
+# Root-level aliases for frontends that don't use the /api prefix.
+# The CDN aggressively caches the old index.html/index-*.js which calls
+# https://api.podcash.app.moonsbow.com/voices, etc. Rather than relying on
+# cache purges we expose both /api/* and /* for the protected routes.
+app.include_router(voices.router, prefix="/voices", tags=["voices-root"], dependencies=auth_dep)
+app.include_router(tts.router, prefix="/tts", tags=["tts-root"], dependencies=auth_dep)
+app.include_router(episodes.router, prefix="/episodes", tags=["episodes-root"], dependencies=auth_dep)
+app.include_router(channels.router, prefix="/channels", tags=["channels-root"], dependencies=auth_dep)
+app.include_router(llm.router, prefix="/llm", tags=["llm-root"], dependencies=auth_dep)
+app.include_router(jobs.router, prefix="/jobs", tags=["jobs-root"], dependencies=auth_dep)
+app.include_router(books.router, prefix="/books", tags=["books-root"], dependencies=auth_dep)
+
 
 @app.get("/api/health")
 def health():
