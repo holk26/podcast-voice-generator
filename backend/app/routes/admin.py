@@ -76,13 +76,14 @@ def migrate_sqlite(
                 max_id = dst.execute(
                     text(f"SELECT COALESCE(MAX(id), 0) FROM {table_name}")
                 ).scalar()
-                dst.execute(
-                    text(
-                        f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), :max_id, true)"
-                    ),
-                    {"max_id": max_id},
-                )
-                dst.commit()
+                if max_id:
+                    dst.execute(
+                        text(
+                            f"SELECT setval(pg_get_serial_sequence('{table_name}', 'id'), :max_id, true)"
+                        ),
+                        {"max_id": max_id},
+                    )
+                    dst.commit()
                 counts[table_name] = len(rows)
 
             return {
