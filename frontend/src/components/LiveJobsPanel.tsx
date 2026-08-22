@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { api } from '../api/client'
+import { api, sseUrl } from '../api/client'
 import { CrewJobEvent, JobSummary } from '../types'
 
 const KIND_LABEL: Record<string, string> = {
@@ -59,7 +59,7 @@ export default function LiveJobsPanel() {
           ...prev,
           [summary.id]: prev[summary.id] ?? { summary, events: [] },
         }))
-        const source = new EventSource(`/api/jobs/${summary.id}/events`)
+        const source = new EventSource(sseUrl(`/jobs/${summary.id}/events`))
         sourcesRef.current.set(summary.id, source)
         source.onmessage = (event) => {
           try {

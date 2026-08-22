@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { API_BASE } from '../api/client'
+import { sseUrl } from '../api/client'
 import type { Episode } from '../types'
 
 const TRACKED_STATUSES = new Set(['pending', 'running'])
@@ -23,7 +23,7 @@ export function useEpisodeSSE(
       if (active.has(episode.id)) return
 
       errorCounts.delete(episode.id)
-      const eventSource = new EventSource(`${API_BASE}/episodes/${episode.id}/events`)
+      const eventSource = new EventSource(sseUrl(`/episodes/${episode.id}/events`))
       active.set(episode.id, eventSource)
 
       eventSource.onopen = () => {

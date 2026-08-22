@@ -21,6 +21,12 @@ import { getAuthToken } from './auth'
 
 export const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
+export function sseUrl(path: string): string {
+  const token = getAuthToken()
+  const separator = path.includes('?') ? '&' : '?'
+  return `${API_BASE}${path}${token ? `${separator}token=${encodeURIComponent(token)}` : ''}`
+}
+
 async function parseError(response: Response): Promise<Error> {
   try {
     const body = await response.json()
