@@ -27,6 +27,22 @@ _current_model: str = DEFAULT_LLM_MODEL
 _state_lock = threading.Lock()
 
 
+DATA_DIR_KIMI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "kimi_token.json"
+
+
+def _read_kimi_token_from_data_dir() -> str:
+    """Lee un token persistente guardado por el endpoint admin."""
+    if DATA_DIR_KIMI_TOKEN.exists():
+        try:
+            data = json.loads(DATA_DIR_KIMI_TOKEN.read_text())
+            token = data.get("token") or data.get("access_token") or data.get("api_key")
+            if token:
+                return token
+        except Exception as e:
+            logger.warning("No se pudo leer %s: %s", DATA_DIR_KIMI_TOKEN, e)
+    return ""
+
+
 def _read_kimi_token_from_local_config() -> str:
     """Fallback local: lee el token de Kimi de su config de CLI."""
     home = Path.home()
@@ -49,7 +65,14 @@ def _read_kimi_token_from_local_config() -> str:
 
 
 def get_kimi_api_key() -> str:
-    return KIMI_API_KEY or _read_kimi_token_from_local_config()
+    return _read_kimi_token_from_data_dir() or KIMI_API_KEY or _read_kimi_token_from_local_config()
+
+
+def save_kimi_api_key(token: str) -> None:
+    """Persiste el token de Kimi en el volumen de datos para sobrevivir redeploys."""
+    DATA_DIR_KIMI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
+    DATA_DIR_KIMI_TOKEN.write_text(json.dumps({"token": token}, indent=2))
+    logger.info("Token de Kimi guardado en %s", DATA_DIR_KIMI_TOKEN)
 
 
 def get_current_provider() -> str:
