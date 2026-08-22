@@ -9,7 +9,6 @@ load_dotenv(Path(__file__).with_name(".env"), override=False)
 
 from fastapi import FastAPI
 from worker.runner import run_loop
-from worker.gui import WorkerGui, GuiLogHandler
 from backend.app.config import WORKER_PORT
 
 logging.basicConfig(level=logging.INFO)
@@ -17,7 +16,7 @@ logging.basicConfig(level=logging.INFO)
 app = FastAPI(title="Podcast Worker")
 
 
-gui_instance: WorkerGui | None = None
+gui_instance = None
 
 
 @app.get("/health")
@@ -30,6 +29,7 @@ if __name__ == "__main__":
     from threading import Thread
 
     if os.getenv("WORKER_GUI", "") == "1":
+        from worker.gui import WorkerGui, GuiLogHandler
         gui_instance = WorkerGui(on_reconnect=lambda: logging.info("Reconectar solicitado desde GUI"))
         gui_instance.start()
         gui_instance.update_status("Conectando al backend...")
