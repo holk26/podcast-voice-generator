@@ -77,6 +77,11 @@ def set_current_settings(provider: str, model: str) -> None:
     save_llm_settings(provider, model)
 
 
+def set_current_model(model: str) -> None:
+    """Compatibilidad legacy: cambia solo el modelo manteniendo el provider actual."""
+    set_current_settings(get_current_provider(), model)
+
+
 def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
     with _state_lock:
         p = provider or _current_provider
