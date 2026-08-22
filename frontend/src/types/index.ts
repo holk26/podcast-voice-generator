@@ -148,3 +148,27 @@ export interface LoginResponse {
   access_token: string
   token_type: string
 }
+
+export interface LlmProvider {
+  id: string
+  name: string
+  available: boolean
+  default_model: string
+}
+
+export interface LlmProvidersResponse {
+  current_provider: string
+  current_model: string
+  providers: LlmProvider[]
+}
+
+export interface LlmModelsResponse {
+  provider: string
+  current: string
+  models: string[]
+}
+
+export interface LlmSettingsRequest {
+  provider: string
+  model: string
+}

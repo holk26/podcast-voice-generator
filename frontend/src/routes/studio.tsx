@@ -42,6 +42,7 @@ function StudioPage() {
   const [llm, setLlm] = useState<LlmStatus | null>(null)
   const [models, setModels] = useState<string[]>([])
   const [currentModel, setCurrentModel] = useState<string>('')
+  const [currentProvider, setCurrentProvider] = useState<string>('')
   const [selectedId, setSelectedId] = useState<number | ''>('')
   const [count, setCount] = useState(5)
   const [tab, setTab] = useState<StudioTab>('overview')
@@ -54,6 +55,7 @@ function StudioPage() {
       .then((d) => {
         setModels(d.models)
         setCurrentModel(d.current)
+        setCurrentProvider(d.provider)
       })
       .catch(() => setModels([]))
   }, [fetchChannels, fetchVoices])
@@ -100,7 +102,7 @@ function StudioPage() {
               onChange={async (e) => {
                 const model = e.target.value
                 setCurrentModel(model)
-                await api.setLlmModel(model)
+                await api.setLlmModel(currentProvider, model)
               }}
             >
               {models.map((m) => (

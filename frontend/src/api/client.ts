@@ -13,6 +13,9 @@ import {
   JobSummary,
   LoginRequest,
   LoginResponse,
+  LlmProvidersResponse,
+  LlmModelsResponse,
+  LlmSettingsRequest,
 } from '../types'
 import { getAuthToken } from './auth'
 
@@ -151,11 +154,13 @@ export const api = {
 
   getLlmStatus: () =>
     fetchJson<{ available: boolean; default_ready: boolean; error?: string }>('/llm/status'),
-  getLlmModels: () =>
-    fetchJson<{ current: string; models: string[] }>('/llm/models'),
-  setLlmModel: (model: string) =>
-    fetchJson<{ current: string }>('/llm/model', {
+  getLlmProviders: () =>
+    fetchJson<LlmProvidersResponse>('/llm/providers'),
+  getLlmModels: (provider?: string) =>
+    fetchJson<LlmModelsResponse>(`/llm/models${provider ? `?provider=${encodeURIComponent(provider)}` : ''}`),
+  setLlmModel: (provider: string, model: string) =>
+    fetchJson<{ current_provider: string; current_model: string }>('/llm/model', {
       method: 'POST',
-      body: JSON.stringify({ model }),
+      body: JSON.stringify({ provider, model } as LlmSettingsRequest),
     }),
 }
