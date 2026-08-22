@@ -133,20 +133,24 @@ def check_ollama() -> dict:
 def check_kimi() -> dict:
     api_key = get_kimi_api_key()
     if not api_key:
+        logger.warning("Kimi no está configurado: falta KIMI_API_KEY o token local")
         return {"available": False, "error": "Kimi no configurado"}
     try:
         import requests
+        logger.info("Verificando Kimi en %s (token len=%s)", KIMI_BASE_URL, len(api_key))
         resp = requests.get(
             f"{KIMI_BASE_URL}/models",
             headers={"Authorization": f"Bearer {api_key}"},
-            timeout=5,
+            timeout=10,
         )
         if resp.status_code != 200:
+            logger.warning("Kimi respondió %s: %s", resp.status_code, resp.text[:200])
             return {"available": False, "error": f"Kimi respondió {resp.status_code}"}
         data = resp.json()
         models = [m.get("id") for m in data.get("data", []) if m.get("id")]
         if not models:
             models = ["kimi-for-coding", "kimi-for-coding-highspeed"]
+        logger.info("Kimi disponible. Modelos: %s", models)
         return {
             "available": True,
             "base_url": KIMI_BASE_URL,
@@ -154,6 +158,7 @@ def check_kimi() -> dict:
             "models": models,
         }
     except Exception as e:
+        logger.warning("No se pudo contactar Kimi: %s", e, exc_info=True)
         return {"available": False, "error": f"No se pudo contactar Kimi: {e}"}
 
 
