@@ -29,6 +29,14 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
 ADMIN_PASSWORD_HASH = os.getenv("ADMIN_PASSWORD_HASH", "")
 WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 
+# Kimi / OpenCode Go settings
+KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
+KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.kimi.com/coding/v1")
+
+# OpenCode Go (reserved for future use)
+OPENCODEGO_API_KEY = os.getenv("OPENCODEGO_API_KEY", "")
+OPENCODEGO_BASE_URL = os.getenv("OPENCODEGO_BASE_URL", "")
+
 
 def _load_config() -> dict:
     config_path = BASE_DIR / "config.yaml"
@@ -43,21 +51,29 @@ _LLM_CONFIG = _CONFIG.get("llm", {})
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", _LLM_CONFIG.get("base_url", "http://localhost:11434"))
 OLLAMA_DEFAULT_MODEL = os.getenv("OLLAMA_MODEL", _LLM_CONFIG.get("default_model", "llama3.1:8b"))
-OLLAMA_PLANNING_MODEL = os.getenv("OLLAMA_PLANNING_MODEL", _LLM_CONFIG.get("planning_model", OLLAMA_DEFAULT_MODEL))
-OLLAMA_SCRIPT_MODEL = os.getenv("OLLAMA_SCRIPT_MODEL", _LLM_CONFIG.get("script_model", OLLAMA_DEFAULT_MODEL))
+
+DEFAULT_LLM_PROVIDER = os.getenv("DEFAULT_LLM_PROVIDER",
+                                 _LLM_CONFIG.get("provider", "ollama"))
+DEFAULT_LLM_MODEL = os.getenv("DEFAULT_LLM_MODEL",
+                              _LLM_CONFIG.get("model", OLLAMA_DEFAULT_MODEL))
 
 
-def save_llm_model(model: str) -> None:
-    """Persiste el modelo elegido en config.yaml (sección llm)."""
+def save_llm_settings(provider: str, model: str) -> None:
+    """Persiste el provider y modelo elegidos en config.yaml (sección llm)."""
     global _CONFIG, _LLM_CONFIG
     config_path = BASE_DIR / "config.yaml"
     data = dict(_CONFIG)
     llm = dict(data.get("llm", {}))
-    llm["default_model"] = model
-    llm["script_model"] = model
-    llm["planning_model"] = model
+    llm["provider"] = provider
+    llm["model"] = model
     data["llm"] = llm
     with open(config_path, "w") as f:
         yaml.safe_dump(data, f, allow_unicode=True, sort_keys=False)
     _CONFIG = data
     _LLM_CONFIG = llm
+
+
+def save_llm_model(model: str) -> None:
+    """Compatibilidad legacy: persiste el modelo manteniendo el provider actual."""
+    provider = _LLM_CONFIG.get("provider", DEFAULT_LLM_PROVIDER)
+    save_llm_settings(provider, model)

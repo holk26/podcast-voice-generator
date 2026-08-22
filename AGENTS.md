@@ -126,27 +126,54 @@ Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en
 
 #### Opción A: Dokploy (recomendada)
 
-1. Crea dos aplicaciones en Dokploy:
+El deploy actual usa Dokploy. A continuación los pasos exactos para replicarlo o actualizarlo.
+
+1. **Crear aplicaciones en Dokploy:**
    - **Frontend**: tipo `static` o `nixpacks`, build path `/frontend`, dominio `https://podcash.app.moonsbow.com`.
    - **Backend**: tipo `dockerfile`, build path `/backend`, dominio `https://api.podcash.app.moonsbow.com`, puerto `8000`.
-2. Variables de entorno obligatorias del backend:
-   - `SECRET_KEY`, `ADMIN_USER`, `ADMIN_PASSWORD`, `WORKER_TOKEN`
-   - `DATABASE_URL=sqlite:////app/data/app.db` (ruta **absoluta**, 4 barras)
-   - `CORS_ORIGINS=https://podcash.app.moonsbow.com`
-   - `API_PORT=8000`, `REQUIRE_AUTH=true`
-3. Monta volúmenes persistentes en el backend para no perder datos al redeployar:
+
+2. **Variables de entorno obligatorias del backend:**
+   | Variable | Valor / ejemplo | Nota |
+   |----------|-----------------|------|
+   | `SECRET_KEY` | generar cadena larga | Firma de JWT |
+   | `ADMIN_USER` | `admin` | Usuario inicial |
+   | `ADMIN_PASSWORD` | `admin` | Se hashea al primer login |
+   | `WORKER_TOKEN` | generar UUID largo | Token compartido con el worker |
+   | `DATABASE_URL` | `sqlite:////app/data/app.db` | Ruta absoluta, 4 barras |
+   | `CORS_ORIGINS` | `https://podcash.app.moonsbow.com` | Origen del frontend |
+   | `API_PORT` | `8000` | Puerto interno de FastAPI |
+   | `REQUIRE_AUTH` | `true` | Obligatorio en producción |
+   | `KIMI_API_KEY` | *(opcional)* | Token de Kimi para usar IA en la web |
+   | `DEFAULT_LLM_PROVIDER` | `ollama` o `kimi` | Provider por defecto |
+   | `DEFAULT_LLM_MODEL` | `llama3.1:8b` / `kimi-for-coding` | Modelo por defecto |
+
+3. **Volúmenes persistentes del backend:**
+   Montar en Dokploy para no perder datos al redeployar:
    - `/app/data` → base SQLite (`app.db`)
    - `/app/output` → audios generados expuestos por `/outputs`
    - `/app/voices` → muestras de voz clonadas
    - `/app/projects` → archivos de proyectos
    - `/app/music` → música/branding subido
-4. Asegúrate de que el frontend apunte a la URL pública de la API (`VITE_API_URL=https://api.podcash.app.moonsbow.com`).
 
-> **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`. Usuario inicial: `admin` / `admin`.
+4. **Variables del frontend:**
+   Asegurarse de que `VITE_API_URL=https://api.podcash.app.moonsbow.com` en el build.
+
+> **Deploy actual:**
+> - Frontend: `https://podcash.app.moonsbow.com` (acceso directo a canales: `https://podcash.app.moonsbow.com/channels`).
+> - Backend: `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`.
+> - Usuario inicial: `admin` / `admin`.
 >
-> **Importante:** verifica en Dokploy que el backend tenga montado el volumen `/app/data` y que `DATABASE_URL=sqlite:////app/data/app.db` (ruta absoluta, 4 barras). Si la base de datos no persiste, cada redeploy borra canales, episodios y usuarios, y los tokens JWT guardados en el navegador quedan huérfanos.
+> **Regenerar WORKER_TOKEN:**
+> ```bash
+> TOKEN=$(curl -s -X POST https://api.podcash.app.moonsbow.com/api/auth/login \
+>   -H 'Content-Type: application/json' \
+>   -d '{"username":"admin","password":"admin"}' | python3 -c 'import sys,json;print(json.load(sys.stdin)["access_token"])')
+> curl -s -H "Authorization: Bearer $TOKEN" \
+>   https://api.podcash.app.moonsbow.com/api/admin/worker-token
+> ```
+> Actualiza `WORKER_TOKEN` en Dokploy (backend) y en `worker/.env` local, luego redepliega.
 >
-> **Nota sobre caché de edge/CDN:** moonsbow/Cloudflare cachea agresivamente el `index.html`. Si tras un redeploy sigues viendo un build antiguo, purga la caché del dominio desde el panel de moonsbow/Cloudflare, o espera a que expire el TTL. El frontend ahora envía `Cache-Control: no-cache` en `index.html` y un marcador `build-time` para que los deploys futuros invaliden la caché automáticamente. Como workaround, el backend también expone los routers protegidos en la raíz (`/voices`, `/episodes`, etc.) además de `/api/*`, para que builds antiguos del frontend sigan funcionando.
+> **Nota sobre caché de edge/CDN:** moonsbow/Cloudflare cachea agresivamente el `index.html`. Si tras un redeploy sigues viendo un build antiguo, purga la caché del dominio desde el panel de moonsbow/Cloudflare, o espera a que expire el TTL.
 
 ### 2. PC local: worker
 
@@ -167,6 +194,9 @@ Variables que controla `worker/.env`:
 | `AUTOPILOT_HOUR`    | 7 | Hora local a la que corre el piloto automático. |
 | `SSE_RETRY_SECONDS` | 5 | Reconexión SSE ante desconexiones. |
 | `POLL_BACKUP_SECONDS` | 30 | Intervalo de polling si el SSE no funciona. |
+| `WORKER_GUI`        | `0` | Si se pone a `1`, lanza la ventana de estado tkinter. |
+
+El worker guarda los archivos de audio generados localmente; **no los sube al servidor**.
 
 > **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com`.
 > Si necesitas regenerar el `WORKER_TOKEN`, usa el endpoint de admin:
