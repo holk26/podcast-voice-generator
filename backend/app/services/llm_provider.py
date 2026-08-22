@@ -1,5 +1,7 @@
 import json
+import logging
 import os
+import threading
 from pathlib import Path
 
 from crewai import LLM
@@ -14,9 +16,15 @@ from backend.app.config import (
     save_llm_settings,
 )
 
+logger = logging.getLogger(__name__)
+
+KNOWN_PROVIDERS = {"ollama", "kimi"}
+
 # Modelo/provider en uso (mutable en runtime; por defecto los de config.yaml)
 _current_provider: str = DEFAULT_LLM_PROVIDER
 _current_model: str = DEFAULT_LLM_MODEL
+
+_state_lock = threading.Lock()
 
 
 def _read_kimi_token_from_local_config() -> str:
@@ -34,7 +42,8 @@ def _read_kimi_token_from_local_config() -> str:
                 token = data.get("access_token") or data.get("token") or data.get("api_key")
                 if token:
                     return token
-            except Exception:
+            except Exception as e:
+                logger.warning("No se pudo leer el token de Kimi de %s: %s", path, e)
                 continue
     return ""
 
@@ -44,24 +53,34 @@ def get_kimi_api_key() -> str:
 
 
 def get_current_provider() -> str:
-    return _current_provider
+    with _state_lock:
+        return _current_provider
 
 
 def get_current_model() -> str:
-    return _current_model
+    with _state_lock:
+        return _current_model
 
 
 def set_current_settings(provider: str, model: str) -> None:
     """Cambia provider+modelo en runtime y lo persiste en config.yaml."""
+    provider = provider.strip().lower()
+    model = model.strip()
+    if provider not in KNOWN_PROVIDERS:
+        raise ValueError(f"Provider de IA no soportado: {provider}")
+    if not model:
+        raise ValueError("El modelo no puede estar vacío")
     global _current_provider, _current_model
-    _current_provider = provider
-    _current_model = model
+    with _state_lock:
+        _current_provider = provider
+        _current_model = model
     save_llm_settings(provider, model)
 
 
 def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
-    p = provider or _current_provider
-    m = model or _current_model
+    with _state_lock:
+        p = provider or _current_provider
+        m = model or _current_model
 
     if p == "kimi":
         api_key = get_kimi_api_key()
@@ -110,12 +129,27 @@ def check_kimi() -> dict:
     api_key = get_kimi_api_key()
     if not api_key:
         return {"available": False, "error": "Kimi no configurado"}
-    return {
-        "available": True,
-        "base_url": KIMI_BASE_URL,
-        "default_model": "kimi-for-coding",
-        "models": ["kimi-for-coding", "kimi-for-coding-highspeed"],
-    }
+    try:
+        import requests
+        resp = requests.get(
+            f"{KIMI_BASE_URL}/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            return {"available": False, "error": f"Kimi respondió {resp.status_code}"}
+        data = resp.json()
+        models = [m.get("id") for m in data.get("data", []) if m.get("id")]
+        if not models:
+            models = ["kimi-for-coding", "kimi-for-coding-highspeed"]
+        return {
+            "available": True,
+            "base_url": KIMI_BASE_URL,
+            "default_model": "kimi-for-coding",
+            "models": models,
+        }
+    except Exception as e:
+        return {"available": False, "error": f"No se pudo contactar Kimi: {e}"}
 
 
 def list_providers() -> list[dict]:
@@ -139,12 +173,12 @@ def list_providers() -> list[dict]:
 
 
 def list_models(provider: str | None = None) -> dict:
-    p = provider or _current_provider
+    p = provider or get_current_provider()
     if p == "ollama":
         status = check_ollama()
         return {
             "provider": p,
-            "current": _current_model if _current_provider == p else OLLAMA_DEFAULT_MODEL,
+            "current": get_current_model() if get_current_provider() == p else OLLAMA_DEFAULT_MODEL,
             "models": status.get("models", []) if status["available"] else [],
         }
     if p == "kimi":
@@ -152,7 +186,7 @@ def list_models(provider: str | None = None) -> dict:
         models = status.get("models", [])
         return {
             "provider": p,
-            "current": _current_model if _current_provider == p else "kimi-for-coding",
+            "current": get_current_model() if get_current_provider() == p else "kimi-for-coding",
             "models": models,
         }
     raise ValueError(f"Provider desconocido: {p}")
