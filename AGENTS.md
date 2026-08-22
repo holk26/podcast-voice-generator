@@ -142,7 +142,10 @@ Expón `backend` en HTTPS con un dominio y añade ese origen a `CORS_ORIGINS` en
    - `/app/music` → música/branding subido
 4. Asegúrate de que el frontend apunte a la URL pública de la API (`VITE_API_URL=https://api.podcash.app.moonsbow.com`).
 
-> **Deploy actual:** backend en `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`. Usuario inicial: `admin` / `admin`.
+> **Deploy actual:**
+> - Frontend: `https://podcash.app.moonsbow.com` (acceso directo a canales: `https://podcash.app.moonsbow.com/channels`).
+> - Backend: `https://api.podcash.app.moonsbow.com` con volúmenes persistentes para `/app/data`, `/app/output`, `/app/voices`, `/app/projects` y `/app/music`.
+> - Usuario inicial: `admin` / `admin`.
 >
 > **Importante:** verifica en Dokploy que el backend tenga montado el volumen `/app/data` y que `DATABASE_URL=sqlite:////app/data/app.db` (ruta absoluta, 4 barras). Si la base de datos no persiste, cada redeploy borra canales, episodios y usuarios, y los tokens JWT guardados en el navegador quedan huérfanos.
 >

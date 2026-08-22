@@ -74,7 +74,6 @@ def save_llm_settings(provider: str, model: str) -> None:
 
 
 def save_llm_model(model: str) -> None:
-    """Compatibilidad legacy: ahora el provider y modelo se persisten juntos."""
-    # Stub mantenido por posibles imports legacy. Usar save_llm_settings() o
-    # llm_provider.set_current_settings() para cambios reales.
-    pass
+    """Compatibilidad legacy: persiste el modelo manteniendo el provider actual."""
+    provider = _LLM_CONFIG.get("provider", DEFAULT_LLM_PROVIDER)
+    save_llm_settings(provider, model)
