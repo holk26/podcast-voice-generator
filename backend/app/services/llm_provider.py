@@ -18,7 +18,7 @@ from backend.app.config import (
 
 logger = logging.getLogger(__name__)
 
-KNOWN_PROVIDERS = {"ollama", "kimi"}
+KNOWN_PROVIDERS = {"ollama", "kimi", "gemini"}
 
 # Modelo/provider en uso (mutable en runtime; por defecto los de config.yaml)
 _current_provider: str = DEFAULT_LLM_PROVIDER
@@ -28,6 +28,32 @@ _state_lock = threading.Lock()
 
 
 DATA_DIR_KIMI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "kimi_token.json"
+DATA_DIR_GEMINI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "gemini_token.json"
+
+
+def _read_gemini_token_from_data_dir() -> str:
+    """Lee un token persistente guardado por el endpoint admin."""
+    if DATA_DIR_GEMINI_TOKEN.exists():
+        try:
+            data = json.loads(DATA_DIR_GEMINI_TOKEN.read_text())
+            token = data.get("token") or data.get("api_key")
+            if token:
+                return token
+        except Exception as e:
+            logger.warning("No se pudo leer %s: %s", DATA_DIR_GEMINI_TOKEN, e)
+    return ""
+
+
+def get_gemini_api_key() -> str:
+    from backend.app.config import GEMINI_API_KEY
+    return _read_gemini_token_from_data_dir() or GEMINI_API_KEY
+
+
+def save_gemini_api_key(token: str) -> None:
+    """Persiste el token de Gemini en el volumen de datos para sobrevivir redeploys."""
+    DATA_DIR_GEMINI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
+    DATA_DIR_GEMINI_TOKEN.write_text(json.dumps({"token": token}, indent=2))
+    logger.info("Token de Gemini guardado en %s", DATA_DIR_GEMINI_TOKEN)
 
 
 def _read_kimi_token_from_data_dir() -> str:
@@ -120,6 +146,16 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
             base_url=KIMI_BASE_URL,
         )
 
+    if p == "gemini":
+        api_key = get_gemini_api_key()
+        if not api_key:
+            raise RuntimeError("Gemini no está configurado: falta GEMINI_API_KEY")
+        model_name = m if m.startswith("gemini/") else f"gemini/{m}"
+        return LLM(
+            model=model_name,
+            api_key=api_key,
+        )
+
     if p == "ollama":
         return LLM(
             model=f"ollama/{m}",
@@ -185,6 +221,56 @@ def check_kimi() -> dict:
         return {"available": False, "error": f"No se pudo contactar Kimi: {e}"}
 
 
+def check_gemini() -> dict:
+    api_key = get_gemini_api_key()
+    if not api_key:
+        logger.warning("Gemini no está configurado: falta GEMINI_API_KEY")
+        return {"available": False, "error": "Gemini no configurado"}
+    try:
+        import requests
+        logger.info("Verificando Gemini con API key (len=%s)", len(api_key))
+        resp = requests.get(
+            f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}",
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            logger.warning("Gemini respondió %s: %s", resp.status_code, resp.text[:200])
+            return {"available": False, "error": f"Gemini respondió {resp.status_code}"}
+        
+        data = resp.json()
+        models = []
+        for m in data.get("models", []):
+            name = m.get("name", "")
+            if "gemini-" in name:
+                models.append(name.split("/")[-1])
+        
+        default_gemini_models = [
+            "gemini-2.5-flash",
+            "gemini-2.5-pro",
+            "gemini-2.0-flash",
+            "gemini-1.5-flash",
+            "gemini-1.5-pro",
+        ]
+        
+        retrieved_gemini = [m for m in models if m.startswith("gemini-")]
+        if not retrieved_gemini:
+            retrieved_gemini = default_gemini_models
+        else:
+            # Sort or prioritize the default ones
+            retrieved_gemini = sorted(list(set(retrieved_gemini + default_gemini_models)), reverse=True)
+
+        logger.info("Gemini disponible. Modelos: %s", retrieved_gemini)
+        return {
+            "available": True,
+            "base_url": "https://generativelanguage.googleapis.com",
+            "default_model": "gemini-2.5-flash",
+            "models": retrieved_gemini,
+        }
+    except Exception as e:
+        logger.warning("No se pudo contactar Gemini: %s", e, exc_info=True)
+        return {"available": False, "error": f"No se pudo contactar Gemini: {e}"}
+
+
 def list_providers() -> list[dict]:
     providers = []
     ollama_status = check_ollama()
@@ -201,6 +287,14 @@ def list_providers() -> list[dict]:
         "name": "Kimi",
         "available": kimi_status["available"],
         "default_model": "kimi-for-coding",
+    })
+
+    gemini_status = check_gemini()
+    providers.append({
+        "id": "gemini",
+        "name": "Gemini",
+        "available": gemini_status["available"],
+        "default_model": "gemini-2.5-flash",
     })
     return providers
 
@@ -220,6 +314,14 @@ def list_models(provider: str | None = None) -> dict:
         return {
             "provider": p,
             "current": get_current_model() if get_current_provider() == p else "kimi-for-coding",
+            "models": models,
+        }
+    if p == "gemini":
+        status = check_gemini()
+        models = status.get("models", [])
+        return {
+            "provider": p,
+            "current": get_current_model() if get_current_provider() == p else "gemini-2.5-flash",
             "models": models,
         }
     raise ValueError(f"Provider desconocido: {p}")

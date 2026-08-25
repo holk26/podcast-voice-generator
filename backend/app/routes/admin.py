@@ -6,12 +6,16 @@ from pydantic import BaseModel
 from backend.app.config import WORKER_TOKEN
 from backend.app.dependencies import require_admin
 from backend.app.models import User
-from backend.app.services.llm_provider import save_kimi_api_key
+from backend.app.services.llm_provider import save_kimi_api_key, save_gemini_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 class KimiTokenRequest(BaseModel):
+    token: str
+
+
+class GeminiTokenRequest(BaseModel):
     token: str
 
 
@@ -40,3 +44,20 @@ def set_kimi_token(data: KimiTokenRequest, admin_user: User = Depends(require_ad
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el token: {e}")
     return {"ok": True, "path": "/app/data/kimi_token.json"}
+
+
+@router.post("/gemini-token", response_model=dict)
+def set_gemini_token(data: GeminiTokenRequest, admin_user: User = Depends(require_admin)):
+    """Guarda (o actualiza) el token de Gemini en el volumen persistente.
+
+    El backend lo usará con prioridad sobre GEMINI_API_KEY.
+    Requiere autenticación de administrador.
+    """
+    token = data.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="El token no puede estar vacío")
+    try:
+        save_gemini_api_key(token)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el token: {e}")
+    return {"ok": True, "path": "/app/data/gemini_token.json"}

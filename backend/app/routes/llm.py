@@ -3,6 +3,7 @@ from pydantic import BaseModel
 
 from backend.app.services.llm_provider import (
     check_kimi,
+    check_gemini,
     check_ollama,
     get_current_model,
     get_current_provider,
@@ -24,6 +25,8 @@ def llm_status():
     provider = get_current_provider()
     if provider == "kimi":
         return check_kimi()
+    if provider == "gemini":
+        return check_gemini()
     return check_ollama()
 
 

@@ -11,6 +11,7 @@ requests>=2.31
 beautifulsoup4>=4.12
 ollama>=0.1.0
 crewai>=0.30.0
+google-genai
 soundfile>=0.12.1
 numpy>=1.26.0
 edge-tts>=6.1.0

@@ -33,6 +33,9 @@ WORKER_TOKEN = os.getenv("WORKER_TOKEN", "")
 KIMI_API_KEY = os.getenv("KIMI_API_KEY", "")
 KIMI_BASE_URL = os.getenv("KIMI_BASE_URL", "https://api.kimi.com/coding/v1")
 
+# Gemini settings
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+
 # OpenCode Go (reserved for future use)
 OPENCODEGO_API_KEY = os.getenv("OPENCODEGO_API_KEY", "")
 OPENCODEGO_BASE_URL = os.getenv("OPENCODEGO_BASE_URL", "")
