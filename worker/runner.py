@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 # piloto automático (temporadas + guiones del día). Configurable por env.
 AUTOPILOT_HOUR = int(os.getenv("AUTOPILOT_HOUR", "7"))
 
-# SSE como disparador principal; si falla, se hace polling cada N segundos.
-SSE_RETRY_SECONDS = int(os.getenv("SSE_RETRY_SECONDS", "5"))
-POLL_BACKUP_SECONDS = int(os.getenv("POLL_BACKUP_SECONDS", "30"))
+# Si UPLOAD_AUDIO=1 se sube el binario al backend por HTTP; de lo contrario se guarda localmente.
+UPLOAD_AUDIO = os.getenv("UPLOAD_AUDIO", "0").lower() in ("1", "true", "yes")
 
 
 def _process_single_job() -> bool:
@@ -26,8 +25,10 @@ def _process_single_job() -> bool:
     logger.info(f"Processing episode {job.episode_id}: {job.title}")
     try:
         output_path = handle_podcast_episode(job)
-        # El backend vive en otro servidor, así que subimos el audio generado.
-        audio_url = client.upload_audio(job.episode_id, output_path)
+        if UPLOAD_AUDIO:
+            audio_url = client.upload_audio(job.episode_id, output_path)
+        else:
+            audio_url = f"/outputs/{job.episode_id}/{output_path.name}"
         client.complete_job(job.episode_id, audio_url)
         logger.info(f"Episode {job.episode_id} completed -> {audio_url}")
         return True
