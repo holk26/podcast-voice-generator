@@ -15,6 +15,9 @@ AUTOPILOT_HOUR = int(os.getenv("AUTOPILOT_HOUR", "7"))
 # Si UPLOAD_AUDIO=1 se sube el binario al backend por HTTP; de lo contrario se guarda localmente.
 UPLOAD_AUDIO = os.getenv("UPLOAD_AUDIO", "0").lower() in ("1", "true", "yes")
 
+# Intervalo de polling de respaldo cuando el SSE no está disponible.
+POLL_BACKUP_SECONDS = int(os.getenv("POLL_BACKUP_SECONDS", "30"))
+
 
 def _process_single_job() -> bool:
     """Procesa un único job pendiente. Retorna True si procesó algo."""

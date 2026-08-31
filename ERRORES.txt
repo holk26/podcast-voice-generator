@@ -1,0 +1,79 @@
+Podcast Studio — estado del proyecto
+Revisión de arquitectura y frontend a partir del código local y de la pantalla de login en producción (podcash.app.moonsbow.com). Agosto 2026.
+
+3
+Servicios (API, web, worker)
+7
+Rutas de producto
+~3.5k
+Líneas de TS/TSX en src
+Vite + Zustand
+Pila del frontend
+Qué es este producto
+Generador de podcasts con TTS en GPU. El backend y la web viven en el servidor; el worker corre en la PC local con NVIDIA y consume jobs por SSE o polling. La app de escritorio PyQt ya no existe.
+Arquitectura
+Capa	Ubicación	Rol	Estado
+Frontend
+frontend/	Vite, React 18, TanStack Router, Tailwind, Zustand	Desplegado en podcash.app.moonsbow.com
+API
+backend/	FastAPI, JWT, SQLite, SSE hacia el worker	Desplegado en api.podcash.app.moonsbow.com
+Worker
+worker/	Render TTS local, no sube audio por defecto	2 archivos modificados sin commit
+Núcleo TTS	core/, audio/, agents/	XTTS, Bark, Edge, Qwen, CrewAI, mastering	Lógica pesada; la web es un panel de control
+Fuente: AGENTS.md, backend/app/main.py, frontend/src, git status.
+
+Mapa de la interfaz
+Flujo de trabajo real
+Login (JWT en localStorage) → layout con sidebar fijo → siete destinos. El trabajo diario está partido entre tres superficies que se solapan.
+
+Ruta	Qué hace
+/	KPIs de cola + lista de voces
+/create	Episodio manual (título, tipo, voz, guion)
+/queue	Cola, SSE, jobs en vivo, publicar
+/channels	CRUD de canales y progreso de plan
+/studio	CrewAI: plan, temporada, LLM, voces
+/voices	Preview TTS
+/books	Gutenberg → capítulo → episodio
+Identidad visual
+Dark slate + acento púrpura. Login de producción se ve coherente: card centrada, labels claros, botón primario único.
+
+Dentro de la app, casi todo es la misma receta: card slate-800, borde slate-700, rounded-xl. No hay tokens propios ni tipografía de marca más allá de Tailwind.
+
+Pila frontend
+Fortalezas
+El contrato web ↔ API ↔ worker está claro: la UI no toca GPU ni disco de modelos. Hay cliente HTTP único, SSE para cola, y dual-mount de rutas en FastAPI para sobrevivir a caché de CDN.
+
+Hay tests en stores (channel, voice), EpisodeCard, ChannelForm, PlanEntryCard, AudioPlayer y el hook SSE. Login, Layout y estados de error en páginas están pensados para un operador único.
+
+Studio cubre el producto diferenciador (plan editorial, LLM provider/model, autopiloto, diálogo 1–2 voces). La cola con filtros de publicación y LiveJobsPanel es la superficie más “tool” del conjunto.
+
+Hallazgos (prioridad)
+Pri	Área	Problema	Impacto
+P1
+IA de producto	Studio, Canales y /channels/:id/plan cubren el mismo flujo editorial	Carga cognitiva; no está claro dónde se produce un episodio
+P1
+Dashboard	Inicio es un recuento de estados + lista de voces, sin jobs recientes ni atajos al canal activo	No orienta el trabajo del día
+P1
+Responsive	Sidebar w-64 + h-screen; no hay nav móvil ni colapso	Inusable en teléfono; el login sí escala
+P2
+UX destructiva	Eliminar canal/episodio/entrada de plan no pide confirmación	Errores irreversibles en un clic
+P2
+Feedback	appStore.toast existe y nadie lo usa; crear episodio usa alert()	Errores inconsistentes con el resto de la UI
+P2
+Studio	Página ~400 líneas; selector de canal duplicado; tabs mezclan resumen y config	Difícil de mantener y de escanear
+P3	Nav / a11y	Siete ítems con emoji; /login es redundante con el gate en __root	Ruido visual; ruta muerta
+P3	Docs	README pide Node 18; package.json exige >=20.19	Fricción al instalar
+Calidad de código frontend
+Sólido
+api/client.ts concentra fetch, JWT y parseo de errores FastAPI. Los stores de episodios y canales encapsulan CRUD. Las páginas de voces, crear y canales son cortas y legibles.
+
+Deuda
+channelStore es el más grande (~272 líneas). No hay design system (Button, EmptyState). Estados vacíos: canales sin placeholder. Tipos de episodio (motivación, meditación) no se reflejan en el dashboard.
+
+Producción vs repo local
+Desalineación
+Producción sirve login y API públicos. En el working tree hay cambios menores en worker/handlers.py y worker/runner.py (6 líneas) y un lote de PDFs/guiones de episodios sin trackear. El frontend no tiene cambios pendientes en git.
+Siguiente paso útil
+Si el objetivo es usarlo todos los días: unificar Studio + Canales en un solo flujo, convertir el dashboard en “qué hay que producir hoy”, y añadir confirmación + toasts. Si el objetivo es la apariencia: el look dark/púrpura ya es reconocible; el problema no es el tema, es la información architecture.
+
+No se pudo entrar al estudio autenticado en esta revisión (login bloqueado en automatización). Las pantallas internas se evaluaron por código.

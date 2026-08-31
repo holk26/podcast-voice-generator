@@ -10,6 +10,7 @@ interface EpisodeState {
   fetchEpisodes: () => Promise<void>
   createEpisode: (data: CreateEpisodeRequest) => Promise<Episode>
   deleteEpisode: (id: number) => Promise<void>
+  updateEpisode: (id: number, data: Partial<CreateEpisodeRequest>) => Promise<Episode>
   retryEpisode: (id: number) => Promise<Episode>
   publishEpisode: (id: number) => Promise<void>
   unpublishEpisode: (id: number) => Promise<void>
@@ -47,6 +48,22 @@ export const useEpisodeStore = create<EpisodeState>((set) => ({
       set((state) => ({
         episodes: state.episodes.filter((e) => e.id !== id),
       }))
+    } catch (error) {
+      set({ error: formatError(error) })
+      throw error
+    }
+  },
+  updateEpisode: async (id, data) => {
+    set({ error: null })
+    try {
+      // Fetch current episode to merge all fields (PUT replaces the whole object)
+      const current = await api.getEpisode(id)
+      const merged = { title: current.title, type: current.type, voice_id: current.voice_id, source_text: current.source_text, ...data }
+      const episode = await api.updateEpisode(id, merged)
+      set((state) => ({
+        episodes: state.episodes.map((e) => (e.id === id ? episode : e)),
+      }))
+      return episode
     } catch (error) {
       set({ error: formatError(error) })
       throw error

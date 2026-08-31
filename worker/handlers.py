@@ -1,6 +1,7 @@
 import asyncio
 import edge_tts
 import json
+import logging
 import os
 import subprocess
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 from shared.config import BASE_DIR, OUTPUT_DIR
 from shared.schemas import WorkerJob
 from worker.tts_local import synthesize_clone
+
+logger = logging.getLogger(__name__)
 
 VOICE_MAP = {
     "jorge": "es-ES-AlvaroNeural",

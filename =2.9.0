@@ -1,0 +1,15 @@
+WARNING: Ignoring invalid distribution ~orch (/home/holk/Documents/proyectos/podcast/podcast with VRAM nvidia/venv311/lib/python3.11/site-packages)
+Collecting psycopg2-binary
+  Downloading psycopg2_binary-2.9.12-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (4.9 kB)
+Requirement already satisfied: sqlalchemy in ./venv311/lib/python3.11/site-packages (2.0.50)
+Requirement already satisfied: greenlet>=1 in ./venv311/lib/python3.11/site-packages (from sqlalchemy) (3.5.1)
+Requirement already satisfied: typing-extensions>=4.6.0 in ./venv311/lib/python3.11/site-packages (from sqlalchemy) (4.15.0)
+Downloading psycopg2_binary-2.9.12-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (4.3 MB)
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 298.7 kB/s  0:00:13
+WARNING: Ignoring invalid distribution ~orch (/home/holk/Documents/proyectos/podcast/podcast with VRAM nvidia/venv311/lib/python3.11/site-packages)
+Installing collected packages: psycopg2-binary
+WARNING: Ignoring invalid distribution ~orch (/home/holk/Documents/proyectos/podcast/podcast with VRAM nvidia/venv311/lib/python3.11/site-packages)
+Successfully installed psycopg2-binary-2.9.12
+
+[notice] A new release of pip is available: 26.1.1 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip

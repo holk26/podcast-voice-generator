@@ -94,6 +94,11 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteEpisode: (id: number) => fetchVoid(`/episodes/${id}`, { method: 'DELETE' }),
+  updateEpisode: (id: number, data: Partial<CreateEpisodeRequest>) =>
+    fetchJson<Episode>(`/episodes/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
   retryEpisode: (id: number) =>
     fetchJson<Episode>(`/episodes/${id}/retry`, { method: 'POST' }),
   publishEpisode: (id: number) =>

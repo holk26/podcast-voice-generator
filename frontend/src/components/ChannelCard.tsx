@@ -1,6 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Channel } from '../types'
 import { useChannelStore } from '../stores/channelStore'
+import { useAppStore } from '../stores/appStore'
 
 interface Props {
   channel: Channel
@@ -10,6 +11,17 @@ interface Props {
 export default function ChannelCard({ channel, onDelete }: Props) {
   const publishChannel = useChannelStore((s) => s.publishChannel)
   const unpublishChannel = useChannelStore((s) => s.unpublishChannel)
+  const askConfirm = useAppStore((s) => s.askConfirm)
+
+  const handleDelete = async () => {
+    const ok = await askConfirm({
+      title: 'Eliminar canal',
+      message: `¿Seguro que quieres eliminar "${channel.name}"? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    if (ok) onDelete(channel.id)
+  }
   const total = channel.entries_total ?? 0
   const generated = channel.entries_generated ?? 0
   const pct = total > 0 ? Math.round((generated / total) * 100) : 0
@@ -86,7 +98,7 @@ export default function ChannelCard({ channel, onDelete }: Props) {
         )}
         <button
           type="button"
-          onClick={() => onDelete(channel.id)}
+          onClick={() => handleDelete()}
           className="text-red-400 hover:text-red-300 hover:underline text-sm transition-colors"
         >
           Eliminar
