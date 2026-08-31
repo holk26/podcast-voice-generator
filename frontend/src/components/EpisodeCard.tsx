@@ -1,9 +1,6 @@
-import { useState } from 'react'
 import { Episode } from '../types'
 import AudioPlayer from './AudioPlayer'
-import ScriptEditorModal from './ScriptEditorModal'
 import { useEpisodeStore } from '../stores/episodeStore'
-import { useAppStore } from '../stores/appStore'
 
 interface Props {
   episode: Episode
