@@ -6,6 +6,7 @@ import {
   CreatePlanEntryRequest,
   ActiveCrewJob,
   CrewJobEvent,
+  Episode,
 } from '../types'
 import { api, sseUrl } from '../api/client'
 import { formatError } from '../utils/error'
@@ -29,6 +30,7 @@ interface ChannelState {
   generateSeason: (channelId: number, weeks?: number) => Promise<void>
   _handleActionError: (error: unknown, channelId?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
+  uploadScript: (channelId: number, file: File, title?: string) => Promise<Episode>
   approveEntry: (entryId: number) => Promise<void>
   updateEntry: (entryId: number, data: CreatePlanEntryRequest) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
@@ -215,6 +217,11 @@ export const useChannelStore = create<ChannelState>((set, get) => {
           [channelId]: [entry, ...(state.entries[channelId] || [])],
         },
       }))
+    },
+
+    uploadScript: async (channelId, file, title) => {
+      set({ error: null })
+      return api.uploadScript(channelId, file, title)
     },
 
     approveEntry: async (entryId) => {

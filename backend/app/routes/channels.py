@@ -1,14 +1,16 @@
 from typing import List
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import Channel, ContentPlanEntry, Episode
+from backend.app.services import worker_service
 from shared.schemas import (
     ChannelCreate,
     ChannelUpdate,
     ChannelResponse,
+    EpisodeResponse,
     PlanEntryCreate,
     PlanEntryResponse,
 )
@@ -216,6 +218,64 @@ def create_plan_entry(channel_id: int, data: PlanEntryCreate, db: Session = Depe
     db.commit()
     db.refresh(entry)
     return entry
+
+
+@router.post("/{channel_id}/upload-script", response_model=EpisodeResponse, status_code=201)
+def upload_script(
+    channel_id: int,
+    script: UploadFile = File(...),
+    title: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Sube un archivo de guion directamente a un canal y crea el episodio en cola.
+
+    Salta el planning y la generación de guion por IA: el texto del archivo se
+    usa tal cual como `source_text` del episodio. Se crea una entrada de plan
+    asociada con estado `generated` para que el canal refleje el capítulo.
+    """
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    try:
+        content = script.file.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo: {e}")
+    finally:
+        script.file.close()
+
+    if not content.strip():
+        raise HTTPException(status_code=400, detail="El archivo está vacío")
+
+    lines = [line.strip() for line in content.splitlines() if line.strip()]
+    fallback_title = lines[0][:120] if lines else (script.filename or "Episodio sin título")
+    episode_title = (title.strip() if title else fallback_title) or fallback_title
+    description = " ".join(lines[:3])[:250] if lines else ""
+
+    episode = Episode(
+        title=episode_title,
+        type=channel.format,
+        source_text=content,
+        voice_id=channel.default_voice_id,
+        status="pending",
+        target_duration_minutes=float(channel.target_minutes or 10),
+    )
+    db.add(episode)
+    db.commit()
+    db.refresh(episode)
+
+    entry = ContentPlanEntry(
+        channel_id=channel.id,
+        title=episode_title,
+        description=description,
+        status="generated",
+        episode_id=episode.id,
+    )
+    db.add(entry)
+    db.commit()
+
+    worker_service.notify_new_job()
+    return episode
 
 
 @router.post("/plan/{entry_id}/approve", status_code=202)

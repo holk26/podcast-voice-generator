@@ -73,6 +73,23 @@ async function fetchVoid(url: string, options?: RequestInit): Promise<void> {
   }
 }
 
+async function fetchFormData<T>(url: string, formData: FormData): Promise<T> {
+  const headers: Record<string, string> = {}
+  const token = getAuthToken()
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  const response = await fetch(`${API_BASE}${url}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  })
+  if (!response.ok) {
+    throw await parseError(response)
+  }
+  return response.json()
+}
+
 export const api = {
   login: (username: string, password: string) =>
     fetchJson<LoginResponse>('/auth/login', {
@@ -150,6 +167,15 @@ export const api = {
   rejectPlanEntry: (entryId: number) =>
     fetchJson<ContentPlanEntry>(`/channels/plan/${entryId}/reject`, { method: 'POST' }),
   deletePlanEntry: (entryId: number) => fetchVoid(`/channels/plan/${entryId}`, { method: 'DELETE' }),
+
+  uploadScript: (channelId: number, file: File, title?: string) => {
+    const formData = new FormData()
+    formData.append('script', file)
+    if (title) {
+      formData.append('title', title)
+    }
+    return fetchFormData<Episode>(`/channels/${channelId}/upload-script`, formData)
+  },
 
   searchBooks: (q: string) =>
     fetchJson<BookResult[]>(`/books/search?q=${encodeURIComponent(q)}`),

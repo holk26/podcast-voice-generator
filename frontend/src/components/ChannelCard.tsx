@@ -1,7 +1,9 @@
-import { Link } from '@tanstack/react-router'
+import { useState } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { Channel } from '../types'
 import { useChannelStore } from '../stores/channelStore'
 import { useAppStore } from '../stores/appStore'
+import UploadScriptModal from './UploadScriptModal'
 
 interface Props {
   channel: Channel
@@ -12,6 +14,8 @@ export default function ChannelCard({ channel, onDelete }: Props) {
   const publishChannel = useChannelStore((s) => s.publishChannel)
   const unpublishChannel = useChannelStore((s) => s.unpublishChannel)
   const askConfirm = useAppStore((s) => s.askConfirm)
+  const navigate = useNavigate()
+  const [showUpload, setShowUpload] = useState(false)
 
   const handleDelete = async () => {
     const ok = await askConfirm({
@@ -65,10 +69,17 @@ export default function ChannelCard({ channel, onDelete }: Props) {
         </div>
       )}
       <div className="mt-4 flex flex-wrap gap-4">
+        <button
+          type="button"
+          onClick={() => setShowUpload(true)}
+          className="text-purple-400 hover:text-purple-300 hover:underline text-sm transition-colors"
+        >
+          Cargar guion
+        </button>
         <Link
           to="/channels/$id/plan"
           params={{ id: String(channel.id) }}
-          className="text-purple-400 hover:text-purple-300 hover:underline text-sm transition-colors"
+          className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
         >
           Ver plan
         </Link>
@@ -104,6 +115,14 @@ export default function ChannelCard({ channel, onDelete }: Props) {
           Eliminar
         </button>
       </div>
+
+      {showUpload && (
+        <UploadScriptModal
+          channel={channel}
+          onClose={() => setShowUpload(false)}
+          onUploaded={(episodeId) => navigate({ to: '/queue', search: { highlight: episodeId } })}
+        />
+      )}
     </div>
   )
 }
