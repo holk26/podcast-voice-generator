@@ -177,6 +177,12 @@ export const api = {
     return fetchFormData<Episode>(`/channels/${channelId}/upload-script`, formData)
   },
 
+  createFromText: (channelId: number, sourceText: string, title?: string) =>
+    fetchJson<Episode>(`/channels/${channelId}/create-from-text`, {
+      method: 'POST',
+      body: JSON.stringify({ source_text: sourceText, title }),
+    }),
+
   searchBooks: (q: string) =>
     fetchJson<BookResult[]>(`/books/search?q=${encodeURIComponent(q)}`),
   getBookChapters: (bookId: string) =>

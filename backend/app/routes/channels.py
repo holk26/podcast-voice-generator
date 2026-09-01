@@ -1,3 +1,5 @@
+import re
+from pathlib import Path
 from typing import List
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
@@ -20,6 +22,11 @@ from backend.app.services.automation_service import start_plan_job, start_script
 
 class ChannelSuggestRequest(BaseModel):
     hint: str | None = None
+
+
+class CreateFromTextRequest(BaseModel):
+    source_text: str
+    title: str | None = None
 
 router = APIRouter()
 
@@ -220,42 +227,55 @@ def create_plan_entry(channel_id: int, data: PlanEntryCreate, db: Session = Depe
     return entry
 
 
-@router.post("/{channel_id}/upload-script", response_model=EpisodeResponse, status_code=201)
-def upload_script(
-    channel_id: int,
-    script: UploadFile = File(...),
-    title: str | None = Form(None),
-    db: Session = Depends(get_db),
-):
-    """Sube un archivo de guion directamente a un canal y crea el episodio en cola.
+def _strip_markdown(text: str) -> str:
+    """Limpia markup markdown básico para dejar texto hablable."""
+    # Quita bloques de código
+    text = re.sub(r"```[\s\S]*?```", "", text)
+    text = re.sub(r"`([^`]+)`", r"\1", text)
+    # Headers
+    text = re.sub(r"^#{1,6}\s*", "", text, flags=re.MULTILINE)
+    # Bold e itálico
+    text = re.sub(r"\*\*([^*]+)\*\*", r"\1", text)
+    text = re.sub(r"__([^_]+)__", r"\1", text)
+    text = re.sub(r"(?<!\w)\*([^*]+)\*(?!\w)", r"\1", text)
+    text = re.sub(r"(?<!\w)_([^_]+)_(?!\w)", r"\1", text)
+    # Links: [texto](url) -> texto
+    text = re.sub(r"\[([^\]]+)\]\([^)]+\)", r"\1", text)
+    # Imágenes
+    text = re.sub(r"!\[[^\]]*\]\([^)]+\)", "", text)
+    # Blockquotes y listas
+    text = re.sub(r"^>\s*", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^[-*+]\s+", "", text, flags=re.MULTILINE)
+    text = re.sub(r"^\d+\.\s+", "", text, flags=re.MULTILINE)
+    # Líneas horizontales
+    text = re.sub(r"^[-*_]{3,}\s*$", "", text, flags=re.MULTILINE)
+    return text.strip()
 
-    Salta el planning y la generación de guion por IA: el texto del archivo se
-    usa tal cual como `source_text` del episodio. Se crea una entrada de plan
-    asociada con estado `generated` para que el canal refleje el capítulo.
-    """
-    channel = db.query(Channel).filter(Channel.id == channel_id).first()
-    if not channel:
-        raise HTTPException(status_code=404, detail="Channel not found")
 
-    try:
-        content = script.file.read().decode("utf-8", errors="replace")
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo: {e}")
-    finally:
-        script.file.close()
-
+def _create_episode_from_text(
+    channel: Channel,
+    content: str,
+    fallback_filename: str | None,
+    explicit_title: str | None,
+    db: Session,
+) -> Episode:
+    """Crea un episodio y su entrada de plan a partir de texto limpio."""
     if not content.strip():
-        raise HTTPException(status_code=400, detail="El archivo está vacío")
+        raise HTTPException(status_code=400, detail="El texto está vacío")
 
-    lines = [line.strip() for line in content.splitlines() if line.strip()]
-    fallback_title = lines[0][:120] if lines else (script.filename or "Episodio sin título")
-    episode_title = (title.strip() if title else fallback_title) or fallback_title
+    cleaned = _strip_markdown(content)
+    if not cleaned.strip():
+        raise HTTPException(status_code=400, detail="El texto no contiene contenido hablable")
+
+    lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
+    fallback_title = lines[0][:120] if lines else (fallback_filename or "Episodio sin título")
+    episode_title = (explicit_title.strip() if explicit_title else fallback_title) or fallback_title
     description = " ".join(lines[:3])[:250] if lines else ""
 
     episode = Episode(
         title=episode_title,
         type=channel.format,
-        source_text=content,
+        source_text=cleaned,
         voice_id=channel.default_voice_id,
         status="pending",
         target_duration_minutes=float(channel.target_minutes or 10),
@@ -276,6 +296,47 @@ def upload_script(
 
     worker_service.notify_new_job()
     return episode
+
+
+@router.post("/{channel_id}/upload-script", response_model=EpisodeResponse, status_code=201)
+def upload_script(
+    channel_id: int,
+    script: UploadFile = File(...),
+    title: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Sube un archivo de guion directamente a un canal y crea el episodio en cola.
+
+    Acepta .txt y .md. Si el archivo es markdown se limpia markup básico antes
+    de guardar. Salta el planning y la generación de guion por IA.
+    """
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    try:
+        content = script.file.read().decode("utf-8", errors="replace")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"No se pudo leer el archivo: {e}")
+    finally:
+        script.file.close()
+
+    filename = Path(script.filename).stem if script.filename else None
+    return _create_episode_from_text(channel, content, filename, title, db)
+
+
+@router.post("/{channel_id}/create-from-text", response_model=EpisodeResponse, status_code=201)
+def create_from_text(
+    channel_id: int,
+    request: CreateFromTextRequest,
+    db: Session = Depends(get_db),
+):
+    """Crea un episodio a partir de texto pegado/editado manualmente."""
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    return _create_episode_from_text(channel, request.source_text, None, request.title, db)
 
 
 @router.post("/plan/{entry_id}/approve", status_code=202)

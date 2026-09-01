@@ -31,6 +31,7 @@ interface ChannelState {
   _handleActionError: (error: unknown, channelId?: number) => Promise<void>
   createPlanEntry: (channelId: number, data: CreatePlanEntryRequest) => Promise<void>
   uploadScript: (channelId: number, file: File, title?: string) => Promise<Episode>
+  createFromText: (channelId: number, sourceText: string, title?: string) => Promise<Episode>
   approveEntry: (entryId: number) => Promise<void>
   updateEntry: (entryId: number, data: CreatePlanEntryRequest) => Promise<void>
   rejectEntry: (entryId: number) => Promise<void>
@@ -222,6 +223,11 @@ export const useChannelStore = create<ChannelState>((set, get) => {
     uploadScript: async (channelId, file, title) => {
       set({ error: null })
       return api.uploadScript(channelId, file, title)
+    },
+
+    createFromText: async (channelId, sourceText, title) => {
+      set({ error: null })
+      return api.createFromText(channelId, sourceText, title)
     },
 
     approveEntry: async (entryId) => {
