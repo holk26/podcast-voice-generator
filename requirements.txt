@@ -19,3 +19,4 @@ ollama>=0.1.0
 beautifulsoup4>=4.12
 requests>=2.31
 qwen-tts>=0.1.0
+resemblyzer>=0.1.2,<0.2
