@@ -5,6 +5,7 @@ from backend.app.services.llm_provider import (
     check_kimi,
     check_gemini,
     check_ollama,
+    check_opencodego,
     get_current_model,
     get_current_provider,
     list_models,
@@ -27,6 +28,8 @@ def llm_status():
         return check_kimi()
     if provider == "gemini":
         return check_gemini()
+    if provider == "opencodego":
+        return check_opencodego()
     return check_ollama()
 
 

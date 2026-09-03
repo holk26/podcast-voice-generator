@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from backend.app.config import WORKER_TOKEN
 from backend.app.dependencies import require_admin
 from backend.app.models import User
-from backend.app.services.llm_provider import save_kimi_api_key, save_gemini_api_key
+from backend.app.services.llm_provider import save_kimi_api_key, save_gemini_api_key, save_opencodego_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -16,6 +16,10 @@ class KimiTokenRequest(BaseModel):
 
 
 class GeminiTokenRequest(BaseModel):
+    token: str
+
+
+class OpenCodeGoTokenRequest(BaseModel):
     token: str
 
 
@@ -61,3 +65,20 @@ def set_gemini_token(data: GeminiTokenRequest, admin_user: User = Depends(requir
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"No se pudo guardar el token: {e}")
     return {"ok": True, "path": "/app/data/gemini_token.json"}
+
+
+@router.post("/opencodego-token", response_model=dict)
+def set_opencodego_token(data: OpenCodeGoTokenRequest, admin_user: User = Depends(require_admin)):
+    """Guarda (o actualiza) el API key de OpenCode Go en el volumen persistente.
+
+    El backend lo usará con prioridad sobre OPENCODEGO_API_KEY.
+    Requiere autenticación de administrador.
+    """
+    token = data.token.strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="El token no puede estar vacío")
+    try:
+        save_opencodego_api_key(token)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"No se pudo guardar el token: {e}")
+    return {"ok": True, "path": "/app/data/opencodego_token.json"}

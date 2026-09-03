@@ -13,12 +13,13 @@ from backend.app.config import (
     KIMI_BASE_URL,
     OLLAMA_BASE_URL,
     OLLAMA_DEFAULT_MODEL,
+    OPENCODEGO_BASE_URL,
     save_llm_settings,
 )
 
 logger = logging.getLogger(__name__)
 
-KNOWN_PROVIDERS = {"ollama", "kimi", "gemini"}
+KNOWN_PROVIDERS = {"ollama", "kimi", "gemini", "opencodego"}
 
 # Modelo/provider en uso (mutable en runtime; por defecto los de config.yaml)
 _current_provider: str = DEFAULT_LLM_PROVIDER
@@ -29,6 +30,7 @@ _state_lock = threading.Lock()
 
 DATA_DIR_KIMI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "kimi_token.json"
 DATA_DIR_GEMINI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "gemini_token.json"
+DATA_DIR_OPENCODEGO_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "opencodego_token.json"
 
 
 def _read_gemini_token_from_data_dir() -> str:
@@ -101,6 +103,31 @@ def save_kimi_api_key(token: str) -> None:
     logger.info("Token de Kimi guardado en %s", DATA_DIR_KIMI_TOKEN)
 
 
+def _read_opencodego_token_from_data_dir() -> str:
+    """Lee un token persistente guardado por el endpoint admin."""
+    if DATA_DIR_OPENCODEGO_TOKEN.exists():
+        try:
+            data = json.loads(DATA_DIR_OPENCODEGO_TOKEN.read_text())
+            token = data.get("token") or data.get("api_key")
+            if token:
+                return token
+        except Exception as e:
+            logger.warning("No se pudo leer %s: %s", DATA_DIR_OPENCODEGO_TOKEN, e)
+    return ""
+
+
+def get_opencodego_api_key() -> str:
+    from backend.app.config import OPENCODEGO_API_KEY
+    return _read_opencodego_token_from_data_dir() or OPENCODEGO_API_KEY
+
+
+def save_opencodego_api_key(token: str) -> None:
+    """Persiste el token de OpenCode Go en el volumen de datos para sobrevivir redeploys."""
+    DATA_DIR_OPENCODEGO_TOKEN.parent.mkdir(parents=True, exist_ok=True)
+    DATA_DIR_OPENCODEGO_TOKEN.write_text(json.dumps({"token": token}, indent=2))
+    logger.info("Token de OpenCode Go guardado en %s", DATA_DIR_OPENCODEGO_TOKEN)
+
+
 def get_current_provider() -> str:
     with _state_lock:
         return _current_provider
@@ -154,6 +181,17 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
         return LLM(
             model=model_name,
             api_key=api_key,
+        )
+
+    if p == "opencodego":
+        api_key = get_opencodego_api_key()
+        if not api_key:
+            raise RuntimeError("OpenCode Go no está configurado: falta OPENCODEGO_API_KEY o token guardado")
+        return LLM(
+            model=m,
+            api_key=api_key,
+            base_url=OPENCODEGO_BASE_URL,
+            extra_headers={"x-opencode-session": "podcash-web"},
         )
 
     if p == "ollama":
@@ -271,6 +309,38 @@ def check_gemini() -> dict:
         return {"available": False, "error": f"No se pudo contactar Gemini: {e}"}
 
 
+def check_opencodego() -> dict:
+    api_key = get_opencodego_api_key()
+    if not api_key:
+        logger.warning("OpenCode Go no está configurado: falta OPENCODEGO_API_KEY o token guardado")
+        return {"available": False, "error": "OpenCode Go no configurado"}
+    try:
+        import requests
+        logger.info("Verificando OpenCode Go en %s (token len=%s)", OPENCODEGO_BASE_URL, len(api_key))
+        resp = requests.get(
+            f"{OPENCODEGO_BASE_URL}/models",
+            headers={"Authorization": f"Bearer {api_key}"},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            logger.warning("OpenCode Go respondió %s: %s", resp.status_code, resp.text[:200])
+            return {"available": False, "error": f"OpenCode Go respondió {resp.status_code}"}
+        data = resp.json()
+        models = [m.get("id") for m in data.get("data", []) if m.get("id")]
+        if not models:
+            models = ["kimi-k2.6", "glm-5.2", "deepseek-v4-flash"]
+        logger.info("OpenCode Go disponible. Modelos: %s", models)
+        return {
+            "available": True,
+            "base_url": OPENCODEGO_BASE_URL,
+            "default_model": "kimi-k2.6",
+            "models": models,
+        }
+    except Exception as e:
+        logger.warning("No se pudo contactar OpenCode Go: %s", e, exc_info=True)
+        return {"available": False, "error": f"No se pudo contactar OpenCode Go: {e}"}
+
+
 def list_providers() -> list[dict]:
     providers = []
     ollama_status = check_ollama()
@@ -295,6 +365,14 @@ def list_providers() -> list[dict]:
         "name": "Gemini",
         "available": gemini_status["available"],
         "default_model": "gemini-2.5-flash",
+    })
+
+    opencodego_status = check_opencodego()
+    providers.append({
+        "id": "opencodego",
+        "name": "OpenCode Go",
+        "available": opencodego_status["available"],
+        "default_model": "kimi-k2.6",
     })
     return providers
 
@@ -322,6 +400,14 @@ def list_models(provider: str | None = None) -> dict:
         return {
             "provider": p,
             "current": get_current_model() if get_current_provider() == p else "gemini-2.5-flash",
+            "models": models,
+        }
+    if p == "opencodego":
+        status = check_opencodego()
+        models = status.get("models", [])
+        return {
+            "provider": p,
+            "current": get_current_model() if get_current_provider() == p else "kimi-k2.6",
             "models": models,
         }
     raise ValueError(f"Provider desconocido: {p}")
