@@ -25,8 +25,16 @@ def health():
 
 
 if __name__ == "__main__":
+    import atexit
     import uvicorn
     from threading import Thread
+
+    # Al salir (incluido SIGINT/SIGTERM con apagado graceful de uvicorn),
+    # descargar los motores TTS de la GPU. Si no, los subprocesos núcleo de
+    # vLLM quedan huérfanos y siguen ocupando VRAM.
+    from worker.tts_local import release_engine
+
+    atexit.register(release_engine)
 
     if os.getenv("WORKER_GUI", "") == "1":
         from worker.gui import WorkerGui, GuiLogHandler
