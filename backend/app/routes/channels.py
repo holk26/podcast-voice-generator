@@ -17,7 +17,7 @@ from shared.schemas import (
     PlanEntryResponse,
 )
 from backend.app.services.crew_service import suggest_channel, improve_channel_prompt
-from backend.app.services.automation_service import start_plan_job, start_script_job, start_season_job, autopilot_tick
+from backend.app.services.automation_service import start_plan_job, start_script_job, start_raw_script_job, start_season_job, autopilot_tick
 
 
 class ChannelSuggestRequest(BaseModel):
@@ -338,6 +338,46 @@ def create_from_text(
         raise HTTPException(status_code=404, detail="Channel not found")
 
     return _create_episode_from_text(channel, request.source_text, None, request.title, db)
+
+
+@router.post("/{channel_id}/script-jobs", status_code=202)
+def create_script_job(
+    channel_id: int,
+    script: UploadFile | None = File(None),
+    text: str | None = Form(None),
+    title: str | None = Form(None),
+    db: Session = Depends(get_db),
+):
+    """Lanza el congreso de agentes sobre materia prima (txt/md o texto pegado).
+
+    Devuelve 202 + job_id; el progreso se sigue en /api/jobs/{job_id}/events y
+    el resultado (guion editable) llega en el evento final. No crea episodio:
+    la UI lo crea con create-from-text tras la edición del usuario.
+    """
+    channel = db.query(Channel).filter(Channel.id == channel_id).first()
+    if not channel:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    raw_text = ""
+    if script is not None:
+        try:
+            raw_text = script.file.read().decode("utf-8", errors="replace")
+        finally:
+            script.file.close()
+        if not title and script.filename:
+            title = Path(script.filename).stem
+    elif text:
+        raw_text = text
+
+    if not raw_text.strip():
+        raise HTTPException(status_code=400, detail="No hay material: sube un .txt/.md o pega texto")
+
+    title = (title or f"Episodio de {channel.name}").strip()
+    minutes = max(2, min(int(channel.target_minutes or 10), 30))
+    job_id = start_raw_script_job(channel, raw_text, title, minutes)
+    if job_id is None:
+        raise HTTPException(status_code=409, detail="Ya hay un guion en generación para este canal")
+    return {"job_id": job_id}
 
 
 @router.post("/plan/{entry_id}/approve", status_code=202)

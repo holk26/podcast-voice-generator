@@ -18,6 +18,7 @@ from backend.app.config import OUTPUT_DIR
 from backend.app.services.crew_service import (
     generate_plan,
     generate_script,
+    generate_script_from_raw,
     generate_dialogue_script,
     generate_season,
     _is_dialogue_mode,
@@ -126,6 +127,7 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
                     voice_id="multi:dialogue",
                     status="pending",
                     target_duration_minutes=float(minutes),
+                    channel_id=entry.channel_id,
                 )
                 session.add(episode)
                 session.commit()
@@ -166,6 +168,7 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
             voice_id=channel.default_voice_id,
             status="pending",
             target_duration_minutes=float(minutes),
+            channel_id=entry.channel_id,
         )
         session.add(episode)
         session.commit()
@@ -192,6 +195,46 @@ def start_script_job(entry: ContentPlanEntry, minutes: int = 10) -> str | None:
         f"Guion: {entry.title}",
         f"script:entry:{entry.id}",
         lambda job_id: run_script_job(job_id, entry.id, minutes),
+    )
+
+
+def run_raw_script_job(
+    job_id: str, channel_id: int, raw_text: str, title: str, minutes: int
+) -> None:
+    """Congreso de agentes sobre materia prima: termina con el guion editable.
+
+    A diferencia de run_script_job NO crea el episodio: el resultado vive en
+    el job (result.script_text) hasta que el usuario confirma desde la UI.
+    """
+    session = SessionLocal()
+    try:
+        channel = session.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            registry.fail(job_id, "Channel not found")
+            return
+        registry.emit(job_id, "load", "Material cargado, el congreso empieza a trabajar…")
+        script = generate_script_from_raw(
+            channel, raw_text, title,
+            target_minutes=minutes, on_progress=_progress(job_id),
+        )
+        word_count = len(script.split())
+        registry.emit(job_id, "done", f"Guion listo: {word_count} palabras")
+        registry.finish(job_id, {"script_text": script, "title": title, "word_count": word_count})
+    except Exception as e:
+        session.rollback()
+        registry.fail(job_id, str(e))
+    finally:
+        session.close()
+
+
+def start_raw_script_job(
+    channel: Channel, raw_text: str, title: str, minutes: int = 10
+) -> str | None:
+    return _start(
+        "script",
+        f"Guion con IA: {channel.name}",
+        f"script:channel:{channel.id}:raw",
+        lambda job_id: run_raw_script_job(job_id, channel.id, raw_text, title, minutes),
     )
 
 
