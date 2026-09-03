@@ -1,4 +1,5 @@
 import { Channel, Voice } from '../types'
+import ChannelSelector from './ChannelSelector'
 
 interface Props {
   channels: Channel[]
@@ -53,15 +54,11 @@ export default function StudioPanel({
       <div className="flex flex-wrap gap-4 items-end">
         <div>
           <label className="block text-sm font-medium text-slate-200 mb-1">Canal</label>
-          <select
-            className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          <ChannelSelector
+            channels={channels}
             value={selectedId}
-            onChange={(e) => onSelectChannel(Number(e.target.value))}
-          >
-            {channels.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+            onChange={onSelectChannel}
+          />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-200 mb-1">Voz</label>

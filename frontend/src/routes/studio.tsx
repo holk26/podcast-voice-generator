@@ -6,6 +6,7 @@ import { api } from '../api/client'
 import StudioPanel from '../components/StudioPanel'
 import ContentPlanList from '../components/ContentPlanList'
 import PlanEntryCard from '../components/PlanEntryCard'
+import ChannelSelector from '../components/ChannelSelector'
 import { CreateChannelRequest, LlmProvider } from '../types'
 
 export const Route = createFileRoute('/studio')({
@@ -147,15 +148,12 @@ function StudioPage() {
           <div className="flex justify-between items-start gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-2">
-                <select
-                  className="bg-slate-800 border border-slate-600 text-slate-100 rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                <ChannelSelector
+                  channels={channels}
                   value={selectedId}
-                  onChange={(e) => setSelectedId(Number(e.target.value))}
-                >
-                  {channels.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                  onChange={setSelectedId}
+                  compact
+                />
                 <Link
                   to="/channels/$id/edit"
                   params={{ id: String(channel.id) }}
