@@ -11,6 +11,18 @@ vi.mock('../stores/episodeStore', () => ({
     }),
 }))
 
+const { askConfirmMock } = vi.hoisted(() => ({
+  askConfirmMock: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('../stores/appStore', () => ({
+  useAppStore: (sel: any) =>
+    sel({
+      pushToast: vi.fn(),
+      askConfirm: askConfirmMock,
+    }),
+}))
+
 vi.mock('./AudioPlayer', () => ({
   default: ({ src }: { src: string }) => <audio data-testid="audio-player" src={src} />,
 }))
@@ -45,11 +57,20 @@ describe('EpisodeCard', () => {
     expect(screen.getByTestId('audio-player')).toHaveAttribute('src', '/out/1.mp3')
   })
 
-  it('calls onDelete when delete button is clicked', () => {
+  it('calls onDelete when delete is confirmed', async () => {
     const onDelete = vi.fn()
     render(<EpisodeCard episode={makeEpisode()} onDelete={onDelete} onRetry={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /Eliminar episodio Test Episode/i }))
-    expect(onDelete).toHaveBeenCalledWith(1)
+    await vi.waitFor(() => expect(onDelete).toHaveBeenCalledWith(1))
+  })
+
+  it('does not call onDelete when delete is cancelled', async () => {
+    askConfirmMock.mockResolvedValueOnce(false)
+    const onDelete = vi.fn()
+    render(<EpisodeCard episode={makeEpisode()} onDelete={onDelete} onRetry={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: /Eliminar episodio Test Episode/i }))
+    await new Promise((r) => setTimeout(r, 50))
+    expect(onDelete).not.toHaveBeenCalled()
   })
 
   it('applies highlight ring when highlighted', () => {

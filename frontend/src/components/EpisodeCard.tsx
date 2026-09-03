@@ -1,6 +1,7 @@
 import { Episode } from '../types'
 import AudioPlayer from './AudioPlayer'
 import { useEpisodeStore } from '../stores/episodeStore'
+import { useAppStore } from '../stores/appStore'
 
 interface Props {
   episode: Episode
@@ -26,7 +27,18 @@ const statusColors: Record<Episode['status'], string> = {
 export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }: Props) {
   const publishEpisode = useEpisodeStore((s) => s.publishEpisode)
   const unpublishEpisode = useEpisodeStore((s) => s.unpublishEpisode)
+  const askConfirm = useAppStore((s) => s.askConfirm)
   const published = Boolean(episode.published_at)
+
+  const handleDelete = async () => {
+    const ok = await askConfirm({
+      title: 'Eliminar episodio',
+      message: `¿Seguro que quieres eliminar "${episode.title}"? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    if (ok) onDelete(episode.id)
+  }
 
   return (
     <div className={`bg-slate-800/50 border border-slate-700 p-4 rounded-xl shadow-lg shadow-black/20 ${highlighted ? 'ring-2 ring-purple-500' : ''}`}>
@@ -86,7 +98,7 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
         )}
         <button
           type="button"
-          onClick={() => onDelete(episode.id)}
+          onClick={handleDelete}
           aria-label={`Eliminar episodio ${episode.title}`}
           className="text-red-400 text-sm hover:text-red-300 hover:underline transition-colors"
         >
