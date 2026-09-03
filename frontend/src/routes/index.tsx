@@ -2,6 +2,8 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { useEffect, useMemo } from 'react'
 import { useEpisodeStore } from '../stores/episodeStore'
 import { useVoiceStore } from '../stores/voiceStore'
+import { useChannelStore } from '../stores/channelStore'
+import { Episode } from '../types'
 
 export const Route = createFileRoute('/')({
   component: DashboardPage,
@@ -16,11 +18,14 @@ function DashboardPage() {
   const voicesLoading = useVoiceStore((state) => state.loading)
   const voicesError = useVoiceStore((state) => state.error)
   const fetchVoices = useVoiceStore((state) => state.fetchVoices)
+  const channels = useChannelStore((state) => state.channels)
+  const fetchChannels = useChannelStore((state) => state.fetchChannels)
 
   useEffect(() => {
     fetchEpisodes()
     fetchVoices()
-  }, [fetchEpisodes, fetchVoices])
+    fetchChannels()
+  }, [fetchEpisodes, fetchVoices, fetchChannels])
 
   const counts = useMemo(
     () => ({
@@ -34,6 +39,23 @@ function DashboardPage() {
 
   const loading = episodesLoading || voicesLoading
   const error = episodesError || voicesError
+
+  const recentEpisodes = useMemo(
+    () =>
+      [...episodes]
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5),
+    [episodes],
+  )
+  const recentStatusBadge: Record<Episode['status'], string> = {
+    pending: 'text-amber-300',
+    running: 'text-purple-300',
+    completed: 'text-green-300',
+    failed: 'text-red-300',
+  }
+  const channelWithPending = channels.find(
+    (c) => (c.entries_total ?? 0) > (c.entries_generated ?? 0),
+  )
 
   if (loading) return <div className="text-slate-400">Cargando dashboard...</div>
 
@@ -77,6 +99,46 @@ function DashboardPage() {
             Ver cola
           </Link>
         </div>
+      </div>
+
+      <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20 mb-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-bold tracking-tight">Episodios recientes</h3>
+          <Link to="/queue" className="text-sm text-purple-400 hover:text-purple-300 transition-colors">
+            Ver cola →
+          </Link>
+        </div>
+        {recentEpisodes.length === 0 ? (
+          <p className="text-sm text-slate-400">Aún no hay episodios. Crea el primero desde "Nuevo episodio".</p>
+        ) : (
+          <ul className="divide-y divide-slate-700/60">
+            {recentEpisodes.map((ep) => (
+              <li key={ep.id} className="py-2 flex justify-between items-center gap-4">
+                <Link
+                  to="/queue"
+                  search={{ highlight: ep.id }}
+                  className="font-medium text-slate-100 hover:text-purple-300 transition-colors truncate"
+                >
+                  {ep.title}
+                </Link>
+                <span className={`text-sm ${recentStatusBadge[ep.status]} shrink-0`}>
+                  {ep.status}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {channelWithPending && (
+          <p className="text-sm mt-4">
+            <Link
+              to="/channels/$id/plan"
+              params={{ id: String(channelWithPending.id) }}
+              className="text-violet-400 hover:text-violet-300 transition-colors"
+            >
+              → {channelWithPending.name} tiene {(channelWithPending.entries_total ?? 0) - (channelWithPending.entries_generated ?? 0)} entradas pendientes de generar
+            </Link>
+          </p>
+        )}
       </div>
 
       <div className="bg-slate-800/50 border border-slate-700 p-6 rounded-xl shadow-lg shadow-black/20">
