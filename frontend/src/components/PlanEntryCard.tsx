@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useChannelStore } from '../stores/channelStore'
+import { useAppStore } from '../stores/appStore'
 import { ContentPlanEntry } from '../types'
 
 interface Props {
@@ -23,10 +24,21 @@ const statusBadge: Record<string, string> = {
 
 export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: Props) {
   const updateEntry = useChannelStore((s) => s.updateEntry)
+  const askConfirm = useAppStore((s) => s.askConfirm)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState(entry.title)
   const [description, setDescription] = useState(entry.description ?? '')
   const [date, setDate] = useState((entry.scheduled_date ?? '').slice(0, 10))
+
+  const handleDelete = async () => {
+    const ok = await askConfirm({
+      title: 'Eliminar entrada',
+      message: `¿Seguro que quieres eliminar "${entry.title}" del plan? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+      danger: true,
+    })
+    if (ok) onDelete(entry.id)
+  }
 
   const handleSave = async () => {
     await updateEntry(entry.id, {
@@ -146,7 +158,7 @@ export default function PlanEntryCard({ entry, onApprove, onReject, onDelete }: 
           </button>
           <button
             type="button"
-            onClick={() => onDelete(entry.id)}
+            onClick={handleDelete}
             className="text-red-400 hover:text-red-300 hover:underline text-sm transition-colors"
           >
             Eliminar
