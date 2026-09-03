@@ -77,15 +77,17 @@ export default function ChannelCard({ channel, onDelete }: Props) {
           Cargar guion
         </button>
         <Link
-          to="/channels/$id/plan"
+          to="/channels/$id"
           params={{ id: String(channel.id) }}
+          search={{ tab: 'plan' }}
           className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
         >
           Ver plan
         </Link>
         <Link
-          to="/channels/$id/edit"
+          to="/channels/$id"
           params={{ id: String(channel.id) }}
+          search={{ tab: 'config' }}
           className="text-violet-400 hover:text-violet-300 hover:underline text-sm transition-colors"
         >
           Editar

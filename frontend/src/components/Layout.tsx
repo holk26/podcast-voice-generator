@@ -35,11 +35,6 @@ const BroadcastIcon = ({ className = 'w-5 h-5' }: IconProps) => (
     <circle cx="12" cy="12" r="2" /><path d="M7 7a7 7 0 0 0 0 10M17 7a7 7 0 0 1 0 10M4 4a12 12 0 0 0 0 16M20 4a12 12 0 0 1 0 16" />
   </svg>
 )
-const FilmIcon = ({ className = 'w-5 h-5' }: IconProps) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-    <rect x="3" y="3" width="18" height="18" rx="2" /><path d="M7 3v18M17 3v18M3 8h4M17 8h4M3 16h4M17 16h4" />
-  </svg>
-)
 const BookIcon = ({ className = 'w-5 h-5' }: IconProps) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <path d="M4 4a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2zM6 18h12" />
@@ -52,7 +47,6 @@ const NAV_ITEMS = [
   { to: '/create', label: 'Crear', Icon: PlusIcon },
   { to: '/queue', label: 'Cola', Icon: ListIcon },
   { to: '/channels', label: 'Canales', Icon: BroadcastIcon },
-  { to: '/studio', label: 'Studio', Icon: FilmIcon },
   { to: '/books', label: 'Libros', Icon: BookIcon },
 ] as const
 

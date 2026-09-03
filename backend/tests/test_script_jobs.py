@@ -84,3 +84,53 @@ def test_generate_script_from_raw_uses_material(monkeypatch):
     assert "palabra" in script2
     assert any("DESC_PLAN_123" in p for p in prompts)
     assert any("Título plan" in p for p in prompts)
+
+
+def test_script_jobs_accepts_pasted_text(monkeypatch):
+    ch = _create_channel("ScriptJob A")
+    monkeypatch.setattr(
+        "backend.app.routes.channels.start_raw_script_job", lambda *a, **k: "jobabc123"
+    )
+    r = client.post(
+        f"/api/channels/{ch['id']}/script-jobs",
+        data={"text": "Material de prueba", "title": "Mi título"},
+    )
+    assert r.status_code == 202, r.text
+    assert r.json() == {"job_id": "jobabc123"}
+
+
+def test_script_jobs_accepts_file_upload(monkeypatch):
+    ch = _create_channel("ScriptJob B")
+    monkeypatch.setattr(
+        "backend.app.routes.channels.start_raw_script_job", lambda *a, **k: "jobfile456"
+    )
+    r = client.post(
+        f"/api/channels/{ch['id']}/script-jobs",
+        files={"script": ("caso.md", b"# Caso\n\nMaterial markdown", "text/markdown")},
+    )
+    assert r.status_code == 202, r.text
+    assert r.json() == {"job_id": "jobfile456"}
+
+
+def test_script_jobs_validations(monkeypatch):
+    monkeypatch.setattr(
+        "backend.app.routes.channels.start_raw_script_job", lambda *a, **k: "jobx"
+    )
+    ch = _create_channel("ScriptJob C")
+    # Sin texto ni archivo
+    assert client.post(f"/api/channels/{ch['id']}/script-jobs", data={}).status_code == 400
+    # Texto vacío
+    assert client.post(
+        f"/api/channels/{ch['id']}/script-jobs", data={"text": "   "}
+    ).status_code == 400
+    # Canal inexistente
+    assert client.post(
+        "/api/channels/99999/script-jobs", data={"text": "hola"}
+    ).status_code == 404
+    # Ya hay un job en curso para el canal
+    monkeypatch.setattr(
+        "backend.app.routes.channels.start_raw_script_job", lambda *a, **k: None
+    )
+    assert client.post(
+        f"/api/channels/{ch['id']}/script-jobs", data={"text": "hola"}
+    ).status_code == 409
