@@ -25,6 +25,7 @@ class EpisodeCreate(BaseModel):
     source_text: Optional[str] = None
     voice_id: str
     target_duration_minutes: Optional[float] = None
+    channel_id: Optional[int] = None
 
 
 class EpisodeResponse(BaseModel):
@@ -37,6 +38,7 @@ class EpisodeResponse(BaseModel):
     audio_url: Optional[str] = None
     error_message: Optional[str] = None
     target_duration_minutes: Optional[float] = None
+    channel_id: Optional[int] = None
     created_at: datetime
     updated_at: datetime
     published_at: Optional[datetime] = None

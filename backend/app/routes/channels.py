@@ -279,6 +279,7 @@ def _create_episode_from_text(
         voice_id=channel.default_voice_id,
         status="pending",
         target_duration_minutes=float(channel.target_minutes or 10),
+        channel_id=channel.id,
     )
     db.add(episode)
     db.commit()

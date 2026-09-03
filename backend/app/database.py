@@ -41,6 +41,7 @@ def _migrate() -> None:
         ],
         "episodes": [
             ("published_at", "TIMESTAMP"),
+            ("channel_id", "INTEGER"),
         ],
     }
 
@@ -67,6 +68,15 @@ def _migrate() -> None:
                     if name not in existing:
                         conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
             conn.commit()
+
+    # Rellenar channel_id de episodios creados antes de la columna (vía su entrada de plan)
+    with engine.begin() as conn:
+        conn.execute(text(
+            "UPDATE episodes SET channel_id = "
+            "(SELECT channel_id FROM content_plan_entries "
+            "WHERE content_plan_entries.episode_id = episodes.id) "
+            "WHERE channel_id IS NULL"
+        ))
 
 
 def init_db():

@@ -14,8 +14,11 @@ router = APIRouter()
 
 
 @router.get("", response_model=List[EpisodeResponse])
-def list_episodes(db: Session = Depends(get_db)):
-    return db.query(Episode).order_by(Episode.created_at.desc()).all()
+def list_episodes(channel_id: int | None = None, db: Session = Depends(get_db)):
+    query = db.query(Episode).order_by(Episode.created_at.desc())
+    if channel_id is not None:
+        query = query.filter(Episode.channel_id == channel_id)
+    return query.all()
 
 
 @router.get("/{episode_id}", response_model=EpisodeResponse)
