@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import CreateEpisodeForm from '../components/CreateEpisodeForm'
 import { useEpisodeStore } from '../stores/episodeStore'
 import { useVoiceStore } from '../stores/voiceStore'
+import { useAppStore } from '../stores/appStore'
 import { CreateEpisodeRequest } from '../types'
 
 export const Route = createFileRoute('/create')({
@@ -13,6 +14,7 @@ function CreatePage() {
   const navigate = useNavigate()
   const { createEpisode } = useEpisodeStore()
   const fetchVoices = useVoiceStore((state) => state.fetchVoices)
+  const pushToast = useAppStore((s) => s.pushToast)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -25,7 +27,7 @@ function CreatePage() {
       const episode = await createEpisode(data)
       navigate({ to: '/queue', search: { highlight: episode.id } })
     } catch (error) {
-      alert('Error creando episodio: ' + String(error))
+      pushToast('Error creando episodio: ' + String(error), 'error')
     } finally {
       setLoading(false)
     }
