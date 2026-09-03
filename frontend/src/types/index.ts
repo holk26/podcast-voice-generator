@@ -20,6 +20,7 @@ export interface Episode {
   audio_url?: string
   error_message?: string
   published_at?: string | null
+  channel_id?: number | null
   created_at: string
   updated_at: string
 }

@@ -103,7 +103,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ text, voice_id: voiceId }),
     }),
-  getEpisodes: () => fetchJson<Episode[]>('/episodes'),
+  getEpisodes: (channelId?: number) =>
+    fetchJson<Episode[]>(channelId ? `/episodes?channel_id=${channelId}` : '/episodes'),
   getEpisode: (id: number) => fetchJson<Episode>(`/episodes/${id}`),
   createEpisode: (data: CreateEpisodeRequest) =>
     fetchJson<Episode>('/episodes', {
@@ -182,6 +183,14 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ source_text: sourceText, title }),
     }),
+
+  startScriptJob: (channelId: number, input: { file?: File; text?: string; title?: string }) => {
+    const form = new FormData()
+    if (input.file) form.append('script', input.file)
+    if (input.text) form.append('text', input.text)
+    if (input.title) form.append('title', input.title)
+    return fetchFormData<{ job_id: string }>(`/channels/${channelId}/script-jobs`, form)
+  },
 
   searchBooks: (q: string) =>
     fetchJson<BookResult[]>(`/books/search?q=${encodeURIComponent(q)}`),
