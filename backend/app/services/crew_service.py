@@ -309,6 +309,26 @@ def _strip_markup(text: str) -> str:
 
 
 def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) -> str:
+    """Congreso de agentes a partir de una entrada del plan editorial."""
+    return _generate_script_impl(
+        channel, entry.title, entry.description or "", target_minutes, on_progress
+    )
+
+
+def generate_script_from_raw(
+    channel, raw_text: str, title: str, target_minutes: int = 10, on_progress=None
+) -> str:
+    """Congreso de agentes a partir de materia prima (txt/md subido o pegado).
+
+    El texto completo actúa como material del investigador: los agentes lo
+    analizan y lo convierten en guion listo para TTS.
+    """
+    return _generate_script_impl(channel, title, raw_text, target_minutes, on_progress)
+
+
+def _generate_script_impl(
+    channel, title: str, material: str, target_minutes: int = 10, on_progress=None
+) -> str:
     """Congreso de agentes: investigador → planificador → guionista por
     secciones → editor → director de voz. Genera guiones largos
     (~150 palabras/minuto hablado).
@@ -338,11 +358,11 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
 
     fmt = channel.format
     niche = channel.niche or "general"
-    desc = entry.description or ""
+    desc = material
 
     # 1. Investigación
     specs = _specs(channel)
-    prompt = RESEARCH_PROMPT.format(format=fmt, title=entry.title, niche=niche, description=desc, specs=specs)
+    prompt = RESEARCH_PROMPT.format(format=fmt, title=title, niche=niche, description=desc, specs=specs)
     emit("research", "El investigador recopila datos y curiosidades…", prompt)
     research = _run_single_task(researcher, prompt, "Lista de puntos clave")
     emit("research_done", "Investigación lista", research)
@@ -351,7 +371,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
     # Con modelos pequeños cada sección rinde ~250-350 palabras; mejor más
     # secciones que pedir más palabras por sección (no lo cumple).
     n_sections = max(3, min(10, target_minutes))
-    prompt = OUTLINE_PROMPT.format(format=fmt, title=entry.title, niche=niche,
+    prompt = OUTLINE_PROMPT.format(format=fmt, title=title, niche=niche,
                                    minutes=target_minutes, sections=n_sections, specs=specs)
     emit("outline", f"El planificador diseña el esquema ({n_sections} secciones)…", prompt)
     outline_raw = _run_single_task(planner, prompt, "Un array JSON de secciones")
@@ -368,7 +388,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         ]
     except Exception:
         # Fallback: una sola sección con todo el tema
-        sections = [{"title": entry.title, "points": desc}]
+        sections = [{"title": title, "points": desc}]
 
     # 3. Escritura por secciones
     parts: list[str] = []
@@ -393,7 +413,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         # Palabras por sección según la duración objetivo (~150 palabras/min)
         per_section = max(300, round(target_minutes * 150 / total))
         prompt = SECTION_PROMPT.format(
-            format=fmt, title=entry.title, niche=niche,
+            format=fmt, title=title, niche=niche,
             outline=outline_raw, research=research,
             section_title=section["title"], section_points=section["points"],
             section_number=i + 1, total_sections=total,
@@ -417,7 +437,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         emit("expand_section",
              f"La sección {i + 1} quedó corta; el guionista la expande…")
         expand_prompt = (
-            f"Esta sección de un episodio titulado \"{entry.title}\" quedó demasiado corta. "
+            f"Esta sección de un episodio titulado \"{title}\" quedó demasiado corta. "
             f"Expándela hasta al menos {round(per_section * 0.9)} palabras añadiendo ejemplos, "
             f"historias y detalle práctico, manteniendo el mismo tono hablado y sin repetir ideas. "
             f"Devuelve SOLO la sección completa expandida, sin comentarios.\n\n"
@@ -434,7 +454,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
         emit("expand_global", "El guion es corto para la duración; expansión global…")
         deficit = target_words - total_words
         global_prompt = (
-            f"El guion del episodio \"{entry.title}\" tiene {total_words} palabras y necesita "
+            f"El guion del episodio \"{title}\" tiene {total_words} palabras y necesita "
             f"unas {target_words}. Añade aproximadamente {deficit} palabras más de contenido "
             f"valioso (ejemplos, historias, consejos prácticos) distribuidas en el guion, "
             f"sin repetir y manteniendo el tono hablado. Devuelve SOLO el guion completo ampliado.\n\n"
@@ -478,7 +498,7 @@ def generate_script(channel, entry, target_minutes: int = 10, on_progress=None) 
                           "Director de producción: nada sale al aire sin su visto bueno.")
     es_hint = round(_spanish_ratio(final) * 100)
     director_prompt = DIRECTOR_PROMPT.format(
-        specs=specs, title=entry.title, es_hint=es_hint, script=final[:3000],
+        specs=specs, title=title, es_hint=es_hint, script=final[:3000],
     )
     emit("director", "El Director de Producción revisa el guion…", director_prompt)
     verdict_raw = _run_single_task(
