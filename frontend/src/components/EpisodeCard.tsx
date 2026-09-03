@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { Episode } from '../types'
 import AudioPlayer from './AudioPlayer'
+import ScriptEditorModal from './ScriptEditorModal'
 import { useEpisodeStore } from '../stores/episodeStore'
 import { useAppStore } from '../stores/appStore'
 
@@ -28,6 +30,7 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
   const publishEpisode = useEpisodeStore((s) => s.publishEpisode)
   const unpublishEpisode = useEpisodeStore((s) => s.unpublishEpisode)
   const askConfirm = useAppStore((s) => s.askConfirm)
+  const [editing, setEditing] = useState(false)
   const published = Boolean(episode.published_at)
 
   const handleDelete = async () => {
@@ -98,6 +101,13 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
         )}
         <button
           type="button"
+          onClick={() => setEditing(true)}
+          className="text-amber-400 text-sm hover:text-amber-300 hover:underline transition-colors"
+        >
+          Editar guion
+        </button>
+        <button
+          type="button"
           onClick={handleDelete}
           aria-label={`Eliminar episodio ${episode.title}`}
           className="text-red-400 text-sm hover:text-red-300 hover:underline transition-colors"
@@ -105,6 +115,9 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
           Eliminar
         </button>
       </div>
+      {editing && (
+        <ScriptEditorModal episode={episode} onClose={() => setEditing(false)} />
+      )}
     </div>
   )
 }
