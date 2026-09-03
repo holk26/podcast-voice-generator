@@ -8,6 +8,7 @@ las muestras que viven en voices/clones/.
 import logging
 import os
 import re
+import shutil
 import time
 from pathlib import Path
 from typing import Optional
@@ -149,6 +150,44 @@ def _concat_wavs(paths: list[Path], output_path: Path) -> Path:
     return output_path
 
 
+def release_engine(engine_name: str | None = None) -> None:
+    """Libera un motor TTS (o todos) de la GPU.
+
+    Los motores quedan residentes como singletones para reutilizarlos, pero
+    pasos posteriores de postproducción (p. ej. VoiceFixer) necesitan VRAM;
+    descargar el motor libera esa memoria. El motor se recarga bajo demanda
+    en la siguiente síntesis.
+    """
+    import gc
+
+    names = [engine_name.lower()] if engine_name else list(_engines)
+    for name in names:
+        engine = _engines.pop(name, None)
+        if engine is None:
+            continue
+        unload = getattr(engine, "unload", None)
+        if callable(unload):
+            try:
+                unload()
+            except Exception as e:
+                logger.warning(f"[TTS] No se pudo descargar el motor '{name}': {e}")
+    try:
+        import torch
+
+        torch.cuda.empty_cache()
+    except Exception:
+        pass
+    gc.collect()
+
+
+def validator_prev_pitch(validator) -> float:
+    """Pitch de referencia vigente del validador (chunk anterior o referencia)."""
+    prev = getattr(validator, "_prev", None)
+    if prev is not None and prev.pitch_median > 0:
+        return prev.pitch_median
+    return getattr(validator, "_ref_pitch", 0.0) or 0.0
+
+
 def synthesize_clone(text: str, voice_id: str, output_path: str) -> str:
     """Genera audio para una voz clonada usando el motor local, troceando textos largos."""
     voice = _parse_clone_voice_id(voice_id)
@@ -173,6 +212,23 @@ def synthesize_clone(text: str, voice_id: str, output_path: str) -> str:
     tmp_dir = out_p.parent / f"_chunks_{out_p.stem}"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    validator = None
+    if os.getenv("TTS_QUALITY_ENABLED", "1").lower() in ("1", "true", "yes"):
+        from worker.tts_quality import ChunkValidator
+
+        try:
+            validator = ChunkValidator(voice.reference_path)
+            logger.info(
+                "[TTS] Validación de consistencia activada "
+                f"(umbral sim={validator.config.sim_threshold}, "
+                f"máx intentos={validator.config.max_attempts})"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[TTS] No se pudo iniciar el validador ({e}); "
+                "continuando sin validación"
+            )
+
     part_paths: list[Path] = []
     total_start = time.time()
     try:
@@ -184,12 +240,61 @@ def synthesize_clone(text: str, voice_id: str, output_path: str) -> str:
             )
             part_start = time.time()
             part = tmp_dir / f"chunk_{i:04d}.wav"
-            engine.synthesize(chunk, voice, str(part))
+            max_attempts = validator.config.max_attempts if validator else 1
+            best: tuple | None = None
+            for attempt in range(1, max_attempts + 1):
+                engine.synthesize(chunk, voice, str(part))
+                if validator is None:
+                    best = (part, None)
+                    break
+                try:
+                    score = validator.validate(str(part), chunk)
+                except Exception as e:
+                    logger.warning(
+                        f"[TTS] Validador falló en chunk {i + 1} ({e}); "
+                        "se acepta el chunk (fail-open)"
+                    )
+                    best = (part, None)
+                    break
+                pitch_ref = validator_prev_pitch(validator)
+                delta_pitch = ""
+                if pitch_ref > 0 and score.pitch_median > 0:
+                    rel = (score.pitch_median - pitch_ref) / pitch_ref
+                    delta_pitch = f" Δpitch={rel:+.0%}"
+                logger.info(
+                    f"[TTS] chunk {i + 1}/{total_chunks} intento {attempt}: "
+                    f"sim={score.similarity:.2f} speed={score.speed_wps:.1f} pal/seg"
+                    f"{delta_pitch} {'✓' if score.passed else '✗'}"
+                )
+                if best is None or (score.passed, score.similarity) > (
+                    best[1].passed, best[1].similarity
+                ):
+                    best_part = tmp_dir / f"chunk_{i:04d}_best.wav"
+                    shutil.copy2(part, best_part)
+                    best = (best_part, score)
+                if score.passed:
+                    break
+
+            best_part, best_score = best
+            if validator is not None and best_score is not None:
+                if not best_score.passed:
+                    logger.warning(
+                        f"[TTS] chunk {i + 1}/{total_chunks}: mejor intento "
+                        f"sim={best_score.similarity:.2f} < umbral; "
+                        "se acepta igual (best-of-N)"
+                    )
+                from worker.tts_quality import extract_emotion
+
+                validator.accept(best_score, extract_emotion(chunk))
+                shutil.copy2(best_part, part)
+                best_part.unlink(missing_ok=True)
             part_paths.append(part)
             logger.info(
                 f"[TTS] Fragmento {i + 1}/{total_chunks} generado en {time.time() - part_start:.1f}s"
             )
 
+        if validator is not None:
+            logger.info(f"[TTS] Resumen consistencia: {validator.summary()}")
         logger.info(f"[TTS] Concatenando {total_chunks} fragmentos de audio...")
         _concat_wavs(part_paths, out_p)
         logger.info(

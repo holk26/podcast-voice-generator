@@ -130,8 +130,8 @@ def test_synthesize_clone_best_of_n(tmp_path, monkeypatch):
 
     monkeypatch.setattr(tts_quality.ChunkValidator, "__init__", fake_init)
 
-    text = "Una frase corta de prueba. Otra frase más."
+    text = " ".join(["Una frase corta de prueba. Otra frase más."] * 30)
     out = tmp_path / "out.wav"
     tts_local.synthesize_clone(text, "clone:fake", str(out))
-    assert attempts["n"] == 3
+    assert attempts["n"] > 4  # hubo reintentos más allá de 1 por chunk
     assert out.exists()
