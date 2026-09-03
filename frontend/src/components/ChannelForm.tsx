@@ -23,6 +23,10 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
   const [format, setFormat] = useState<ChannelFormat>(initial?.format ?? 'podcast')
   const [voiceId, setVoiceId] = useState(initial?.default_voice_id ?? voices[0]?.id ?? 'jorge')
   const [brief, setBrief] = useState(initial?.brief ?? '')
+  const [numSpeakers, setNumSpeakers] = useState(initial?.num_speakers ?? 1)
+  const [speakerVoices, setSpeakerVoices] = useState<Record<string, string>>(
+    initial?.speaker_voices ?? {}
+  )
   const [hint, setHint] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -40,6 +44,8 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
       autopilot: initial?.autopilot ?? false,
       episodes_per_week: initial?.episodes_per_week ?? 2,
       target_minutes: initial?.target_minutes ?? 10,
+      num_speakers: numSpeakers,
+      speaker_voices: numSpeakers > 1 ? speakerVoices : null,
     })
   }
 
@@ -155,6 +161,58 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
           ))}
         </select>
       </div>
+      <div>
+        <label htmlFor="channel-num-speakers" className="block text-sm font-medium text-slate-200">Número de voces</label>
+        <select
+          id="channel-num-speakers"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          value={numSpeakers}
+          onChange={(e) => {
+            const n = Number(e.target.value)
+            setNumSpeakers(n)
+            if (n > 1 && Object.keys(speakerVoices).length === 0) {
+              setSpeakerVoices({ Narrador: voiceId, Invitado: voiceId })
+            }
+          }}
+        >
+          <option value={1}>1 voz (monólogo)</option>
+          <option value={2}>2 voces (diálogo)</option>
+        </select>
+      </div>
+      {numSpeakers > 1 && (
+        <div>
+          <span className="block text-sm font-medium text-slate-200 mb-1">Voces del diálogo</span>
+          <div className="space-y-2">
+            {Object.entries(speakerVoices).map(([speaker, vId]) => (
+              <div key={speaker} className="flex gap-2 items-center">
+                <input
+                  aria-label="Nombre del speaker"
+                  className="w-32 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={speaker}
+                  onChange={(e) => {
+                    const next = { ...speakerVoices }
+                    delete next[speaker]
+                    next[e.target.value] = vId
+                    setSpeakerVoices(next)
+                  }}
+                />
+                <select
+                  aria-label={`Voz de ${speaker}`}
+                  className="flex-1 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  value={vId}
+                  onChange={(e) => setSpeakerVoices({ ...speakerVoices, [speaker]: e.target.value })}
+                >
+                  {voices.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.name} ({v.engine})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div>
         <div className="flex justify-between items-center mb-1">
           <label htmlFor="channel-brief" className="block text-sm font-medium text-slate-200">
