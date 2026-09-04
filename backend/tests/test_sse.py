@@ -3,6 +3,7 @@ from backend.app.main import app
 from backend.app.database import SessionLocal
 from backend.app.models import Episode
 import json
+import time
 
 client = TestClient(app)
 
@@ -45,3 +46,37 @@ def test_sse_stream_exists():
 def test_sse_stream_not_found():
     response = client.get("/api/episodes/999999/events")
     assert response.status_code == 404
+
+
+def test_job_sse_sends_heartbeat_and_replays_events(monkeypatch):
+    """El stream de jobs envía heartbeats en silencio y re-emite los eventos
+    acumulados al conectar (el frontend se reconecta y reconstruye la lista)."""
+    import threading
+
+    from backend.app.routes import jobs as jobs_module
+    from backend.app.services.job_service import registry
+
+    monkeypatch.setattr(jobs_module, "HEARTBEAT_SECONDS", 1)
+    job_id = registry.create("test", "heartbeat")
+    registry.emit(job_id, "research", "investigando")
+
+    def complete():
+        time.sleep(2.5)
+        registry.finish(job_id)
+
+    threading.Thread(target=complete, daemon=True).start()
+
+    body = b""
+    with client.stream("GET", f"/api/jobs/{job_id}/events") as response:
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        for chunk in response.iter_raw():
+            body += chunk
+            if b": ping" in body and b"__status__" in body:
+                break
+
+    text = body.decode()
+    assert ": ping" in text
+    assert '"step": "research"' in text
+    assert '"message": "investigando"' in text
+    assert '"status": "done"' in text

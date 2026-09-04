@@ -51,8 +51,13 @@ function updateEntryInState(
 }
 
 let jobSource: EventSource | null = null
+let jobRetryTimer: ReturnType<typeof setTimeout> | null = null
 
 function stopJobStream() {
+  if (jobRetryTimer) {
+    clearTimeout(jobRetryTimer)
+    jobRetryTimer = null
+  }
   jobSource?.close()
   jobSource = null
 }
@@ -67,47 +72,77 @@ export const useChannelStore = create<ChannelState>((set, get) => {
       error: null,
     })
 
-    const source = new EventSource(sseUrl(`/jobs/${jobId}/events`))
-    jobSource = source
+    const MAX_ATTEMPTS = 8
+    let attempts = 0
+    let finished = false
 
-    source.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.step === '__status__') {
-          stopJobStream()
-          const ok = data.status === 'done'
+    const connect = () => {
+      if (finished) return
+      const source = new EventSource(sseUrl(`/jobs/${jobId}/events`))
+      jobSource = source
+      // El servidor re-emite todos los eventos desde cero en cada conexión:
+      // tras una reconexión, el primer mensaje reconstruye la lista completa.
+      let replayPending = attempts > 0
+
+      source.onmessage = (event) => {
+        attempts = 0
+        try {
+          const data = JSON.parse(event.data)
+          if (data.step === '__status__') {
+            finished = true
+            stopJobStream()
+            const ok = data.status === 'done'
+            set((state) => ({
+              activeJob: state.activeJob
+                ? { ...state.activeJob, status: data.status, error: data.error ?? undefined }
+                : null,
+              loading: false,
+              error: ok ? null : data.error || 'La generación falló',
+            }))
+            const cid = channelId ?? data.result?.channel_id
+            if (ok && cid) get().fetchPlanEntries(cid)
+            return
+          }
+          const jobEvent = data as CrewJobEvent
+          const rebuild = replayPending
+          replayPending = false
+          set((state) =>
+            state.activeJob
+              ? {
+                  activeJob: {
+                    ...state.activeJob,
+                    events: rebuild ? [jobEvent] : [...state.activeJob.events, jobEvent],
+                  },
+                }
+              : {}
+          )
+        } catch {
+          // Ignorar payloads mal formados
+        }
+      }
+
+      source.onerror = () => {
+        if (finished) return
+        source.close()
+        if (jobSource === source) jobSource = null
+        attempts += 1
+        if (attempts > MAX_ATTEMPTS) {
+          finished = true
           set((state) => ({
             activeJob: state.activeJob
-              ? { ...state.activeJob, status: data.status, error: data.error ?? undefined }
+              ? { ...state.activeJob, status: 'error', error: 'Conexión perdida' }
               : null,
             loading: false,
-            error: ok ? null : data.error || 'La generación falló',
+            error: 'Se perdió la conexión en tiempo real.',
           }))
-          const cid = channelId ?? data.result?.channel_id
-          if (ok && cid) get().fetchPlanEntries(cid)
           return
         }
-        const jobEvent = data as CrewJobEvent
-        set((state) =>
-          state.activeJob
-            ? { activeJob: { ...state.activeJob, events: [...state.activeJob.events, jobEvent] } }
-            : {}
-        )
-      } catch {
-        // Ignorar payloads mal formados
+        set({ error: `Reconectando con el job… (intento ${attempts}/${MAX_ATTEMPTS})` })
+        jobRetryTimer = setTimeout(connect, Math.min(2000 * attempts, 10000))
       }
     }
 
-    source.onerror = () => {
-      stopJobStream()
-      set((state) => ({
-        activeJob: state.activeJob
-          ? { ...state.activeJob, status: 'error', error: 'Conexión perdida' }
-          : null,
-        loading: false,
-        error: 'Se perdió la conexión en tiempo real.',
-      }))
-    }
+    connect()
   }
 
   return {
