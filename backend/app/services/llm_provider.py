@@ -16,14 +16,43 @@ from backend.app.config import (
     OPENCODEGO_BASE_URL,
     save_llm_settings,
 )
+from backend.app.services import settings_store
 
 logger = logging.getLogger(__name__)
 
 KNOWN_PROVIDERS = {"ollama", "kimi", "gemini", "opencodego"}
 
-# Modelo/provider en uso (mutable en runtime; por defecto los de config.yaml)
+# Orden de preferencia cuando el provider configurado no está disponible.
+FALLBACK_PROVIDER_ORDER = ("opencodego", "gemini", "kimi", "ollama")
+
+
+def _persisted_settings() -> tuple[str | None, str | None]:
+    """Provider/modelo guardados en la BD (None si no hay nada persistido)."""
+    provider = (settings_store.get_setting(SETTING_KEY_PROVIDER) or "").strip().lower()
+    model = (settings_store.get_setting(SETTING_KEY_MODEL) or "").strip()
+    if provider in KNOWN_PROVIDERS and model:
+        return provider, model
+    return None, None
+
+
+# Modelo/provider en uso (mutable en runtime; persistido en la base de datos).
+# Se inicializa con los defaults del env; load_persisted_settings() lo sobrescribe
+# con lo guardado en la BD una vez ésta está disponible (lifespan).
 _current_provider: str = DEFAULT_LLM_PROVIDER
 _current_model: str = DEFAULT_LLM_MODEL
+
+
+def load_persisted_settings() -> None:
+    """Aplica provider/modelo guardados en la BD, si existen."""
+    global _current_provider, _current_model
+    provider, model = _persisted_settings()
+    if provider is None:
+        return
+    if provider != _current_provider or model != _current_model:
+        with _state_lock:
+            _current_provider = provider
+            _current_model = model
+        logger.info("Settings de IA cargados de la BD: %s (%s)", provider, model)
 
 _state_lock = threading.Lock()
 
@@ -31,6 +60,21 @@ _state_lock = threading.Lock()
 DATA_DIR_KIMI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "kimi_token.json"
 DATA_DIR_GEMINI_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "gemini_token.json"
 DATA_DIR_OPENCODEGO_TOKEN = Path(os.environ.get("DATA_DIR", "/app/data")) / "opencodego_token.json"
+
+# Claves en la tabla app_settings (persisten en la base de datos).
+SETTING_KEY_PROVIDER = "llm.provider"
+SETTING_KEY_MODEL = "llm.model"
+SETTING_KEY_KIMI_TOKEN = "llm.api_key.kimi"
+SETTING_KEY_GEMINI_TOKEN = "llm.api_key.gemini"
+SETTING_KEY_OPENCODEGO_TOKEN = "llm.api_key.opencodego"
+
+
+def _resolve_token(*candidates: str) -> str:
+    """Devuelve el primer token no vacío (base de datos, archivo, env)."""
+    for token in candidates:
+        if token:
+            return token
+    return ""
 
 
 def _read_gemini_token_from_data_dir() -> str:
@@ -48,14 +92,19 @@ def _read_gemini_token_from_data_dir() -> str:
 
 def get_gemini_api_key() -> str:
     from backend.app.config import GEMINI_API_KEY
-    return _read_gemini_token_from_data_dir() or GEMINI_API_KEY
+    return _resolve_token(
+        settings_store.get_setting(SETTING_KEY_GEMINI_TOKEN),
+        _read_gemini_token_from_data_dir(),
+        GEMINI_API_KEY,
+    )
 
 
 def save_gemini_api_key(token: str) -> None:
-    """Persiste el token de Gemini en el volumen de datos para sobrevivir redeploys."""
+    """Persiste el token de Gemini en BD y en el volumen de datos."""
+    settings_store.set_setting(SETTING_KEY_GEMINI_TOKEN, token)
     DATA_DIR_GEMINI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
     DATA_DIR_GEMINI_TOKEN.write_text(json.dumps({"token": token}, indent=2))
-    logger.info("Token de Gemini guardado en %s", DATA_DIR_GEMINI_TOKEN)
+    logger.info("Token de Gemini guardado")
 
 
 def _read_kimi_token_from_data_dir() -> str:
@@ -93,14 +142,20 @@ def _read_kimi_token_from_local_config() -> str:
 
 
 def get_kimi_api_key() -> str:
-    return _read_kimi_token_from_data_dir() or KIMI_API_KEY or _read_kimi_token_from_local_config()
+    return _resolve_token(
+        settings_store.get_setting(SETTING_KEY_KIMI_TOKEN),
+        _read_kimi_token_from_data_dir(),
+        KIMI_API_KEY,
+        _read_kimi_token_from_local_config(),
+    )
 
 
 def save_kimi_api_key(token: str) -> None:
-    """Persiste el token de Kimi en el volumen de datos para sobrevivir redeploys."""
+    """Persiste el token de Kimi en BD y en el volumen de datos."""
+    settings_store.set_setting(SETTING_KEY_KIMI_TOKEN, token)
     DATA_DIR_KIMI_TOKEN.parent.mkdir(parents=True, exist_ok=True)
     DATA_DIR_KIMI_TOKEN.write_text(json.dumps({"token": token}, indent=2))
-    logger.info("Token de Kimi guardado en %s", DATA_DIR_KIMI_TOKEN)
+    logger.info("Token de Kimi guardado")
 
 
 def _read_opencodego_token_from_data_dir() -> str:
@@ -118,14 +173,19 @@ def _read_opencodego_token_from_data_dir() -> str:
 
 def get_opencodego_api_key() -> str:
     from backend.app.config import OPENCODEGO_API_KEY
-    return _read_opencodego_token_from_data_dir() or OPENCODEGO_API_KEY
+    return _resolve_token(
+        settings_store.get_setting(SETTING_KEY_OPENCODEGO_TOKEN),
+        _read_opencodego_token_from_data_dir(),
+        OPENCODEGO_API_KEY,
+    )
 
 
 def save_opencodego_api_key(token: str) -> None:
-    """Persiste el token de OpenCode Go en el volumen de datos para sobrevivir redeploys."""
+    """Persiste el token de OpenCode Go en BD y en el volumen de datos."""
+    settings_store.set_setting(SETTING_KEY_OPENCODEGO_TOKEN, token)
     DATA_DIR_OPENCODEGO_TOKEN.parent.mkdir(parents=True, exist_ok=True)
     DATA_DIR_OPENCODEGO_TOKEN.write_text(json.dumps({"token": token}, indent=2))
-    logger.info("Token de OpenCode Go guardado en %s", DATA_DIR_OPENCODEGO_TOKEN)
+    logger.info("Token de OpenCode Go guardado")
 
 
 def get_current_provider() -> str:
@@ -139,7 +199,7 @@ def get_current_model() -> str:
 
 
 def set_current_settings(provider: str, model: str) -> None:
-    """Cambia provider+modelo en runtime y lo persiste en config.yaml."""
+    """Cambia provider+modelo en runtime y los persiste en BD y config.yaml."""
     provider = provider.strip().lower()
     model = model.strip()
     if provider not in KNOWN_PROVIDERS:
@@ -150,6 +210,8 @@ def set_current_settings(provider: str, model: str) -> None:
     with _state_lock:
         _current_provider = provider
         _current_model = model
+    settings_store.set_setting(SETTING_KEY_PROVIDER, provider)
+    settings_store.set_setting(SETTING_KEY_MODEL, model)
     save_llm_settings(provider, model)
 
 
@@ -205,6 +267,54 @@ def get_llm(provider: str | None = None, model: str | None = None) -> LLM:
 
 def get_planning_llm() -> LLM:
     return get_llm()
+
+
+def _provider_status(provider: str) -> dict:
+    if provider == "kimi":
+        return check_kimi()
+    if provider == "gemini":
+        return check_gemini()
+    if provider == "opencodego":
+        return check_opencodego()
+    return check_ollama()
+
+
+def ensure_provider_available() -> None:
+    """Si el provider activo no responde, conmuta al primero disponible.
+
+    Se ejecuta en segundo plano al arrancar la API para que un redeploy
+    (que resetea el runtime al default del env) nunca deje el congreso
+    con un provider caído o con credenciales expiradas.
+    """
+    current = get_current_provider()
+    try:
+        status = _provider_status(current)
+        if status.get("available"):
+            logger.info("Provider de IA activo: %s (%s)", current, get_current_model())
+            return
+        logger.warning(
+            "Provider '%s' no disponible (%s); buscando alternativa...",
+            current, status.get("error", "sin detalle"),
+        )
+        for candidate in FALLBACK_PROVIDER_ORDER:
+            if candidate == current:
+                continue
+            try:
+                cand_status = _provider_status(candidate)
+            except Exception as e:
+                logger.warning("No se pudo verificar %s: %s", candidate, e)
+                continue
+            if cand_status.get("available"):
+                model = cand_status.get("default_model") or DEFAULT_LLM_MODEL
+                set_current_settings(candidate, model)
+                logger.info(
+                    "Provider de IA conmutado automáticamente: %s -> %s (%s)",
+                    current, candidate, model,
+                )
+                return
+        logger.error("Ningún provider de IA está disponible; el congreso fallará hasta configurar uno.")
+    except Exception as e:
+        logger.warning("ensure_provider_available falló: %s", e)
 
 
 def get_script_llm() -> LLM:

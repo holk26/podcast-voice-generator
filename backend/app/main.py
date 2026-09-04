@@ -47,6 +47,21 @@ except Exception as exc:  # noqa: BLE001
 async def lifespan(app: FastAPI):
     init_dirs()
     init_db()
+    # Carga provider/modelo persistidos en BD y, en segundo plano, conmuta
+    # de provider si el activo no está disponible (p. ej. credenciales
+    # expiradas tras un redeploy).
+    import threading
+
+    from backend.app.services.llm_provider import (
+        ensure_provider_available,
+        load_persisted_settings,
+    )
+
+    def _init_llm_runtime():
+        load_persisted_settings()
+        ensure_provider_available()
+
+    threading.Thread(target=_init_llm_runtime, daemon=True).start()
     yield
 
 
