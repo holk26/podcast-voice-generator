@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Episode } from '../types'
 import { useEpisodeStore } from '../stores/episodeStore'
+import ScriptTextarea, { ScriptTextareaHandle } from './ScriptTextarea'
 
 interface Props {
   episode: Episode
@@ -15,15 +16,10 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  // Word / char count
-  const charCount = text.length
-  const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0
-  const estimatedMinutes = Math.round(wordCount / 140) // ~140 wpm Spanish narration
+  const editorRef = useRef<ScriptTextareaHandle>(null)
 
   useEffect(() => {
-    textareaRef.current?.focus()
+    editorRef.current?.focus()
   }, [])
 
   // Close on Escape
@@ -101,67 +97,18 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
           />
         </div>
 
-        {/* Script textarea */}
+        {/* Script editor */}
         <div className="flex-1 min-h-0 px-5 pt-3 pb-1 flex flex-col">
           <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">
             Guion / Texto narrado
           </label>
-          <textarea
-            ref={textareaRef}
+          <ScriptTextarea
+            ref={editorRef}
             value={text}
-            onChange={(e) => setText(e.target.value)}
-            className="flex-1 min-h-0 w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 text-sm font-mono leading-relaxed resize-none focus:outline-none focus:ring-2 focus:ring-purple-500"
-            placeholder="Escribe o pega el guion aquí. Puedes usar etiquetas de emoción como <|emotion:contemplation|>, <|prosody:pause|>, <|sfx:sigh|>..."
-            spellCheck={false}
+            onChange={setText}
+            targetMinutes={12}
+            placeholder="Escribe o pega el guion aquí. Usa la botonera para insertar etiquetas de emoción, prosodia y sfx…"
           />
-        </div>
-
-        {/* Stats bar */}
-        <div className="px-5 py-2 flex gap-4 text-xs text-slate-500 shrink-0">
-          <span>{charCount.toLocaleString()} caracteres</span>
-          <span>{wordCount.toLocaleString()} palabras</span>
-          <span className={`font-medium ${estimatedMinutes >= 10 ? 'text-green-400' : 'text-amber-400'}`}>
-            ~{estimatedMinutes} min estimados (objetivo: 12 min)
-          </span>
-        </div>
-
-        {/* Emotion tag reference */}
-        <div className="mx-5 mb-3 p-3 bg-slate-800/60 border border-slate-700/50 rounded-lg shrink-0">
-          <p className="text-xs text-slate-400 font-medium mb-1.5">Etiquetas disponibles:</p>
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              '<|emotion:contemplation|>',
-              '<|emotion:sadness|>',
-              '<|emotion:determination|>',
-              '<|emotion:bitterness|>',
-              '<|emotion:fear|>',
-              '<|emotion:helplessness|>',
-              '<|emotion:affection|>',
-              '<|prosody:pause|>',
-              '<|sfx:sigh|>',
-              '<|sfx:laughter|>',
-            ].map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => {
-                  const el = textareaRef.current
-                  if (!el) return
-                  const start = el.selectionStart
-                  const end = el.selectionEnd
-                  const newText = text.slice(0, start) + tag + ' ' + text.slice(end)
-                  setText(newText)
-                  setTimeout(() => {
-                    el.focus()
-                    el.setSelectionRange(start + tag.length + 1, start + tag.length + 1)
-                  }, 0)
-                }}
-                className="text-xs px-2 py-0.5 bg-purple-900/40 border border-purple-700/50 text-purple-300 rounded hover:bg-purple-800/60 transition-colors font-mono"
-              >
-                {tag.replace('<|', '').replace('|>', '')}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Error / success */}

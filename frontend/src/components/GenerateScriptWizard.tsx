@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { api, sseUrl } from '../api/client'
 import { Channel } from '../types'
+import ScriptTextarea from './ScriptTextarea'
 
 type Step = 'source' | 'progress' | 'edit'
 
@@ -28,10 +29,6 @@ export default function GenerateScriptWizard({ channel, onClose }: { channel: Ch
   const esRef = useRef<EventSource | null>(null)
 
   const source = file ? file.name : pasted.trim() ? 'texto pegado' : ''
-  const wordCount = useMemo(
-    () => (script.trim() ? script.trim().split(/\s+/).length : 0),
-    [script]
-  )
 
   useEffect(() => () => esRef.current?.close(), [])
 
@@ -190,16 +187,14 @@ export default function GenerateScriptWizard({ channel, onClose }: { channel: Ch
               className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               placeholder="Título del episodio"
             />
-            <textarea
+            <ScriptTextarea
               value={script}
-              onChange={(e) => setScript(e.target.value)}
-              className="flex-1 min-h-[40vh] w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-purple-500"
-              spellCheck={false}
+              onChange={setScript}
+              minHeight="40vh"
+              autoFocus
+              placeholder="El guion generado aparecerá aquí. Edítalo a tu gusto antes de crear el episodio…"
             />
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-xs text-slate-500">
-                {wordCount.toLocaleString()} palabras · ~{Math.max(1, Math.round(wordCount / 140))} min
-              </span>
+            <div className="flex items-center justify-end gap-3 flex-wrap">
               <div className="flex gap-2">
                 <button onClick={() => setStep('source')} className="bg-slate-700 text-slate-100 px-4 py-2 rounded-lg hover:bg-slate-600 transition-colors">
                   Regenerar
