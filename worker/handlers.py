@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 from shared.config import BASE_DIR, OUTPUT_DIR
@@ -44,6 +45,63 @@ text_path, voice_id, output_path = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(text_path, encoding="utf-8").read()
 synthesize_clone(text, voice_id, output_path)
 """
+
+# VoiceFixer también corre en un subproceso independiente. Si corre en el
+# proceso padre del worker, su contexto CUDA queda retenido de forma
+# permanente (~1.1 GiB medido) y el siguiente episodio no puede cargar
+# Higgs (vLLM-Omni necesita ~6.8 GiB de los 7.57 totales):
+# "StageEngineCoreProc died during READY". Al morir el hijo, toda su
+# memoria GPU vuelve al SO.
+_VOICEFIXER_CHILD_CODE = """
+import logging
+import sys
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+
+from audio.audio_enhancer import VoiceFixerEnhancer
+input_path, output_path, mode = sys.argv[1], sys.argv[2], int(sys.argv[3])
+enhancer = VoiceFixerEnhancer(cuda=True, mode=mode)
+try:
+    ok = enhancer.enhance(input_path, output_path)
+finally:
+    enhancer.close()
+sys.exit(0 if ok else 1)
+"""
+
+
+def _free_vram_gib() -> float:
+    """VRAM libre de la GPU principal en GiB (-1.0 si no se puede consultar)."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=15,
+        )
+        return max(int(x) for x in out.stdout.split()) / 1024.0
+    except Exception:
+        return -1.0
+
+
+def _wait_for_free_vram(min_free_gib: float = 6.0, timeout_s: int = 180) -> None:
+    """Espera a que la VRAM quede libre antes de lanzar el motor TTS.
+
+    Los motores corren en subprocesos que mueren, pero los procesos nietos
+    del engine (StageEngineCoreProc de vLLM-Omni) tardan segundos en soltar
+    la GPU tras la muerte del padre; arrancar el siguiente motor antes de
+    tiempo provoca 'StageEngineCoreProc died during READY'.
+    """
+    deadline = time.time() + timeout_s
+    while True:
+        free = _free_vram_gib()
+        logger.info(f"[TTS] VRAM libre detectada: {free:.2f} GiB")
+        if free < 0 or free >= min_free_gib:
+            return
+        if time.time() >= deadline:
+            logger.warning(
+                f"[TTS] VRAM libre insuficiente ({free:.2f} GiB < {min_free_gib} GiB) "
+                f"tras {timeout_s}s de espera; se intenta la síntesis igual"
+            )
+            return
+        time.sleep(5)
 
 
 def _strip_music_markers(text: str) -> str:
@@ -98,6 +156,8 @@ def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
 
     output_path = output_dir / "final.mp3"
     source_text = _strip_music_markers(job.source_text or "")
+
+    _wait_for_free_vram()
 
     with tempfile.NamedTemporaryFile(
         "w", suffix=".txt", delete=False, encoding="utf-8"
@@ -243,29 +303,42 @@ USE_VOICEFIXER = os.getenv("USE_VOICEFIXER", "1").lower() in ("1", "true", "yes"
 
 
 def _apply_voicefixer_enhancer(path: Path) -> None:
-    """Restaura y mejora la calidad de la voz sintética con VoiceFixer AI."""
+    """Restaura y mejora la calidad de la voz sintética con VoiceFixer AI.
+
+    Corre en un subproceso que muere al terminar: es la única forma fiable
+    de devolver al SO toda la memoria GPU que VoiceFixer reserva (contexto
+    CUDA + modelos). En el proceso padre esa memoria quedaba retenida de
+    forma permanente y asfixiaba la carga de Higgs en el episodio siguiente.
+    """
     if not USE_VOICEFIXER:
         return
+    import sys
+
+    tmp_out = path.with_suffix(".enhanced" + path.suffix)
+    tmp_out.unlink(missing_ok=True)
     try:
         logger.info("[Audio] Aplicando mejorador de voz neural VoiceFixer...")
-        from audio.audio_enhancer import VoiceFixerEnhancer
-        enhancer = VoiceFixerEnhancer(cuda=True, mode=0)
-        tmp_out = path.with_suffix(".enhanced" + path.suffix)
-        success = enhancer.enhance(str(path), str(tmp_out))
-        if success and tmp_out.exists():
+        env = {
+            **os.environ,
+            "PYTHONPATH": str(BASE_DIR) + os.pathsep + os.environ.get("PYTHONPATH", ""),
+        }
+        result = subprocess.run(
+            [sys.executable, "-c", _VOICEFIXER_CHILD_CODE, str(path), str(tmp_out), "0"],
+            env=env,
+            cwd=str(BASE_DIR),
+        )
+        if result.returncode == 0 and tmp_out.exists():
             tmp_out.replace(path)
             logger.info("[Audio] Restauración VoiceFixer completada con éxito.")
-        enhancer.close()
-        # VoiceFixer deja caché CUDA reservada en este proceso; si no se
-        # libera, el siguiente episodio no puede cargar Higgs (~5 GB).
-        try:
-            import torch
-
-            torch.cuda.empty_cache()
-        except Exception:
-            pass
+        else:
+            logger.warning(
+                f"[Audio] VoiceFixer no mejoró el audio (rc={result.returncode}); "
+                "se conserva la voz original"
+            )
     except Exception as e:
         logger.warning(f"[Audio] No se pudo aplicar VoiceFixer: {e}")
+    finally:
+        tmp_out.unlink(missing_ok=True)
 
 
 def postprocess_episode_audio(path: Path, job: WorkerJob | None = None) -> None:
