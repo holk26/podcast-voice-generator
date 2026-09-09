@@ -156,7 +156,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
         >
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
-              {v.name} ({v.engine})
+              {v.type === 'cloned' ? v.name : `${v.name} (${v.engine})`}
             </option>
           ))}
         </select>
@@ -204,7 +204,7 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
                 >
                   {voices.map((v) => (
                     <option key={v.id} value={v.id}>
-                      {v.name} ({v.engine})
+                      {v.type === 'cloned' ? v.name : `${v.name} (${v.engine})`}
                     </option>
                   ))}
                 </select>

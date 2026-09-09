@@ -22,7 +22,7 @@ CLONE_ENGINES = ("higgs", "qwen3")
 # Voces clonadas conocidas por la aplicación. Los archivos de referencia
 # reales viven en el worker local; el backend solo expone los metadatos
 # para que el frontend pueda seleccionarlos.
-LOCAL_CLONE_NAMES = ("alejandra", "alejandra_original", "homero_referencia")
+LOCAL_CLONE_NAMES = ("alejandra", "alejandra_original", "homero_referencia", "eduardo_aponte")
 
 
 class VoiceResponse(BaseModel):

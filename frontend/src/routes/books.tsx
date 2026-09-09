@@ -134,7 +134,7 @@ function BooksPage() {
             >
               {voices.map((v) => (
                 <option key={v.id} value={v.id}>
-                  {v.name} ({v.engine})
+                  {v.type === 'cloned' ? v.name : `${v.name} (${v.engine})`}
                 </option>
               ))}
             </select>
