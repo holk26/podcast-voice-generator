@@ -12,7 +12,7 @@ Requiere el paquete `qwen-tts` (ver docs/QWEN3_TTS_SETUP.md).
 import os
 import wave
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 import soundfile as sf
@@ -24,149 +24,6 @@ from utils.gpu_utils import clear_gpu_cache
 
 SAMPLE_RATE = 24_000
 DEFAULT_MODEL = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-
-
-def _patch_check_model_inputs() -> None:
-    """Make qwen-tts 0.1.1 compatible with transformers>=5.
-
-    qwen-tts decorates methods with ``@check_model_inputs()``, but
-    transformers>=5 exposes ``check_model_inputs`` as a plain decorator
-    (no parentheses). This patch makes the symbol callable both ways.
-    """
-    try:
-        import transformers.utils.generic as _generic
-    except Exception:
-        return
-    _orig = getattr(_generic, "check_model_inputs", None)
-    if _orig is None:
-        return
-    if getattr(_orig, "_qwen_patched", False):
-        return
-
-    def _patched(*args, **kwargs):
-        if args and callable(args[0]):
-            return _orig(args[0])
-        return _orig
-
-    _patched._qwen_patched = True
-    _generic.check_model_inputs = _patched
-
-
-def _patch_qwen_configs() -> None:
-    """qwen-tts configs do not expose ``pad_token_id`` but transformers>=5
-    expects it on config objects. Add a fallback property that returns the
-    codec-level / TTS-level pad id."""
-    try:
-        from qwen_tts.core.models.configuration_qwen3_tts import (
-            Qwen3TTSConfig,
-            Qwen3TTSTalkerConfig,
-        )
-    except Exception:
-        return
-
-    if not hasattr(Qwen3TTSTalkerConfig, "pad_token_id"):
-        Qwen3TTSTalkerConfig.pad_token_id = property(
-            lambda self: getattr(self, "codec_pad_id", None)
-        )
-    if not hasattr(Qwen3TTSConfig, "pad_token_id"):
-        Qwen3TTSConfig.pad_token_id = property(
-            lambda self: getattr(self, "tts_pad_token_id", None)
-        )
-
-
-def _compute_default_rope_parameters(config, device=None, seq_len=None, layer_type=None):
-    """RoPE estándar sin escalado (factor = 1). Compatible con configs qwen-tts
-    que usan ``rope_scaling.type == 'default'`` sin campo ``factor``."""
-    config.standardize_rope_params()
-    rope_parameters_dict = (
-        config.rope_parameters[layer_type]
-        if layer_type is not None
-        else config.rope_parameters
-    )
-    base = rope_parameters_dict.get("rope_theta", getattr(config, "rope_theta", 10000.0))
-    partial_rotary_factor = rope_parameters_dict.get("partial_rotary_factor", 1.0)
-    head_dim = getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
-    dim = int(head_dim * partial_rotary_factor)
-    inv_freq = 1.0 / (
-        base
-        ** (
-            torch.arange(0, dim, 2, dtype=torch.int64).to(device=device, dtype=torch.float)
-            / dim
-        )
-    )
-    return inv_freq, 1.0
-
-
-def _patch_rope_functions() -> None:
-    """qwen-tts usa ``rope_scaling.type == 'default'`` pero transformers>=5
-    no registra esa clave."""
-    try:
-        from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS
-
-        if "default" not in ROPE_INIT_FUNCTIONS:
-            ROPE_INIT_FUNCTIONS["default"] = _compute_default_rope_parameters
-    except Exception:
-        pass
-
-
-def _patch_talker_model_forward() -> None:
-    """Alinea attention_mask/position_ids con inputs_embeds en generación autoregresiva.
-
-    qwen-tts 0.1.1 fue escrito para transformers~4.57. En transformers>=5, durante
-    la generación con caché, ``inputs_embeds`` tiene forma ``[batch, 1]`` pero
-    ``attention_mask`` y ``position_ids`` conservan la longitud de la secuencia
-    completa. Esto provoca que ``key_states`` y ``value_states`` tengan longitudes
-    inconsistentes en ``DynamicCache.update``.
-
-    Este parche recorta ``attention_mask`` y ``position_ids`` a la longitud de
-    ``inputs_embeds`` cuando difieren, permitiendo que la generación continúe sin
-    error de dimensiones.
-    """
-    try:
-        import qwen_tts.core.models.modeling_qwen3_tts as _qm
-    except Exception:
-        return
-
-    _orig_forward = _qm.Qwen3TTSTalkerModel.forward
-    if getattr(_orig_forward, "_qwen_patched", False):
-        return
-
-    def _forward_fixed(
-        self,
-        input_ids=None,
-        attention_mask=None,
-        position_ids=None,
-        past_key_values=None,
-        inputs_embeds=None,
-        **kwargs,
-    ):
-        # En transformers>=5, durante la generación autoregresiva con caché,
-        # ``position_ids`` puede llegar con la longitud de la secuencia completa
-        # (tokens en caché + nuevo token) mientras ``inputs_embeds`` solo contiene
-        # el nuevo token. La RoPE embarra las posiciones y genera key_states con
-        # una longitud distinta a value_states, rompiendo ``DynamicCache.update``.
-        # Recortamos ``position_ids`` a la longitud de ``inputs_embeds``;
-        # ``attention_mask`` se deja intacto porque la máscara causal usa la
-        # longitud total de KV (caché + query).
-        if (
-            inputs_embeds is not None
-            and position_ids is not None
-            and inputs_embeds.shape[1] != position_ids.shape[-1]
-        ):
-            q_len = inputs_embeds.shape[1]
-            position_ids = position_ids[..., -q_len:]
-        return _orig_forward(
-            self,
-            input_ids=input_ids,
-            attention_mask=attention_mask,
-            position_ids=position_ids,
-            past_key_values=past_key_values,
-            inputs_embeds=inputs_embeds,
-            **kwargs,
-        )
-
-    _forward_fixed._qwen_patched = True
-    _qm.Qwen3TTSTalkerModel.forward = _forward_fixed
 
 
 def _free_ollama_vram() -> None:
@@ -220,10 +77,6 @@ class Qwen3TTSEngine(TTSBase):
             return
 
         _free_ollama_vram()
-        _patch_check_model_inputs()
-        _patch_qwen_configs()
-        _patch_rope_functions()
-        _patch_talker_model_forward()
 
         try:
             from qwen_tts import Qwen3TTSModel
@@ -286,9 +139,9 @@ class Qwen3TTSEngine(TTSBase):
         os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
 
         ref_audio = voice.reference_path
-        ref_text = self._transcribe_ref(ref_audio) if ref_audio else ""
-
         language = voice.language or self.language
+        ref_text = self._transcribe_ref(ref_audio, language)
+
         # Qwen3-TTS espera nombres de idioma capitalizados: "Spanish", "English"…
         language_qwen = _normalize_language(language)
 
@@ -303,9 +156,9 @@ class Qwen3TTSEngine(TTSBase):
             ref_audio=ref_audio,
             ref_text=ref_text,
             x_vector_only_mode=not ref_text,
-            # En transformers>=5 el modo no-streaming no detiene la generación en
-            # EOS y produce audio muy largo; el modo streaming (simulado) sí
-            # alcanza el token de fin de habla.
+            # El modo no-streaming produce audio muy largo (no alcanza el token
+            # de fin de habla); el modo streaming (simulado) sí detiene la
+            # generación en el EOS de codec.
             non_streaming_mode=False,
             max_new_tokens=estimated_tokens,
         )
@@ -317,15 +170,45 @@ class Qwen3TTSEngine(TTSBase):
 
     # ── Helpers ─────────────────────────────────────────────────────────
 
-    @staticmethod
-    def _transcribe_ref(ref_audio: Optional[str]) -> str:
+    _whisper_model = None
+    _ref_text_cache: Dict[str, str] = {}
+
+    @classmethod
+    def _transcribe_ref(cls, ref_audio: Optional[str], language: str = "es") -> str:
         """Texto de referencia para mejorar la clonación.
 
-        Si no se dispone de transcripción, devolvemos cadena vacía: el
-        modelo cae a modo x_vector_only_mode con menor calidad pero
-        funcional.
+        El modo ``x_vector_only_mode`` (sin ref_text) degrada la prosodia:
+        habla estacada con pausas entre sílabas y audio 2-4x más largo. La
+        transcripción con whisper mejora notablemente el ritmo. Si whisper
+        no está disponible o falla, devolvemos cadena vacía y el modelo cae
+        al modo x_vector (menor calidad pero funcional).
         """
-        return ""
+        if not ref_audio or not os.path.exists(ref_audio):
+            return ""
+
+        cached = cls._ref_text_cache.get(ref_audio)
+        if cached is not None:
+            return cached
+
+        try:
+            import whisper
+        except ImportError:
+            print("[Qwen3-TTS] whisper no instalado; clonación en modo x_vector_only.")
+            return ""
+
+        try:
+            if cls._whisper_model is None:
+                model_name = os.getenv("QWEN3_TTS_WHISPER_MODEL", "base")
+                cls._whisper_model = whisper.load_model(model_name)
+            lang = (language or "es").split("-")[0]
+            result = cls._whisper_model.transcribe(ref_audio, language=lang)
+            text = (result.get("text") or "").strip()
+        except Exception as e:
+            print(f"[Qwen3-TTS] Transcripción de referencia falló ({e}); modo x_vector_only.")
+            return ""
+
+        cls._ref_text_cache[ref_audio] = text
+        return text
 
     def create_clone_prompt(self, ref_audio, ref_text: str = ""):
         """Construye un prompt reutilizable para múltiples síntesis con la
@@ -358,7 +241,8 @@ _LANGUAGE_MAP = {
 def _normalize_language(lang: str) -> str:
     if not lang:
         return "Spanish"
-    lang = lang.lower().strip()
+    # Acepta subtags regionales: "es-ES" → "es", "pt-BR" → "pt"
+    lang = lang.lower().strip().split("-")[0]
     return _LANGUAGE_MAP.get(lang, lang.capitalize())
 
 

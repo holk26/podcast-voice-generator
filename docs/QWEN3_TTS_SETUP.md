@@ -18,16 +18,21 @@ Añade como opción en la interfaz web junto al motor Higgs existente.
 
 ## Instalación
 
+> **Pin importante:** `transformers` debe quedar en **4.57.3** (es el pin oficial
+> de `qwen-tts`). Con transformers>=5 la generación **nunca emite el token EOS**
+> y produce audio degenerado (habla estacada ininteligible hasta agotar
+> `max_new_tokens`). `requirements.txt` ya fija la versión.
+
 ### Desde requirements.txt
 
 ```bash
-pip install -r requirements.txt   # ya incluye qwen-tts
+pip install -r requirements.txt   # ya incluye qwen-tts + transformers==4.57.3
 ```
 
 ### Alternativa con pip directamente
 
 ```bash
-venv311/bin/pip install qwen-tts
+venv311/bin/pip install qwen-tts "transformers==4.57.3"
 ```
 
 ### Dependencias opcionales recomendadas
@@ -45,6 +50,7 @@ FlashAttention 2 reduce el consumo de VRAM y acelera la inferencia. Se usa `sdpa
 | `QWEN3_TTS_MODEL` | `Qwen/Qwen3-TTS-12Hz-1.7B-Base` | Modelo a cargar |
 | `QWEN3_TTS_DEVICE` | `cuda` | Dispositivo (`cuda`, `cpu`) |
 | `QWEN3_TTS_DTYPE` | *(vacío)* | `bfloat16`, `float16` o `float32` |
+| `QWEN3_TTS_WHISPER_MODEL` | `base` | Modelo whisper para transcribir el audio de referencia (mejora la clonación) |
 
 Uso en Docker con `docker-compose.yml` de la app:
 

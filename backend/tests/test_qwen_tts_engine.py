@@ -1,13 +1,27 @@
 import pytest
 
 
-def test_patch_helper_runs_without_error():
-    """The monkey-patch helper must not raise and must leave a callable symbol."""
-    pytest.importorskip("transformers")
-    from core.qwen_tts_engine import _patch_check_model_inputs
+def test_engine_imports_without_qwen_tts_installed():
+    """El motor debe importarse sin qwen-tts instalado (lazy load en load())."""
+    from core.qwen_tts_engine import Qwen3TTSEngine, _normalize_language
 
-    _patch_check_model_inputs()
+    engine = Qwen3TTSEngine()
+    assert engine.name == "qwen3"
+    assert not engine.is_loaded()
 
-    import transformers.utils.generic as _generic
 
-    assert callable(_generic.check_model_inputs)
+@pytest.mark.parametrize(
+    ("lang", "expected"),
+    [
+        ("es", "Spanish"),
+        ("en", "English"),
+        ("es-ES", "Spanish"),
+        ("", "Spanish"),
+        (None, "Spanish"),
+        ("pt-BR", "Portuguese"),
+    ],
+)
+def test_normalize_language(lang, expected):
+    from core.qwen_tts_engine import _normalize_language
+
+    assert _normalize_language(lang) == expected

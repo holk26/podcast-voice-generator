@@ -19,4 +19,5 @@ ollama>=0.1.0
 beautifulsoup4>=4.12
 requests>=2.31
 qwen-tts>=0.1.0
+transformers==4.57.3  # pin oficial de qwen-tts; con tf>=5 la generación nunca emite EOS (audio degenerado)
 resemblyzer>=0.1.2,<0.2
