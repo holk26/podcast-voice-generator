@@ -39,12 +39,31 @@ _TTS_CHILD_CODE = """
 import logging
 import sys
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S')
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
 
 from worker.tts_local import synthesize_clone
 text_path, voice_id, output_path = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(text_path, encoding="utf-8").read()
 synthesize_clone(text, voice_id, output_path)
+"""
+
+# Diálogo multi-voz: un único subproceso sintetiza N turnos (cada uno con su
+# voz) a partir de un spec JSON {"segments": [{text, voice_id, output}, ...]}.
+# Un solo cargado de motor para todo el episodio: _get_engine cachea por motor
+# y synthesize_clone intercambia la referencia de voz por llamada.
+_TTS_DIALOGUE_CHILD_CODE = """
+import json
+import logging
+import sys
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+
+from worker.tts_local import synthesize_clone
+
+with open(sys.argv[1], encoding="utf-8") as f:
+    spec = json.load(f)
+for seg in spec["segments"]:
+    synthesize_clone(seg["text"], seg["voice_id"], seg["output"])
 """
 
 # Higgs (voice clone v2) exige transformers>=5.3.0 y qwen-tts exige el pin
@@ -161,20 +180,124 @@ def _extract_bg_music_marker(job: WorkerJob | None) -> str | None:
     return None
 
 
+def _resolve_dialogue_plan(
+    source_text: str, job: WorkerJob
+) -> list[dict] | None:
+    """Plan de síntesis multi-voz para guiones con turnos "NOMBRE: texto".
+
+    Devuelve la lista de segmentos con la voz resuelta para cada uno, o None
+    si el episodio no es un diálogo aplicable (sin mapa de voces del canal o
+    sin turnos parseables). Los hablantes sin entrada en speaker_voices usan
+    la voz por defecto del canal (job.voice_id).
+    """
+    from processors.dialogue_parser import parse_dialogue
+
+    voice_map = {k.strip().title(): v for k, v in (job.speaker_voices or {}).items()}
+    if not voice_map:
+        return None
+    segments = parse_dialogue(source_text)
+    if len(segments) < 2:
+        return None
+    plan = []
+    for seg in segments:
+        voice_id = voice_map.get(seg.speaker) or job.voice_id
+        plan.append({"speaker": seg.speaker, "text": seg.text, "voice_id": voice_id})
+    speakers = {p["speaker"]: p["voice_id"] for p in plan}
+    logger.info(
+        f"[TTS] Diálogo multi-voz: {len(plan)} turnos, voces: "
+        + ", ".join(f"{s}={v}" for s, v in speakers.items())
+    )
+    return plan
+
+
+def _synthesize_dialogue(plan: list[dict], output_path: Path) -> None:
+    """Sintetiza cada turno con su voz y concatena en orden.
+
+    Los turnos se agrupan por intérprete (venv/motor): normalmente todos usan
+    el mismo motor y hay un único subproceso (un solo cargado de motor para
+    todo el episodio, aunque los turnos alternen hablantes). Cada spec lleva el
+    índice global de su turno, así que sintetizar por grupos no altera el
+    orden final. Al morir el/los hijo(s), la GPU queda libre para la
+    postproducción, igual que en la voz única.
+    """
+    import tempfile
+
+    from worker.tts_local import _concat_wavs
+
+    with tempfile.TemporaryDirectory() as td:
+        td_path = Path(td)
+        # 1) agrupar turnos por intérprete conservando el orden de aparición
+        groups: dict[str, list[dict]] = {}
+        order: list[str] = []
+        for i, seg in enumerate(plan):
+            py = _tts_python_for(seg["voice_id"])
+            if py not in groups:
+                groups[py] = []
+                order.append(py)
+            groups[py].append({
+                "text": seg["text"],
+                "voice_id": seg["voice_id"],
+                "output": str(td_path / f"seg_{i:04d}.wav"),
+            })
+
+        # 2) un subproceso por intérprete (cada uno carga su motor una vez)
+        env = {**os.environ, "PYTHONPATH": str(BASE_DIR) + os.pathsep + os.environ.get("PYTHONPATH", "")}
+        for n, py in enumerate(order):
+            spec_segments = groups[py]
+            spec_path = td_path / f"spec_{n}.json"
+            spec_path.write_text(
+                json.dumps({"segments": spec_segments}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            logger.info(
+                f"[TTS] Sintetizando {len(spec_segments)} turnos en subproceso ({Path(py).parent.parent.name})"
+            )
+            subprocess.run(
+                [py, "-c", _TTS_DIALOGUE_CHILD_CODE, str(spec_path)],
+                check=True,
+                env=env,
+                cwd=str(BASE_DIR),
+            )
+
+        # 3) concatenar los turnos en orden
+        wavs = [td_path / f"seg_{i:04d}.wav" for i in range(len(plan))]
+        missing = [w.name for w in wavs if not w.exists()]
+        if missing:
+            raise RuntimeError(f"Faltan audios de turnos: {missing}")
+        full_wav = td_path / "full.wav"
+        _concat_wavs(wavs, full_wav)
+        fmt_args = ["-codec:a", "libmp3lame", "-b:a", "192k"] if output_path.suffix.lower() == ".mp3" else []
+        subprocess.run(
+            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+             "-i", str(full_wav), "-ar", "48000", *fmt_args, str(output_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+
+
 def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
     """Voces clonadas: genera audio localmente con Higgs/Qwen3 en el worker.
 
     El backend remoto NO ejecuta modelos pesados ni almacena muestras de voz.
     La síntesis corre en un subproceso que muere al terminar y libera la GPU
-    (vLLM-Omni no suelta VRAM en caliente; ver _TTS_CHILD_CODE).
+    (vLLM-Omni no suelta VRAM en caliente; ver _TTS_CHILD_CODE). Si el guion
+    trae turnos "NOMBRE: texto" y el canal tiene speaker_voices, cada turno
+    se sintetiza con su voz (ver _synthesize_dialogue).
     """
-    import sys
     import tempfile
 
     output_path = output_dir / "final.mp3"
     source_text = _strip_music_markers(job.source_text or "")
 
+    dialogue_plan = _resolve_dialogue_plan(source_text, job)
+
     _wait_for_free_vram()
+
+    if dialogue_plan:
+        _synthesize_dialogue(dialogue_plan, output_path)
+        return output_path
 
     with tempfile.NamedTemporaryFile(
         "w", suffix=".txt", delete=False, encoding="utf-8"
@@ -210,6 +333,24 @@ MUSIC_TRACK_MAP = {
 
 def _resolve_background_music(job: WorkerJob | None) -> Path | None:
     if not MUSIC_DIR.is_dir():
+        return None
+
+    # 0. Config del canal (desde el backend): manda sobre marcadores y
+    # heurísticas. "none" = episodio sin fondo; un nombre de archivo = esa
+    # pista; si la pista no existe en el worker, se omite el fondo (mejor
+    # silencio que la pista sorpresa del fallback automático).
+    if job and job.bg_music is not None:
+        requested = job.bg_music.strip()
+        if requested.lower() in ("", "none", "off", "no", "silencio"):
+            logger.info("[Audio] Canal configurado sin música de fondo")
+            return None
+        cand = MUSIC_DIR / requested
+        if not cand.suffix:
+            cand = cand.with_suffix(".mp3")
+        if cand.exists():
+            logger.info(f"[Audio] Usando música de fondo configurada en el canal: {cand.name}")
+            return cand
+        logger.warning(f"[Audio] Pista de fondo configurada en el canal no encontrada: {cand}; se omite")
         return None
 
     # Si el episodio solicita explícitamente no usar música, respetarlo
@@ -346,10 +487,25 @@ def _mix_with_ducking(main, bg):
         return AudioSegment.from_file(str(out_wav))
 
 
+def _resolve_intro_track(job: WorkerJob | None) -> Path:
+    """Jingle de apertura: el configurado en el canal si existe; si no, el global."""
+    if job and job.intro_track:
+        cand = MUSIC_DIR / job.intro_track
+        if not cand.suffix:
+            for ext in (".mp3", ".wav"):
+                if cand.with_suffix(ext).exists():
+                    return cand.with_suffix(ext)
+        elif cand.exists():
+            return cand
+        logger.warning(f"[Audio] Intro configurada en el canal no encontrada: {cand}; usando intro por defecto")
+    return MUSIC_INTRO
+
+
 def _add_branding_music(path: Path, job: WorkerJob | None = None) -> None:
     """Mezcla la música de fondo del canal y jingles de intro/outro."""
     bg_path = _resolve_background_music(job)
-    has_intro_outro = MUSIC_INTRO.exists() or MUSIC_OUTRO.exists()
+    intro_track = _resolve_intro_track(job)
+    has_intro_outro = intro_track.exists() or MUSIC_OUTRO.exists()
 
     if not bg_path and not has_intro_outro:
         return
@@ -373,8 +529,8 @@ def _add_branding_music(path: Path, job: WorkerJob | None = None) -> None:
 
     # 2. Añadir intro y outro jingles si existen
     parts: list[AudioSegment] = []
-    if MUSIC_INTRO.exists():
-        intro = AudioSegment.from_file(MUSIC_INTRO).apply_gain(-5)
+    if intro_track.exists():
+        intro = AudioSegment.from_file(intro_track).apply_gain(-5)
         parts.append(intro.fade_out(1500))
     parts.append(main)
     if MUSIC_OUTRO.exists():

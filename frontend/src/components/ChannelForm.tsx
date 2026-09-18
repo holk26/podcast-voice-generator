@@ -27,6 +27,13 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
   const [speakerVoices, setSpeakerVoices] = useState<Record<string, string>>(
     initial?.speaker_voices ?? {}
   )
+  const [introTrack, setIntroTrack] = useState(initial?.intro_track ?? '')
+  const [bgMusicMode, setBgMusicMode] = useState<'auto' | 'none' | 'custom'>(
+    initial?.bg_music === 'none' ? 'none' : initial?.bg_music ? 'custom' : 'auto'
+  )
+  const [bgMusicTrack, setBgMusicTrack] = useState(
+    initial?.bg_music && initial.bg_music !== 'none' ? initial.bg_music : ''
+  )
   const [hint, setHint] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -46,6 +53,8 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
       target_minutes: initial?.target_minutes ?? 10,
       num_speakers: numSpeakers,
       speaker_voices: numSpeakers > 1 ? speakerVoices : null,
+      intro_track: introTrack.trim() || null,
+      bg_music: bgMusicMode === 'none' ? 'none' : bgMusicMode === 'custom' ? bgMusicTrack.trim() || null : null,
     })
   }
 
@@ -213,6 +222,42 @@ export default function ChannelForm({ voices, initial, onSubmit, onCancel }: Pro
           </div>
         </div>
       )}
+      <div>
+        <label htmlFor="channel-intro-track" className="block text-sm font-medium text-slate-200">
+          Jingle de intro (archivo en sfx_library/music del worker)
+        </label>
+        <input
+          id="channel-intro-track"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 placeholder-slate-500 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          placeholder="Vacío = intro por defecto (intro_jingle.wav), p. ej. intro noticias.mp3"
+          value={introTrack}
+          onChange={(e) => setIntroTrack(e.target.value)}
+        />
+      </div>
+      <div>
+        <label htmlFor="channel-bg-music" className="block text-sm font-medium text-slate-200">
+          Música de fondo
+        </label>
+        <select
+          id="channel-bg-music"
+          className="w-full bg-slate-800 border border-slate-600 text-slate-100 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+          value={bgMusicMode}
+          onChange={(e) => setBgMusicMode(e.target.value as 'auto' | 'none' | 'custom')}
+        >
+          <option value="auto">Automática (por tipo de canal)</option>
+          <option value="none">Sin música de fondo</option>
+          <option value="custom">Archivo concreto…</option>
+        </select>
+        {bgMusicMode === 'custom' && (
+          <input
+            aria-label="Archivo de música de fondo"
+            className="w-full mt-2 bg-slate-800 border border-slate-600 text-slate-100 placeholder-slate-500 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="p. ej. daynigthmorning-aura-273351.mp3"
+            value={bgMusicTrack}
+            onChange={(e) => setBgMusicTrack(e.target.value)}
+          />
+        )}
+      </div>
       <div>
         <div className="flex justify-between items-center mb-1">
           <label htmlFor="channel-brief" className="block text-sm font-medium text-slate-200">

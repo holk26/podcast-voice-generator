@@ -48,6 +48,8 @@ export interface Channel {
   target_minutes: number
   num_speakers: number
   speaker_voices?: Record<string, string> | null
+  intro_track?: string | null
+  bg_music?: string | null
   brief?: string
   entries_total?: number
   entries_generated?: number
@@ -84,6 +86,8 @@ export interface CreateChannelRequest {
   target_minutes?: number
   num_speakers?: number
   speaker_voices?: Record<string, string> | null
+  intro_track?: string | null
+  bg_music?: string | null
 }
 
 export interface CreatePlanEntryRequest {

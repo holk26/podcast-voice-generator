@@ -101,6 +101,66 @@ def test_approve_entry_creates_episode():
         assert entry["episode_id"] == episode_id
 
 
+def test_channel_music_config_update():
+    with TestClient(app) as client:
+        ch = client.post("/api/channels", json={
+            "name": "Canal música",
+            "format": "podcast",
+            "default_voice_id": "jorge",
+        }).json()
+
+        r = client.put(f"/api/channels/{ch['id']}", json={
+            "intro_track": "intro noticias.mp3",
+            "bg_music": "none",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["intro_track"] == "intro noticias.mp3"
+        assert data["bg_music"] == "none"
+
+        # limpiar: dejarlo en automático
+        r = client.put(f"/api/channels/{ch['id']}", json={"intro_track": None, "bg_music": None})
+        assert r.status_code == 200
+        assert r.json()["bg_music"] is None
+
+
+def test_approve_dialogue_entry_leaves_episode_pending_for_worker():
+    """Canales de 2 voces: el guion de diálogo se encola para el worker;
+    el backend ya no sintetiza ni mezcla server-side."""
+    with TestClient(app) as client:
+        response = client.post("/api/channels", json={
+            "name": "Canal Diálogo",
+            "format": "podcast",
+            "default_voice_id": "clone:eduardo_aponte",
+            "num_speakers": 2,
+            "speaker_voices": {"Yolis": "clone:yolis"},
+        })
+        channel_id = response.json()["id"]
+
+        response = client.post(f"/api/channels/{channel_id}/plan", json={
+            "title": "Episodio diálogo",
+            "description": "Descripción",
+        })
+        entry_id = response.json()["id"]
+
+        with patch("backend.app.services.automation_service.generate_dialogue_script") as mock_script:
+            mock_script.return_value = "EDUARDO: Hola.\n\nYOLIS: Buenas.\n\nEDUARDO: Adiós."
+            response = client.post(f"/api/channels/plan/{entry_id}/approve")
+            assert response.status_code == 202
+            job = _wait_job(client, response.json()["job_id"])
+            assert job["status"] == "done"
+            episode_id = job["result"]["episode_id"]
+
+        response = client.get(f"/api/episodes/{episode_id}")
+        assert response.status_code == 200
+        episode = response.json()
+        assert episode["source_text"].startswith("EDUARDO:")
+        assert episode["voice_id"] == "clone:eduardo_aponte"
+        # pendiente para el worker (multi-voz); NO completado server-side
+        assert episode["status"] == "pending"
+        assert episode["audio_url"] is None
+
+
 def test_plan_entries_include_episode_published_at():
     with TestClient(app) as client:
         ch = client.post("/api/channels", json={

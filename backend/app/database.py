@@ -35,6 +35,8 @@ def _migrate() -> None:
             ("episodes_per_week", "INTEGER DEFAULT 2 NOT NULL"),
             ("target_minutes", "INTEGER DEFAULT 10 NOT NULL"),
             ("published_at", "TIMESTAMP"),
+            ("intro_track", "TEXT"),
+            ("bg_music", "TEXT"),
         ],
         "content_plan_entries": [
             ("season", "INTEGER DEFAULT 1 NOT NULL"),

@@ -38,6 +38,11 @@ class Channel(Base):
     target_minutes = Column(Integer, default=10, nullable=False)
     num_speakers = Column(Integer, default=1, nullable=False)  # 1 = monólogo, 2 = diálogo
     speaker_voices = Column(JSON, nullable=True)  # {"SpeakerName": "voice_id"}
+    # Música (el worker resuelve los archivos contra su sfx_library/music):
+    # intro_track = jingle de apertura del canal (NULL = intro_jingle.wav).
+    # bg_music = pista de fondo; "none" desactiva el fondo; NULL = automático.
+    intro_track = Column(String, nullable=True)
+    bg_music = Column(String, nullable=True)
     published_at = Column(DateTime, nullable=True)  # marca manual de publicación
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))

@@ -13,8 +13,6 @@ from datetime import datetime, timedelta, timezone
 from backend.app.database import SessionLocal
 from backend.app.models import Channel, ContentPlanEntry, Episode
 from processors.dialogue_parser import parse_dialogue
-from core.multi_voice_mixer import mix_dialogue
-from backend.app.config import OUTPUT_DIR
 from backend.app.services.crew_service import (
     generate_plan,
     generate_script,
@@ -120,11 +118,14 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
             )
             segments = parse_dialogue(script)
             if len(segments) >= 2:
+                # El backend no ejecuta TTS (no hay GPU/voces en el servidor):
+                # la síntesis multi-voz corre en el worker local, que parsea
+                # los turnos "NOMBRE: texto" y aplica channel.speaker_voices.
                 episode = Episode(
                     title=entry.title,
                     type=channel.format,
                     source_text=script,
-                    voice_id="multi:dialogue",
+                    voice_id=channel.default_voice_id,
                     status="pending",
                     target_duration_minutes=float(minutes),
                     channel_id=entry.channel_id,
@@ -133,22 +134,10 @@ def run_script_job(job_id: str, entry_id: int, minutes: int) -> None:
                 session.commit()
                 session.refresh(episode)
 
-                output_dir = OUTPUT_DIR / str(episode.id)
-                output_dir.mkdir(parents=True, exist_ok=True)
-                final_path = output_dir / "final.wav"
-                voice_map = channel.speaker_voices or {
-                    "Alejandra": "clone:alejandra",
-                    "Homero": "clone:homero_referencia",
-                }
-                mix_dialogue(segments, final_path, voice_map=voice_map)
-                episode.audio_url = f"/outputs/{episode.id}/final.wav"
-                episode.status = "completed"
-                session.commit()
-
                 entry.status = "generated"
                 entry.episode_id = episode.id
                 session.commit()
-                registry.emit(job_id, "done", f"Diálogo listo, episodio #{episode.id}")
+                registry.emit(job_id, "done", f"Guion de diálogo listo, episodio #{episode.id} en cola")
                 registry.finish(
                     job_id,
                     {"entry_id": entry_id, "episode_id": episode.id, "channel_id": entry.channel_id},

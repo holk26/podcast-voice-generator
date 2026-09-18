@@ -70,6 +70,11 @@ class ChannelBase(BaseModel):
     target_minutes: int = 10
     num_speakers: int = 1
     speaker_voices: Optional[dict[str, str]] = None
+    # Música: intro_track = archivo en sfx_library/music del worker (None =
+    # jingle por defecto). bg_music = archivo concreto; "none" = sin fondo;
+    # None = lógica automática actual.
+    intro_track: Optional[str] = None
+    bg_music: Optional[str] = None
 
 
 class ChannelCreate(ChannelBase):
@@ -89,6 +94,8 @@ class ChannelUpdate(BaseModel):
     target_minutes: Optional[int] = None
     num_speakers: Optional[int] = None
     speaker_voices: Optional[dict[str, str]] = None
+    intro_track: Optional[str] = None
+    bg_music: Optional[str] = None
     published_at: Optional[datetime] = None
 
 
@@ -155,6 +162,10 @@ class WorkerJob(BaseModel):
     source_text: Optional[str] = None
     voice_id: str
     target_duration_minutes: Optional[float] = None
+    channel_id: Optional[int] = None
+    speaker_voices: Optional[dict[str, str]] = None
+    intro_track: Optional[str] = None
+    bg_music: Optional[str] = None
 
 
 class WorkerJobCompleteRequest(BaseModel):

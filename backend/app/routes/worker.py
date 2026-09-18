@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
 from backend.app.dependencies import require_worker_token
-from backend.app.models import Episode
+from backend.app.models import Channel, Episode
 from backend.app.services import worker_service
 from backend.app.services.automation_service import autopilot_tick
 from shared.config import OUTPUT_DIR
@@ -26,7 +26,12 @@ router = APIRouter(prefix="/worker", tags=["worker"])
 WORKER_SSE_KEEPALIVE_SECONDS = 30.0
 
 
-def _episode_to_job(episode: Episode) -> WorkerJob:
+def _episode_to_job(episode: Episode, db: Session) -> WorkerJob:
+    channel = (
+        db.query(Channel).filter(Channel.id == episode.channel_id).first()
+        if episode.channel_id
+        else None
+    )
     return WorkerJob(
         episode_id=episode.id,
         title=episode.title,
@@ -34,6 +39,10 @@ def _episode_to_job(episode: Episode) -> WorkerJob:
         source_text=episode.source_text,
         voice_id=episode.voice_id,
         target_duration_minutes=episode.target_duration_minutes,
+        channel_id=episode.channel_id,
+        speaker_voices=channel.speaker_voices if channel else None,
+        intro_track=channel.intro_track if channel else None,
+        bg_music=channel.bg_music if channel else None,
     )
 
 
@@ -45,7 +54,7 @@ def next_job(
     episode = worker_service.claim_next_pending(db)
     if episode is None:
         raise HTTPException(status_code=status.HTTP_204_NO_CONTENT)
-    return _episode_to_job(episode)
+    return _episode_to_job(episode, db)
 
 
 @router.post("/jobs/{episode_id}/complete", response_model=dict)
