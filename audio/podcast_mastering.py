@@ -23,6 +23,8 @@ class MasteringConfig:
     apply_compressor_limiter: bool = True
     apply_noise_gate: bool = True
     eq_highpass_hz: float = 80.0
+    eq_body_hz: float = 150.0
+    eq_body_gain_db: float = 3.0
     eq_presence_hz: float = 3000.0
     eq_presence_gain_db: float = 2.0
     compressor_threshold_db: float = -18.0
@@ -78,6 +80,9 @@ def process_voice_mix(
     filters = []
     if config.apply_eq:
         filters.append(f"highpass=f={config.eq_highpass_hz}")
+        filters.append(
+            f"equalizer=f={config.eq_body_hz}:t=q:w=1:g={config.eq_body_gain_db}"
+        )
         filters.append(
             f"equalizer=f={config.eq_presence_hz}:t=q:w=1:g={config.eq_presence_gain_db}"
         )

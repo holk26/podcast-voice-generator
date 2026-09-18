@@ -244,6 +244,108 @@ def _resolve_background_music(job: WorkerJob | None) -> Path | None:
     return None
 
 
+# --- Postproducción mejorada (env overrides para desactivar por paso) ---
+USE_DENOISE = os.getenv("POSTPROC_DENOISE", "1").lower() in ("1", "true", "yes")
+USE_VOICE_MASTER = os.getenv("POSTPROC_MASTER", "1").lower() in ("1", "true", "yes")
+USE_DUCKING = os.getenv("POSTPROC_DUCKING", "1").lower() in ("1", "true", "yes")
+TARGET_LUFS = float(os.getenv("POSTPROC_TARGET_LUFS", "-14"))
+
+
+def _apply_denoise(path: Path) -> None:
+    """Reducción de ruido espectral (ffmpeg afftdn) para limpiar siseo/humedad
+    residual del TTS antes del mastering. Moderada: el TTS ya es bastante limpio
+    y un nr agresivo introduce artefactos metálicos."""
+    tmp = path.with_suffix(".denoise" + path.suffix)
+    tmp.unlink(missing_ok=True)
+    result = subprocess.run(
+        ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+         "-i", str(path), "-af", "afftdn=nr=12:nf=-50", str(tmp)],
+        capture_output=True, text=True, timeout=600,
+    )
+    if result.returncode == 0 and tmp.exists():
+        tmp.replace(path)
+        logger.info("[Audio] Reducción de ruido (afftdn) completada.")
+    else:
+        tmp.unlink(missing_ok=True)
+        logger.warning(f"[Audio] afftdn falló (rc={result.returncode}); se conserva el audio original")
+
+
+def _master_voice(path: Path) -> None:
+    """Mastering de voz: EQ (highpass + cuerpo en graves + presencia),
+    compresión, limitador y noise gate. Da a la voz TTS densidad y
+    profundidad tipo estudio antes de mezclar la música."""
+    from audio.podcast_mastering import MasteringConfig, process_voice_mix
+
+    tmp_wav = path.with_suffix(".master.wav")
+    tmp_wav.unlink(missing_ok=True)
+    try:
+        process_voice_mix(
+            str(path),
+            str(tmp_wav),
+            MasteringConfig(
+                target_lufs=TARGET_LUFS,
+                eq_highpass_hz=85.0,
+                eq_body_hz=150.0,
+                eq_body_gain_db=3.0,
+                eq_presence_hz=3500.0,
+                eq_presence_gain_db=2.0,
+                compressor_threshold_db=-20.0,
+                compressor_ratio=3.0,
+                compressor_attack_ms=10.0,
+                compressor_release_ms=150.0,
+                true_peak_db=-1.5,
+                gate_threshold_db=-45.0,
+            ),
+        )
+        # Volver al formato original (mp3 192k si aplica)
+        fmt_args = ["-codec:a", "libmp3lame", "-b:a", "192k"] if path.suffix.lower() == ".mp3" else []
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+             "-i", str(tmp_wav), "-ar", "48000", *fmt_args, str(path)],
+            capture_output=True, text=True, timeout=300,
+        )
+        if result.returncode != 0:
+            logger.warning(f"[Audio] Mastering: no se pudo re-encodear (rc={result.returncode})")
+    except Exception as e:
+        logger.warning(f"[Audio] No se pudo aplicar mastering de voz: {e}")
+    finally:
+        tmp_wav.unlink(missing_ok=True)
+
+
+def _mix_with_ducking(main, bg):
+    """Mezcla voz + música con ducking sidechain (ffmpeg): la música baja
+    automáticamente cuando suena la voz y sube en las pausas."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        main_wav = Path(td) / "main.wav"
+        bg_wav = Path(td) / "bg.wav"
+        out_wav = Path(td) / "out.wav"
+        main.export(str(main_wav), format="wav")
+        bg_match = bg.set_frame_rate(main.frame_rate).set_channels(main.channels)
+        bg_match.export(str(bg_wav), format="wav")
+        fc = (
+            "[1:a]volume=-12dB[bg];"
+            "[bg][0:a]sidechaincompress=threshold=0.08:ratio=6:attack=30:release=700:makeup=1[duck];"
+            "[0:a][duck]amix=inputs=2:duration=first:normalize=0[a]"
+        )
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+             "-i", str(main_wav), "-i", str(bg_wav),
+             "-filter_complex", fc, "-map", "[a]", str(out_wav)],
+            capture_output=True, text=True, timeout=600,
+        )
+        if result.returncode != 0 or not out_wav.exists():
+            logger.warning(
+                f"[Audio] Ducking sidechain falló (rc={result.returncode}); "
+                f"usando mezcla plana: {result.stderr[-300:]}"
+            )
+            return main.overlay(bg)
+        from pydub import AudioSegment
+
+        return AudioSegment.from_file(str(out_wav))
+
+
 def _add_branding_music(path: Path, job: WorkerJob | None = None) -> None:
     """Mezcla la música de fondo del canal y jingles de intro/outro."""
     bg_path = _resolve_background_music(job)
@@ -256,15 +358,18 @@ def _add_branding_music(path: Path, job: WorkerJob | None = None) -> None:
 
     main = AudioSegment.from_file(path)
 
-    # 1. Mezclar música de fondo del canal (gain -18 dB para mantener la voz clara)
+    # 1. Mezclar música de fondo del canal (con ducking sidechain si está activo)
     if bg_path and bg_path.exists():
         logger.info(f"[Audio] Aplicando música de fondo del canal: {bg_path.name}")
-        bg = AudioSegment.from_file(bg_path).apply_gain(-18)
+        bg = AudioSegment.from_file(bg_path)
         if len(bg) < len(main):
             loops = (len(main) // len(bg)) + 1
             bg = bg * loops
         bg = bg[:len(main)].fade_in(2000).fade_out(3000)
-        main = main.overlay(bg)
+        if USE_DUCKING:
+            main = _mix_with_ducking(main, bg)
+        else:
+            main = main.overlay(bg.apply_gain(-18))
 
     # 2. Añadir intro y outro jingles si existen
     parts: list[AudioSegment] = []
@@ -284,9 +389,9 @@ def _add_branding_music(path: Path, job: WorkerJob | None = None) -> None:
     mixed.export(path, format=fmt)
 
 
-def _normalize_loudness(path: Path, target_i: float = -16.0) -> None:
+def _normalize_loudness(path: Path, target_i: float = TARGET_LUFS) -> None:
     """Volumen uniforme de principio a fin: loudnorm a dos pasadas
-    (mide y aplica una ganancia constante; -16 LUFS = estándar podcast)."""
+    (mide y aplica una ganancia constante; -14 LUFS = estándar Spotify/podcast moderno)."""
     measure = subprocess.run(
         ["ffmpeg", "-hide_banner", "-i", str(path),
          "-af", f"loudnorm=I={target_i}:TP=-1.5:LRA=11:print_format=json",
@@ -359,15 +464,23 @@ def _apply_voicefixer_enhancer(path: Path) -> None:
 
 
 def postprocess_episode_audio(path: Path, job: WorkerJob | None = None) -> None:
-    """Cadena de postproducción del episodio: VoiceFixer + música + volumen uniforme."""
-    logger.info("[Audio] Iniciando postproducción de audio (VoiceFixer + música + normalización LUFS)...")
+    """Cadena de postproducción: VoiceFixer → denoise → mastering de voz
+    (EQ/compresión/limitador/gate) → música con ducking → loudness uniforme."""
+    logger.info("[Audio] Iniciando postproducción (VoiceFixer → denoise → mastering → música/ducking → LUFS)...")
     _apply_voicefixer_enhancer(path)
+    if USE_DENOISE:
+        try:
+            _apply_denoise(path)
+        except Exception as e:
+            logger.warning(f"[Audio] No se pudo aplicar reducción de ruido: {e}")
+    if USE_VOICE_MASTER:
+        _master_voice(path)
     try:
         _add_branding_music(path, job)
     except Exception as e:
         logger.warning(f"[Audio] No se pudo aplicar música de fondo: {e}")
     try:
-        logger.info("[Audio] Normalizando volumen con ffmpeg loudnorm (-16 LUFS)...")
+        logger.info(f"[Audio] Normalizando volumen con ffmpeg loudnorm ({TARGET_LUFS} LUFS)...")
         _normalize_loudness(path)
         logger.info("[Audio] Normalización de volumen completada con éxito.")
     except Exception as e:
