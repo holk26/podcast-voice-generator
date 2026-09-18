@@ -1,4 +1,26 @@
-from core.emotion_tags import sanitize_emotion_tags, HIGGS_TAGS
+from core.emotion_tags import (
+    HIGGS_TAGS,
+    normalize_emotion_tags,
+    sanitize_emotion_tags,
+)
+
+
+def test_normalize_prefixes_bare_emotion_tokens():
+    text = "Crímenes.<|enthusiasm|> Hoy <|contemplation|> seguimos."
+    assert normalize_emotion_tags(text) == (
+        "Crímenes.<|emotion:enthusiasm|> Hoy <|emotion:contemplation|> seguimos."
+    )
+
+
+def test_normalize_leaves_already_prefixed_and_unknown_tokens():
+    text = "<|emotion:awe|> ok <|prosody:pause|> <|totalmente_inventado|>"
+    assert normalize_emotion_tags(text) == text
+
+
+def test_normalize_plus_sanitize_yields_only_valid_higgs_tokens():
+    text = "Hola.<|enthusiasm|> Mundo <|prosody:pause|> fin <|inventado|>."
+    result = sanitize_emotion_tags(normalize_emotion_tags(text), "higgs")
+    assert result == "Hola.<|emotion:enthusiasm|> Mundo <|prosody:pause|> fin ."
 
 
 def test_higgs_keeps_known_emotion_tokens():

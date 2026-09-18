@@ -193,7 +193,16 @@ def synthesize_clone(text: str, voice_id: str, output_path: str) -> str:
     voice = _parse_clone_voice_id(voice_id)
     engine = _get_engine(voice.engine)
 
+    # Saneado de tokens <|...|>: higgs recibe normalizados (bare -> emotion:x)
+    # y filtrados a los que soporta; el resto de motores pierden todos los
+    # tokens (los pronunciarían literalmente).
+    from core.emotion_tags import normalize_emotion_tags, sanitize_emotion_tags
+
     clean_text = text.strip()
+    if voice.engine == "higgs":
+        clean_text = sanitize_emotion_tags(normalize_emotion_tags(clean_text), "higgs")
+    else:
+        clean_text = sanitize_emotion_tags(clean_text, voice.engine)
     chunks = _split_text(clean_text)
     total_chunks = len(chunks)
 

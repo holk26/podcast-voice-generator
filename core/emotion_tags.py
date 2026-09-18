@@ -12,6 +12,7 @@ importar el motor (que carga torch) en el camino caliente de la API.
 import re
 
 _TAG_RE = re.compile(r"<\|([a-z]+):([a-z_]+)\|>")
+_BARE_TAG_RE = re.compile(r"<\|([a-z_]+)\|>")
 _SPACES_RE = re.compile(r"[ \t]{2,}")
 
 _EMOTIONS = [
@@ -43,6 +44,17 @@ ENGINE_TAGS: dict[str, frozenset[str]] = {
 }
 
 
+def normalize_emotion_tags(text: str) -> str:
+    """Convierte tags de emoción sin prefijo (<|awe|>, <|contemplation|>) al
+    formato canónico que Higgs entiende (<|emotion:awe|>). El generador de
+    guiones a veces omite el prefijo; sin esta normalización el motor lee el
+    tag en voz alta ("punto contemplation")."""
+    return _BARE_TAG_RE.sub(
+        lambda m: f"<|emotion:{m.group(1)}|>" if m.group(1) in _EMOTIONS else m.group(0),
+        text,
+    )
+
+
 def sanitize_emotion_tags(text: str, engine: str) -> str:
     """Quita los tokens <|tipo:valor|> que `engine` no soporta.
 
@@ -55,4 +67,11 @@ def sanitize_emotion_tags(text: str, engine: str) -> str:
     def _repl(match: re.Match) -> str:
         return match.group(0) if f"{match.group(1)}:{match.group(2)}" in allowed else ""
 
-    return _SPACES_RE.sub(" ", _TAG_RE.sub(_repl, text)).strip() if "<|" in text else text
+    if "<|" not in text:
+        return text
+    text = _TAG_RE.sub(_repl, text)
+    if engine == "higgs":
+        # Tras normalize_emotion_tags, cualquier tag bare residual
+        # (<|inventado|>) es desconocido para Higgs y lo pronunciaría.
+        text = _BARE_TAG_RE.sub("", text)
+    return _SPACES_RE.sub(" ", text).strip()

@@ -10,7 +10,7 @@ from shared.schemas import PreviewRequest, PreviewResponse
 from backend.app.config import PREVIEW_DIR
 from backend.app.routes.voices import list_voices, VoiceResponse
 from backend.app.services.job_service import registry
-from core.emotion_tags import sanitize_emotion_tags
+from core.emotion_tags import normalize_emotion_tags, sanitize_emotion_tags
 
 router = APIRouter()
 
@@ -143,7 +143,10 @@ async def synthesize(request: PreviewRequest):
     if voice is None or voice.type != "cloned" or not voice.reference_path:
         raise HTTPException(status_code=400, detail="Solo voces clonadas (clone:*)")
     engine_kind = voice.engine if voice.engine in ("higgs", "qwen3") else "higgs"
-    clean_text = sanitize_emotion_tags(request.text, engine_kind)
+    clean_text = sanitize_emotion_tags(
+        normalize_emotion_tags(request.text) if engine_kind == "higgs" else request.text,
+        engine_kind,
+    )
 
     job = uuid.uuid4().hex
     job_id = registry.create("tts", detail=request.label or f"Síntesis con {voice.name}")
@@ -202,7 +205,9 @@ async def preview(request: PreviewRequest):
         try:
             wav_path = output_path.with_suffix(".wav")
             text = sanitize_emotion_tags(
-                request.text,
+                normalize_emotion_tags(request.text)
+                if (voice.engine if voice.engine in ("higgs", "qwen3") else "higgs") == "higgs"
+                else request.text,
                 voice.engine if voice.engine in ("higgs", "qwen3") else "higgs"
             )
             # La síntesis es bloqueante (~1-4 s tras la carga inicial del motor)
