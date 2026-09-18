@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -38,13 +39,29 @@ _TTS_CHILD_CODE = """
 import logging
 import sys
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S")
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s: %(message)s", datefmt="%H:%M:%S')
 
 from worker.tts_local import synthesize_clone
 text_path, voice_id, output_path = sys.argv[1], sys.argv[2], sys.argv[3]
 text = open(text_path, encoding="utf-8").read()
 synthesize_clone(text, voice_id, output_path)
 """
+
+# Higgs (voice clone v2) exige transformers>=5.3.0 y qwen-tts exige el pin
+# 4.57.3: incompatibles en un mismo venv. Cada motor corre en su propio
+# intérprete (venv-higgs / venv311); el padre solo elige cuál lanzar.
+# Override opcional: HIGGS_PYTHON / QWEN3_PYTHON.
+_VENV_HIGGS = Path(os.getenv("HIGGS_PYTHON", BASE_DIR / "venv-higgs" / "bin" / "python"))
+_VENV_QWEN3 = Path(os.getenv("QWEN3_PYTHON", sys.executable))
+
+
+def _tts_python_for(voice_id: str) -> str:
+    engine = (voice_id.split(":")[2] if voice_id.count(":") >= 2 else "higgs").lower()
+    if engine == "higgs" and _VENV_HIGGS.exists():
+        return str(_VENV_HIGGS)
+    if engine == "qwen3" and _VENV_QWEN3.exists():
+        return str(_VENV_QWEN3)
+    return sys.executable
 
 # VoiceFixer también corre en un subproceso independiente. Si corre en el
 # proceso padre del worker, su contexto CUDA queda retenido de forma
@@ -167,7 +184,7 @@ def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
     try:
         env = {**os.environ, "PYTHONPATH": str(BASE_DIR) + os.pathsep + os.environ.get("PYTHONPATH", "")}
         subprocess.run(
-            [sys.executable, "-c", _TTS_CHILD_CODE, text_path, job.voice_id, str(output_path)],
+            [_tts_python_for(job.voice_id or ""), "-c", _TTS_CHILD_CODE, text_path, job.voice_id, str(output_path)],
             check=True,
             env=env,
             cwd=str(BASE_DIR),

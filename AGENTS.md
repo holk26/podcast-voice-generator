@@ -239,6 +239,27 @@ pip install -r requirements.txt
 cd frontend && npm install
 ```
 
+### Dos venvs de inferencia (higgs y qwen3)
+
+Los motores TTS clonados tienen requisitos incompatibles de `transformers` y no
+pueden convivir en un mismo venv:
+
+| Venv | `transformers` | Motor | Por qué |
+|------|----------------|-------|---------|
+| `venv311` | `==4.57.3` (pin) | qwen3 (qwen-tts) | Con tf 5.x el talker nunca emite el token EOS y el audio sale degenerado |
+| `venv-higgs` | `>=5.3.0,<5.9` | higgs (voice clone v2) | `HiggsAudioV2TokenizerModel` solo existe en tf 5.3+ |
+
+El worker corre cada síntesis en un subproceso y elige el intérprete por motor
+(`worker/handlers.py::_tts_python_for`): `clone:<nombre>:qwen3` → `venv311`,
+`clone:<nombre>` (higgs) → `venv-higgs`. Overrides: `QWEN3_PYTHON` / `HIGGS_PYTHON`.
+
+Para crear el venv de higgs (clon del principal con transformers actualizado):
+
+```bash
+cp -a venv311 venv-higgs
+venv-higgs/bin/python -m pip install 'transformers>=5.3.0,<5.9'  # OJO: usar python -m pip, los scripts del venv copiado apuntan a venv311
+```
+
 Opcional para CrewAI: tener [Ollama](https://ollama.ai) corriendo con el modelo configurado en `OLLAMA_DEFAULT_MODEL`.
 
 ## Estructura clave
