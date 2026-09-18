@@ -5,11 +5,13 @@ Todas las rutas requieren el token estático compartido entre backend y worker.
 
 import asyncio
 import json
+import os
 import shutil
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.app.database import get_db
@@ -77,6 +79,79 @@ def upload_job_audio(
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(audio.file, buffer)
+
+    audio_url = f"/outputs/{episode_id}/{filename}"
+    return {"audio_url": audio_url}
+
+
+MAX_PART_BYTES = 10 * 1024 * 1024
+
+
+@router.post("/jobs/{episode_id}/upload-part/{part_number}", response_model=dict)
+def upload_job_audio_part(
+    episode_id: int,
+    part_number: int,
+    audio: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    token: str = Depends(require_worker_token),
+):
+    """Recibe una parte del audio (multipart) y la guarda en {OUTPUT_DIR}/{episode_id}/_parts/."""
+    if part_number < 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="part_number debe ser >= 0")
+
+    parts_dir = OUTPUT_DIR / str(episode_id) / "_parts"
+    parts_dir.mkdir(parents=True, exist_ok=True)
+
+    file_path = parts_dir / f"part_{part_number:04d}"
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(audio.file, buffer)
+
+    if file_path.stat().st_size > MAX_PART_BYTES:
+        file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"La parte supera el límite de {MAX_PART_BYTES} bytes",
+        )
+
+    return {"part": part_number, "size": file_path.stat().st_size}
+
+
+class AssembleRequest(BaseModel):
+    filename: str = "final.mp3"
+    parts: int = Field(..., ge=1)
+
+
+@router.post("/jobs/{episode_id}/assemble", response_model=dict)
+def assemble_job_audio(
+    episode_id: int,
+    request: AssembleRequest,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_worker_token),
+):
+    """Concatena las partes 0..N-1 en {OUTPUT_DIR}/{episode_id}/{filename} y limpia _parts/."""
+    filename = os.path.basename(request.filename)
+    if not filename or filename in (".", ".."):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="filename inválido")
+
+    parts_dir = OUTPUT_DIR / str(episode_id) / "_parts"
+    part_paths = [parts_dir / f"part_{n:04d}" for n in range(request.parts)]
+    missing = [p.name for p in part_paths if not p.is_file()]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Faltan partes: {missing}",
+        )
+
+    episode_dir = OUTPUT_DIR / str(episode_id)
+    episode_dir.mkdir(parents=True, exist_ok=True)
+    file_path = episode_dir / filename
+
+    with open(file_path, "wb") as out:
+        for part_path in part_paths:
+            with open(part_path, "rb") as part:
+                shutil.copyfileobj(part, out)
+
+    shutil.rmtree(parts_dir, ignore_errors=True)
 
     audio_url = f"/outputs/{episode_id}/{filename}"
     return {"audio_url": audio_url}

@@ -58,13 +58,50 @@ def get_next_job() -> Optional[WorkerJob]:
         raise
 
 
-def upload_audio(episode_id: int, file_path: Path) -> str:
-    """Sube el archivo de audio al backend y devuelve la URL pública del recurso."""
-    url = _url(f"/api/worker/jobs/{episode_id}/upload")
+MULTIPART_PART_SIZE = int(1.5 * 1024 * 1024)  # 1.5 MiB: cabe holgadamente bajo el límite del proxy
+MULTIPART_THRESHOLD = MULTIPART_PART_SIZE
+
+
+def _upload_part(episode_id: int, part_number: int, chunk: bytes) -> None:
+    url = _url(f"/api/worker/jobs/{episode_id}/upload-part/{part_number}")
     headers = {"Authorization": f"Bearer {WORKER_TOKEN}"}
+    files = {"audio": (f"part_{part_number:04d}", chunk, "application/octet-stream")}
+    resp = requests.post(url, headers=headers, files=files, timeout=120)
+    resp.raise_for_status()
+
+
+def upload_audio(episode_id: int, file_path: Path) -> str:
+    """Sube el archivo de audio al backend y devuelve la URL pública del recurso.
+
+    Archivos pequeños suben en un único POST; los grandes (>= ~1.5 MiB) suben
+    por partes (< 2 MiB cada una) y se ensamblan en el servidor, para evitar
+    el límite de cuerpo del proxy intermedio.
+    """
+    headers = {"Authorization": f"Bearer {WORKER_TOKEN}"}
+    file_size = os.path.getsize(file_path)
+
+    if file_size < MULTIPART_THRESHOLD:
+        url = _url(f"/api/worker/jobs/{episode_id}/upload")
+        with open(file_path, "rb") as f:
+            files = {"audio": (file_path.name, f, "audio/mpeg")}
+            resp = requests.post(url, headers=headers, files=files, timeout=300)
+        resp.raise_for_status()
+        return resp.json()["audio_url"]
+
+    total_parts = (file_size + MULTIPART_PART_SIZE - 1) // MULTIPART_PART_SIZE
+    logger.info(f"Subiendo {file_path} ({file_size} bytes) en {total_parts} partes")
     with open(file_path, "rb") as f:
-        files = {"audio": (file_path.name, f, "audio/mpeg")}
-        resp = requests.post(url, headers=headers, files=files, timeout=300)
+        for part_number in range(total_parts):
+            chunk = f.read(MULTIPART_PART_SIZE)
+            _upload_part(episode_id, part_number, chunk)
+
+    url = _url(f"/api/worker/jobs/{episode_id}/assemble")
+    resp = requests.post(
+        url,
+        headers={**headers, "Content-Type": "application/json"},
+        json={"filename": file_path.name, "parts": total_parts},
+        timeout=120,
+    )
     resp.raise_for_status()
     return resp.json()["audio_url"]
 
