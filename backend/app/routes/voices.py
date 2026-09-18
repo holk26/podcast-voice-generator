@@ -15,6 +15,9 @@ router = APIRouter()
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".opus"}
 
+# Directorio de muestras de voz clonada (volumen persistente /app/voices).
+CLONES_DIR = BASE_DIR / "voices" / "clones"
+
 # Motores disponibles para voces clonadas. Cada wav se expone dos veces,
 # una por motor, para que el usuario elija en el dropdown de la UI.
 CLONE_ENGINES = ("higgs", "qwen3")
@@ -22,7 +25,7 @@ CLONE_ENGINES = ("higgs", "qwen3")
 # Voces clonadas conocidas por la aplicación. Los archivos de referencia
 # reales viven en el worker local; el backend solo expone los metadatos
 # para que el frontend pueda seleccionarlos.
-LOCAL_CLONE_NAMES = ("alejandra", "alejandra_original", "homero_referencia", "eduardo_aponte")
+LOCAL_CLONE_NAMES = ("alejandra", "alejandra_original", "homero_referencia", "eduardo_aponte", "yolis")
 
 
 class VoiceResponse(BaseModel):
