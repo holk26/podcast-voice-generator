@@ -53,6 +53,36 @@ class TestAuthEndpoints:
         r_new = client.post("/api/auth/login", json={"username": "admin_sync", "password": "segunda"})
         assert r_new.status_code == 200
 
+
+class TestAdminUsers:
+    def test_list_and_delete_user(self):
+        os.environ["ADMIN_USER"] = "admin_env"
+        os.environ["ADMIN_PASSWORD"] = "x"
+        client.post("/api/auth/login", json={"username": "admin_env", "password": "x"})
+        client.post("/api/auth/login", json={"username": "usuario_borrable", "password": "nunca_existio"})
+
+        from backend.app.database import SessionLocal
+        from backend.app.models import User
+        db = SessionLocal()
+        db.add(User(username="usuario_borrable", password_hash=get_password_hash("pw"), is_admin=False))
+        db.commit()
+        db.close()
+
+        users = client.get("/api/admin/users")
+        assert users.status_code == 200
+        names = [u["username"] for u in users.json()]
+        assert "usuario_borrable" in names
+
+        # El admin del entorno no se puede borrar
+        r_env = client.delete("/api/admin/users/admin_env")
+        assert r_env.status_code == 400
+
+        r_del = client.delete("/api/admin/users/usuario_borrable")
+        assert r_del.status_code == 204
+
+        r_again = client.delete("/api/admin/users/usuario_borrable")
+        assert r_again.status_code == 404
+
     def test_me_requires_token(self):
         response = client.get("/api/auth/me")
         # In test mode REQUIRE_AUTH is false, so it returns the dummy user

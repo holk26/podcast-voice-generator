@@ -4,11 +4,37 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from backend.app.config import WORKER_TOKEN
+from backend.app.database import get_db
 from backend.app.dependencies import require_admin
 from backend.app.models import User
 from backend.app.services.llm_provider import save_kimi_api_key, save_gemini_api_key, save_opencodego_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/users", response_model=list)
+def list_users(db=Depends(get_db), admin_user: User = Depends(require_admin)):
+    """Lista usuarios registrados (username, is_admin)."""
+    users = db.query(User).order_by(User.id).all()
+    return [{"id": u.id, "username": u.username, "is_admin": u.is_admin} for u in users]
+
+
+@router.delete("/users/{username}", status_code=204)
+def delete_user(username: str, db=Depends(get_db), admin_user: User = Depends(require_admin)):
+    """Elimina un usuario. Protegido: no se puede borrar el admin configurado
+    en ADMIN_USER ni a uno mismo."""
+    import os
+    env_admin = os.getenv("ADMIN_USER", "admin")
+    if username == env_admin:
+        raise HTTPException(status_code=400, detail="No se puede borrar el admin configurado en ADMIN_USER")
+    if username == admin_user.username:
+        raise HTTPException(status_code=400, detail="No puedes borrar tu propio usuario")
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    db.delete(user)
+    db.commit()
+    return None
 
 
 class KimiTokenRequest(BaseModel):
