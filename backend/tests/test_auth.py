@@ -40,6 +40,19 @@ class TestAuthEndpoints:
         response = client.post("/api/auth/login", json={"username": "admin_test", "password": "wrong"})
         assert response.status_code == 401
 
+    def test_env_password_change_syncs_existing_admin(self):
+        """Cambiar ADMIN_PASSWORD en el entorno actualiza la contraseña del admin existente."""
+        os.environ["ADMIN_USER"] = "admin_sync"
+        os.environ["ADMIN_PASSWORD"] = "primera"
+        r1 = client.post("/api/auth/login", json={"username": "admin_sync", "password": "primera"})
+        assert r1.status_code == 200
+
+        os.environ["ADMIN_PASSWORD"] = "segunda"
+        r_old = client.post("/api/auth/login", json={"username": "admin_sync", "password": "primera"})
+        assert r_old.status_code == 401
+        r_new = client.post("/api/auth/login", json={"username": "admin_sync", "password": "segunda"})
+        assert r_new.status_code == 200
+
     def test_me_requires_token(self):
         response = client.get("/api/auth/me")
         # In test mode REQUIRE_AUTH is false, so it returns the dummy user

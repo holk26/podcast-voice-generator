@@ -30,10 +30,17 @@ def _admin_credentials() -> tuple[str, str]:
 
 
 def _ensure_admin_user(db: Session) -> Optional[User]:
-    """Crea el usuario admin desde variables de entorno si no existe."""
+    """Crea el usuario admin desde variables de entorno si no existe.
+
+    Si existe y el entorno define ADMIN_PASSWORD_HASH o ADMIN_PASSWORD,
+    sincroniza el hash: así cambiar la variable en el despliegue actualiza
+    la contraseña sin tocar la base de datos a mano."""
     admin_user, password_hash = _admin_credentials()
     existing = db.query(User).filter(User.username == admin_user).first()
     if existing:
+        if password_hash and existing.password_hash != password_hash:
+            existing.password_hash = password_hash
+            db.commit()
         return existing
 
     if not password_hash:
