@@ -93,3 +93,39 @@ def test_publish_episode_not_found():
     with TestClient(app) as client:
         assert client.post("/api/episodes/99999/publish").status_code == 404
         assert client.post("/api/episodes/99999/unpublish").status_code == 404
+
+
+def test_delete_episode_unlinks_content_plan_entries():
+    """Borrar un episodio referenciado por el plan de contenido debe desvincularlo (no 500)."""
+    with TestClient(app) as client:
+        ch_resp = client.post("/api/channels", json={"name": "Canal test delete", "default_voice_id": "jorge"})
+        assert ch_resp.status_code == 201
+        channel_id = ch_resp.json()["id"]
+
+        ep_resp = client.post("/api/episodes", json={
+            "title": "A borrar",
+            "type": "podcast",
+            "source_text": "Texto",
+            "voice_id": "jorge",
+        })
+        episode_id = ep_resp.json()["id"]
+
+        entry_resp = client.post(f"/api/channels/{channel_id}/plan", json={
+            "title": "Entrada vinculada",
+            "episode_id": episode_id,
+        })
+        assert entry_resp.status_code == 201
+        entry_id = entry_resp.json()["id"]
+
+        del_resp = client.delete(f"/api/episodes/{episode_id}")
+        assert del_resp.status_code == 204
+
+        from backend.app.database import SessionLocal
+        from backend.app.models import ContentPlanEntry
+        db = SessionLocal()
+        entry = db.query(ContentPlanEntry).filter(ContentPlanEntry.id == entry_id).first()
+        db.close()
+        assert entry is not None
+        assert entry.episode_id is None
+
+        client.delete(f"/api/channels/{channel_id}")

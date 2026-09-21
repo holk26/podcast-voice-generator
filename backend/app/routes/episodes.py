@@ -6,7 +6,7 @@ from typing import List
 import json
 import time
 from backend.app.database import get_db, SessionLocal
-from backend.app.models import Episode
+from backend.app.models import Episode, ContentPlanEntry
 from backend.app.services import worker_service
 from shared.schemas import EpisodeCreate, EpisodeResponse
 
@@ -91,6 +91,9 @@ def delete_episode(episode_id: int, db: Session = Depends(get_db)):
     episode = db.query(Episode).filter(Episode.id == episode_id).first()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
+    db.query(ContentPlanEntry).filter(ContentPlanEntry.episode_id == episode_id).update(
+        {ContentPlanEntry.episode_id: None}, synchronize_session=False
+    )
     db.delete(episode)
     db.commit()
     return None

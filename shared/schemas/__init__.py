@@ -118,7 +118,7 @@ class PlanEntryBase(BaseModel):
 
 
 class PlanEntryCreate(PlanEntryBase):
-    pass
+    episode_id: Optional[int] = None
 
 
 class PlanEntryResponse(PlanEntryBase):
