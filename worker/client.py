@@ -118,6 +118,22 @@ def complete_job(episode_id: int, audio_url: str) -> None:
             raise RuntimeError(f"Unexpected status completing job: {resp.status}")
 
 
+def send_heartbeat(episode_id: int) -> None:
+    """Renueva el lease del episodio en running. Nunca lanza: es opcional."""
+    try:
+        req = urllib.request.Request(
+            _url(f"/api/worker/jobs/{episode_id}/heartbeat"),
+            data=b"",
+            headers=_headers(),
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            if resp.status not in (200, 204):
+                raise RuntimeError(f"heartbeat status {resp.status}")
+    except Exception as e:
+        logger.debug(f"Heartbeat {episode_id} no enviado: {e}")
+
+
 def fail_job(episode_id: int, error: str) -> None:
     req = urllib.request.Request(
         _url(f"/api/worker/jobs/{episode_id}/fail"),

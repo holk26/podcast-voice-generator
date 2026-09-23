@@ -1,4 +1,5 @@
 import os
+import threading
 import time
 import logging
 from datetime import datetime
@@ -7,6 +8,10 @@ import worker.client as client
 from worker.handlers import handle_podcast_episode
 
 logger = logging.getLogger(__name__)
+
+# Intervalo entre heartbeats mientras se procesa un episodio. Debe ser
+# claramente menor que WORKER_LEASE_MINUTES del backend (default 45 min).
+HEARTBEAT_SECONDS = int(os.getenv("WORKER_HEARTBEAT_SECONDS", "300"))
 
 # Hora local a la que se ejecuta la producción diaria de los canales en
 # piloto automático (temporadas + guiones del día). Configurable por env.
@@ -26,6 +31,16 @@ def _process_single_job() -> bool:
         return False
 
     logger.info(f"Processing episode {job.episode_id}: {job.title}")
+    # Heartbeats en segundo plano: renuevan el lease para que el backend
+    # no reencole el episodio si la síntesis dura más que el lease.
+    stop = threading.Event()
+
+    def _heartbeat_loop():
+        while not stop.wait(HEARTBEAT_SECONDS):
+            client.send_heartbeat(job.episode_id)
+
+    hb_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    hb_thread.start()
     try:
         output_path = handle_podcast_episode(job)
         if UPLOAD_AUDIO:
@@ -42,6 +57,8 @@ def _process_single_job() -> bool:
         except Exception as e2:
             logger.error(f"Could not report failure for episode {job.episode_id}: {e2}")
         return True
+    finally:
+        stop.set()
 
 
 def _drain_pending_jobs() -> None:

@@ -57,6 +57,23 @@ def next_job(
     return _episode_to_job(episode, db)
 
 
+@router.post("/jobs/{episode_id}/heartbeat", response_model=dict)
+def heartbeat_job(
+    episode_id: int,
+    db: Session = Depends(get_db),
+    token: str = Depends(require_worker_token),
+):
+    """Heartbeat del worker: renueva el lease de un episodio en running.
+
+    Sin heartbeats durante WORKER_LEASE_MINUTES, el backend considera el
+    episodio huérfano y lo reencola automáticamente.
+    """
+    episode = worker_service.touch_running(db, episode_id)
+    if episode is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Episode not running")
+    return {"status": "ok"}
+
+
 @router.post("/jobs/{episode_id}/complete", response_model=dict)
 def complete_job(
     episode_id: int,

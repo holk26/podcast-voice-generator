@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -137,4 +138,92 @@ class TestWorkerCompleteFail:
             json={"audio_url": "/outputs/123/final.mp3"},
             headers=_auth_headers(),
         )
+        assert response.status_code == 404
+
+
+class TestWorkerLeaseRecovery:
+    def test_stale_running_gets_requeued_and_claimed(self):
+        """Un running huérfano (sin heartbeat en >45 min) se reencola solo."""
+        from datetime import datetime, timedelta, timezone
+        from backend.app.services import worker_service
+
+        db = SessionLocal()
+        db.query(Episode).filter(Episode.status == "pending").delete()
+        stale = Episode(
+            title="Running huérfano",
+            type="podcast",
+            source_text="Hola",
+            voice_id="jorge",
+            status="running",
+            updated_at=datetime.now(timezone.utc) - timedelta(minutes=worker_service.LEASE_MINUTES + 5),
+        )
+        db.add(stale)
+        db.commit()
+        db.refresh(stale)
+        stale_id = stale.id
+        db.close()
+
+        response = client.get("/api/worker/jobs/next", headers=_auth_headers())
+        assert response.status_code == 200
+        assert response.json()["episode_id"] == stale_id
+
+    def test_fresh_running_survives_claim(self):
+        """Un running con heartbeat reciente NO se reencola."""
+        from datetime import datetime, timezone
+
+        db = SessionLocal()
+        db.query(Episode).filter(Episode.status == "pending").delete()
+        fresh = Episode(
+            title="Running vivo",
+            type="podcast",
+            source_text="Hola",
+            voice_id="jorge",
+            status="running",
+            updated_at=datetime.now(timezone.utc),
+        )
+        db.add(fresh)
+        db.commit()
+        db.refresh(fresh)
+        fresh_id = fresh.id
+        db.close()
+
+        response = client.get("/api/worker/jobs/next", headers=_auth_headers())
+        assert response.status_code == 204
+
+        db = SessionLocal()
+        still = db.query(Episode).filter(Episode.id == fresh_id).first()
+        assert still.status == "running"
+        db.close()
+
+    def test_heartbeat_renews_lease(self):
+        """El endpoint heartbeat renueva updated_at de un running."""
+        from backend.app.services import worker_service
+
+        db = SessionLocal()
+        ep = Episode(title="HB test", type="podcast", source_text="Hola", voice_id="jorge", status="running")
+        db.add(ep)
+        db.commit()
+        db.refresh(ep)
+        ep_id = ep.id
+        db.close()
+
+        response = client.post(f"/api/worker/jobs/{ep_id}/heartbeat", headers=_auth_headers())
+        assert response.status_code == 200
+
+        db = SessionLocal()
+        ep = db.query(Episode).filter(Episode.id == ep_id).first()
+        age = datetime.now(timezone.utc) - ep.updated_at.replace(tzinfo=timezone.utc) if ep.updated_at.tzinfo is None else datetime.now(timezone.utc) - ep.updated_at
+        assert age.total_seconds() < 10
+        db.close()
+
+    def test_heartbeat_on_non_running_returns_404(self):
+        db = SessionLocal()
+        ep = Episode(title="HB 404", type="podcast", source_text="Hola", voice_id="jorge", status="completed")
+        db.add(ep)
+        db.commit()
+        db.refresh(ep)
+        ep_id = ep.id
+        db.close()
+
+        response = client.post(f"/api/worker/jobs/{ep_id}/heartbeat", headers=_auth_headers())
         assert response.status_code == 404
