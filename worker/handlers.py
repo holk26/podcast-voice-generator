@@ -3,10 +3,12 @@ import edge_tts
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 from shared.config import BASE_DIR, OUTPUT_DIR
@@ -277,6 +279,16 @@ def _synthesize_dialogue(plan: list[dict], output_path: Path) -> None:
         )
 
 
+def _episode_slug(title: str) -> str:
+    """Nombre de archivo a partir del título del episodio: sin acentos,
+    espacios y caracteres especiales convertidos a '_' (p. ej.
+    'MUNDO AHORA — Jueves 24' -> 'mundo_ahora_jueves_24')."""
+    slug = unicodedata.normalize("NFKD", title or "")
+    slug = "".join(c for c in slug if not unicodedata.combining(c))
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", slug).strip("_").lower()
+    return slug[:80] or "episodio"
+
+
 def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
     """Voces clonadas: genera audio localmente con Higgs/Qwen3 en el worker.
 
@@ -288,7 +300,7 @@ def _handle_cloned_episode(job: WorkerJob, output_dir: Path) -> Path:
     """
     import tempfile
 
-    output_path = output_dir / "final.mp3"
+    output_path = output_dir / f"{_episode_slug(job.title)}.mp3"
     source_text = _strip_music_markers(job.source_text or "")
 
     dialogue_plan = _resolve_dialogue_plan(source_text, job)
@@ -655,7 +667,7 @@ def handle_podcast_episode(job: WorkerJob) -> Path:
         # corre antes de mezclar la música de fondo.
         shutil.copy2(output_path, output_dir / "voice_dry.mp3")
     else:
-        output_path = output_dir / "final.mp3"
+        output_path = output_dir / f"{_episode_slug(job.title)}.mp3"
         voice = VOICE_MAP.get(job.voice_id, DEFAULT_VOICE)
 
         async def _run():
