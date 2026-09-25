@@ -67,6 +67,16 @@ def _drain_pending_jobs() -> None:
         pass
 
 
+def _drain_safe() -> None:
+    """Drenaje que no puede matar el hilo del loop: un fallo de red
+    temporal del backend (502/DNS) se registra y se reintenta en el
+    próximo ciclo en vez de terminar el thread de procesamiento."""
+    try:
+        _drain_pending_jobs()
+    except Exception as e:
+        logger.error(f"Drain de jobs falló (se reintenta en el próximo ciclo): {e}")
+
+
 def _autopilot_due(last_run_date: str | None) -> bool:
     """True si hoy ya pasó la hora de ejecución y aún no se ha corrido hoy."""
     now = datetime.now()
@@ -100,14 +110,14 @@ def run_loop():
         except Exception as e:
             logger.error(f"Autopilot tick failed: {e}")
 
-        _drain_pending_jobs()
+        _drain_safe()
 
         if use_sse:
             try:
                 logger.info("Connecting to backend SSE stream...")
                 for event in client.listen_sse():
                     if event.get("type") == "new_job":
-                        _drain_pending_jobs()
+                        _drain_safe()
                     elif event.get("type") == "disconnected":
                         raise ConnectionError("SSE disconnected")
                 # Si el stream termina limpiamente, reconectamos
@@ -118,7 +128,7 @@ def run_loop():
 
         # Modo polling de respaldo
         time.sleep(POLL_BACKUP_SECONDS)
-        _drain_pending_jobs()
+        _drain_safe()
 
         # Reintentar SSE periódicamente
         if int(time.time()) % 60 < POLL_BACKUP_SECONDS:

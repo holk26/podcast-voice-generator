@@ -71,14 +71,14 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
       )}
 
       <div className="mt-3 flex gap-4">
-        {episode.status === 'failed' && (
+        {(episode.status === 'failed' || episode.status === 'running') && (
           <button
             type="button"
             onClick={() => onRetry(episode.id)}
             aria-label={`Reintentar episodio ${episode.title}`}
             className="text-blue-400 text-sm hover:text-blue-300 hover:underline transition-colors"
           >
-            Reintentar
+            {episode.status === 'running' ? 'Reintentar (atascado)' : 'Reintentar'}
           </button>
         )}
         {episode.status === 'completed' && !published && (

@@ -105,8 +105,8 @@ def retry_episode(episode_id: int, db: Session = Depends(get_db)):
     episode = db.query(Episode).filter(Episode.id == episode_id).first()
     if not episode:
         raise HTTPException(status_code=404, detail="Episode not found")
-    if episode.status != "failed":
-        raise HTTPException(status_code=400, detail="Solo se pueden reintentar episodios fallidos")
+    if episode.status not in ("failed", "running"):
+        raise HTTPException(status_code=400, detail="Solo se pueden reintentar episodios fallidos o atascados en ejecución")
     episode.status = "pending"
     episode.error_message = None
     episode.audio_url = None
