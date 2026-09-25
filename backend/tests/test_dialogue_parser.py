@@ -27,3 +27,22 @@ def test_parse_case_insensitive():
     segments = parse_dialogue(script)
     assert segments[0].speaker == "Alejandra"
     assert segments[1].speaker == "Homero"
+
+
+def test_parse_valid_speakers_ignores_colon_sentences():
+    # Frase narrativa seguida de dos puntos: NO es un turno de diálogo.
+    script = (
+        "Hola, soy Alejandra.\n"
+        "Hoy vamos a responder una pregunta que casi nadie se hace: "
+        "como es posible que nadie hiciera nada.\n"
+        "Eduardo: Empecemos.\n"
+        "Yolis: De acuerdo."
+    )
+    segments = parse_dialogue(script, valid_speakers={"Eduardo", "Yolis"})
+    assert [s.speaker for s in segments] == ["Eduardo", "Yolis"]
+
+
+def test_parse_without_valid_speakers_keeps_legacy_behavior():
+    script = "Alejandra: Hola.\nHomero: Adios."
+    segments = parse_dialogue(script)
+    assert len(segments) == 2

@@ -197,7 +197,7 @@ def _resolve_dialogue_plan(
     voice_map = {k.strip().title(): v for k, v in (job.speaker_voices or {}).items()}
     if not voice_map:
         return None
-    segments = parse_dialogue(source_text)
+    segments = parse_dialogue(source_text, valid_speakers=set(voice_map))
     if len(segments) < 2:
         return None
     plan = []
