@@ -13,6 +13,7 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
   const retryEpisode = useEpisodeStore((s) => s.retryEpisode)
   const [text, setText] = useState(episode.source_text || '')
   const [title, setTitle] = useState(episode.title)
+  const [description, setDescription] = useState(episode.description || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -36,7 +37,7 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
     setError(null)
     setSaved(false)
     try {
-      await updateEpisode(episode.id, { title, source_text: text })
+      await updateEpisode(episode.id, { title, source_text: text, description })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err: unknown) {
@@ -50,7 +51,7 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
     setSaving(true)
     setError(null)
     try {
-      await updateEpisode(episode.id, { title, source_text: text })
+      await updateEpisode(episode.id, { title, source_text: text, description })
       await retryEpisode(episode.id)
       onClose()
     } catch (err: unknown) {
@@ -94,6 +95,20 @@ export default function ScriptEditorModal({ episode, onClose }: Props) {
             onChange={(e) => setTitle(e.target.value)}
             className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
             placeholder="Título del episodio..."
+          />
+        </div>
+
+        {/* Description field */}
+        <div className="px-5 pt-3 shrink-0">
+          <label className="block text-xs font-medium text-slate-400 mb-1 uppercase tracking-wider">
+            Descripción
+          </label>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+            placeholder="Descripción del episodio (opcional)..."
           />
         </div>
 

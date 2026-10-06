@@ -20,6 +20,7 @@ class Episode(Base):
     target_duration_minutes = Column(Float, nullable=True)
     published_at = Column(DateTime, nullable=True)  # marca manual de publicación
     channel_id = Column(Integer, ForeignKey("channels.id"), nullable=True)
+    description = Column(Text, nullable=True)
 
 
 class Channel(Base):

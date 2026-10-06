@@ -49,6 +49,9 @@ export default function EpisodeCard({ episode, onDelete, onRetry, highlighted }:
         <div>
           <h3 className="font-bold text-lg tracking-tight text-slate-100">{episode.title}</h3>
           <p className="text-sm text-slate-400">{episode.type} • {episode.voice_id}</p>
+          {episode.description && (
+            <p className="text-sm text-slate-300 mt-1 whitespace-pre-wrap">{episode.description}</p>
+          )}
         </div>
         <div className="flex gap-2">
           {published && (

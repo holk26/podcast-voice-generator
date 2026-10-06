@@ -12,11 +12,12 @@ export default function CreateEpisodeForm({ onSubmit, loading }: Props) {
   const [title, setTitle] = useState('')
   const [type, setType] = useState('podcast')
   const [sourceText, setSourceText] = useState('')
+  const [description, setDescription] = useState('')
   const [voiceId, setVoiceId] = useState('')
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    onSubmit({ title, type, source_text: sourceText, voice_id: voiceId })
+    onSubmit({ title, type, source_text: sourceText, voice_id: voiceId, description })
   }
 
   return (
@@ -61,6 +62,16 @@ export default function CreateEpisodeForm({ onSubmit, loading }: Props) {
             </option>
           ))}
         </select>
+      </div>
+
+      <div>
+        <label className="block font-medium text-slate-200 mb-1">Descripción</label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="w-full p-2 bg-slate-800 border border-slate-600 text-slate-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
       </div>
 
       <div>

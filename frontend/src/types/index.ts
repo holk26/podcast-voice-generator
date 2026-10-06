@@ -21,6 +21,7 @@ export interface Episode {
   error_message?: string
   published_at?: string | null
   channel_id?: number | null
+  description?: string | null
   created_at: string
   updated_at: string
 }
@@ -30,6 +31,7 @@ export interface CreateEpisodeRequest {
   type: string
   source_text?: string
   voice_id: string
+  description?: string
 }
 
 export type ChannelFormat = 'podcast' | 'news' | 'meditation' | 'motivation'

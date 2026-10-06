@@ -44,6 +44,7 @@ def _migrate() -> None:
         "episodes": [
             ("published_at", "TIMESTAMP"),
             ("channel_id", "INTEGER"),
+            ("description", "TEXT"),
         ],
     }
 
