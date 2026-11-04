@@ -58,3 +58,5 @@ kimi-export-session*.md
 .playwright-mcp/
 "=2.9.0"
 "Lindsay Clancy_ Informe de investigación y análisis de evidencia.md"
+# scripts de episodios (contenido, no codigo)
+*.pdf
